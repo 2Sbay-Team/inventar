@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Naili Shoes — first mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@400;500;600;700&family=Funnel+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F4F1EA;
+    --paper-deep: #EBE6DA;
+    --ink: #1B1815;
+    --ink-2: #4A4339;
+    --ink-3: #8A8073;
+    --ink-4: #B8AE9F;
+    --hair: rgba(27, 24, 21, 0.08);
+    --hair-2: rgba(27, 24, 21, 0.14);
+
+    --accent: #B8642C;          /* cognac */
+    --accent-soft: #F4E4D2;
+    --accent-ink: #6B3815;
+
+    --ok: #3D6B47;
+    --ok-soft: #DCE8DC;
+
+    --warn: #A8741C;
+    --warn-soft: #F2E5C9;
+
+    --bad: #8C3C32;
+    --bad-soft: #EBD5D0;
+
+    --device: #16140F;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Funnel Sans', system-ui, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(184, 100, 44, 0.04) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(27, 24, 21, 0.025) 0%, transparent 40%);
+    background-attachment: fixed;
+  }
+
+  /* ── header ───────────────────────────────────────────────── */
+  .top-bar {
+    border-bottom: 1px solid var(--hair);
+    padding: 28px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .brand-mark {
+    font-family: 'Funnel Display', serif;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .brand-mark::before {
+    content: '◢';
+    color: var(--accent);
+    margin-right: 8px;
+    font-size: 14px;
+    vertical-align: 2px;
+  }
+  .brand-sub {
+    font-family: 'Funnel Sans';
+    font-size: 12px;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  .meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    line-height: 1.7;
+  }
+  .meta strong {
+    color: var(--ink-2);
+    font-weight: 500;
+  }
+
+  /* ── headline ─────────────────────────────────────────────── */
+  .headline {
+    padding: 56px 48px 32px;
+    max-width: 880px;
+  }
+  .headline h1 {
+    font-family: 'Funnel Display', serif;
+    font-weight: 500;
+    font-size: 38px;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+  }
+  .headline h1 em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .headline p {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--ink-2);
+    max-width: 540px;
+    line-height: 1.7;
+  }
+
+  /* ── deck of phones ──────────────────────────────────────── */
+  .deck {
+    padding: 24px 48px 64px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 36px;
+    align-items: start;
+    max-width: 1400px;
+  }
+  @media (max-width: 1100px) {
+    .deck { grid-template-columns: 1fr; max-width: 380px; margin: 0 auto; gap: 56px; }
+    .top-bar, .headline { padding-left: 24px; padding-right: 24px; }
+    .deck { padding: 24px 24px 64px; }
+  }
+
+  .frame {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .frame-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .frame-label .num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--paper);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .frame-label .line {
+    flex: 1;
+    height: 1px;
+    background: var(--hair);
+  }
+  .frame-caption {
+    font-family: 'Funnel Display', serif;
+    font-size: 16px;
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin-top: -10px;
+  }
+  .frame-note {
+    font-size: 12px;
+    color: var(--ink-3);
+    line-height: 1.6;
+    margin-top: -10px;
+  }
+
+  /* ── phone ────────────────────────────────────────────────── */
+  .phone {
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    background: var(--device);
+    border-radius: 44px;
+    padding: 8px;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 30px 60px -30px rgba(27, 24, 21, 0.25),
+      0 8px 20px -8px rgba(27, 24, 21, 0.12);
+  }
+  .screen {
+    background: #FFFFFF;
+    border-radius: 36px;
+    overflow: hidden;
+    aspect-ratio: 9 / 19;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── status bar ──────────────────────────────────────────── */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 28px 6px;
+    font-family: 'Funnel Sans';
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+  .status-bar .icons {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .battery {
+    width: 22px;
+    height: 11px;
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    position: relative;
+    padding: 1px;
+  }
+  .battery::after {
+    content: '';
+    position: absolute;
+    right: -3px;
+    top: 3px;
+    width: 2px;
+    height: 5px;
+    background: var(--ink);
+    border-radius: 0 1px 1px 0;
+  }
+  .battery span {
+    display: block;
+    height: 100%;
+    background: var(--ink);
+    border-radius: 1px;
+  }
+
+  /* ── app header ──────────────────────────────────────────── */
+  .app-header {
+    padding: 12px 22px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--hair);
+  }
+  .app-header h2 {
+    font-family: 'Funnel Display', serif;
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+  .app-header .meta-line {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink-3);
+    margin-top: 4px;
+    letter-spacing: 0.01em;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 8px;
+    background: var(--ok-soft);
+    color: var(--ok);
+    font-size: 10.5px;
+    font-weight: 500;
+    border-radius: 100px;
+    letter-spacing: 0.02em;
+  }
+  .pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 3px rgba(61, 107, 71, 0.18);
+  }
+
+  /* ── search bar ──────────────────────────────────────────── */
+  .search {
+    margin: 14px 18px 6px;
+    background: var(--paper);
+    border: 1px solid var(--hair);
+    border-radius: 14px;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  .search svg {
+    color: var(--ink-3);
+    flex-shrink: 0;
+  }
+  .search-text {
+    font-size: 14px;
+    color: var(--ink);
+    flex: 1;
+    font-feature-settings: 'tnum';
+  }
+  .search-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+
+  .recent {
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .recent-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-4);
+  }
+  .recent-chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--paper-deep);
+    border-radius: 100px;
+    color: var(--ink-2);
+    font-feature-settings: 'tnum';
+  }
+
+  /* ── result list ─────────────────────────────────────────── */
+  .results {
+    padding: 6px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .result {
+    display: flex;
+    gap: 12px;
+    padding: 11px;
+    border: 1px solid var(--hair);
+    border-radius: 14px;
+    background: #FFFFFF;
+    transition: border-color 0.15s;
+  }
+  .result.featured {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--accent-soft) 200%);
+  }
+  .photo {
+    width: 56px;
+    height: 56px;
+    background: var(--paper-deep);
+    border-radius: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-4);
+    border: 1px solid var(--hair);
+  }
+  .result-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .result-name {
+    font-family: 'Funnel Display', serif;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+    letter-spacing: -0.005em;
+  }
+  .result-price {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-2);
+    font-weight: 500;
+    flex-shrink: 0;
+    font-feature-settings: 'tnum';
+  }
+  .result-sku {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink-4);
+    letter-spacing: 0.02em;
+  }
+  .badge {
+    margin-top: 6px;
+    align-self: flex-start;
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 5px;
+    letter-spacing: 0.005em;
+    font-feature-settings: 'tnum';
+  }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.bad { background: var(--bad-soft); color: var(--bad); }
+
+  /* ── bottom nav ──────────────────────────────────────────── */
+  .bottom-nav {
+    border-top: 1px solid var(--hair);
+    padding: 12px 0 18px;
+    display: flex;
+    justify-content: space-around;
+    flex-shrink: 0;
+    background: #FFFFFF;
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-3);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .nav-item.active {
+    color: var(--accent);
+  }
+  .nav-item svg { width: 18px; height: 18px; }
+
+  /* ── detail screen ───────────────────────────────────────── */
+  .detail-bar {
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--hair);
+    flex-shrink: 0;
+  }
+  .detail-bar .back, .detail-bar .more {
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .detail-bar .sku {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+  }
+
+  .hero-photo {
+    margin: 16px 18px 14px;
+    aspect-ratio: 16 / 11;
+    background: var(--paper-deep);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-4);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-photo::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(135deg, transparent 40%, rgba(184, 100, 44, 0.04) 100%);
+  }
+
+  .detail-titles {
+    padding: 0 18px 12px;
+  }
+  .detail-titles h3 {
+    font-family: 'Funnel Display', serif;
+    font-weight: 500;
+    font-size: 19px;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    line-height: 1.15;
+  }
+  .detail-titles .subt {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+  .detail-pricing {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--hair);
+  }
+  .price-block {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .price-block .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--ink-4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .price-block .val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 600;
+    font-feature-settings: 'tnum';
+  }
+  .stock-badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--ok-soft);
+    color: var(--ok);
+    border-radius: 100px;
+    font-weight: 500;
+  }
+
+  /* ── size grid ────────────────────────────────────────────── */
+  .sizes {
+    padding: 14px 18px;
+    border-top: 1px solid var(--hair);
+  }
+  .sizes-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 11px;
+  }
+  .sizes-head h4 {
+    font-family: 'Funnel Display', serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .sizes-head .hint {
+    font-size: 10.5px;
+    color: var(--ink-4);
+  }
+  .size-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+  }
+  .size-cell {
+    aspect-ratio: 1 / 1.05;
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    background: #FFFFFF;
+  }
+  .size-cell .s {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    font-feature-settings: 'tnum';
+  }
+  .size-cell .q {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--ink-4);
+    font-feature-settings: 'tnum';
+  }
+  .size-cell.has { background: var(--ok-soft); border-color: rgba(61, 107, 71, 0.2); }
+  .size-cell.has .s { color: var(--ok); }
+  .size-cell.has .q { color: var(--ok); }
+  .size-cell.zero { opacity: 0.55; }
+  .size-cell.zero .s { color: var(--ink-3); }
+  .size-cell.focus {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(184, 100, 44, 0.12);
+  }
+  .size-cell.focus .s, .size-cell.focus .q { color: var(--accent-ink); }
+
+  /* ── activity ─────────────────────────────────────────────── */
+  .activity {
+    padding: 14px 18px;
+    border-top: 1px solid var(--hair);
+    flex: 1;
+    overflow-y: auto;
+  }
+  .activity h4 {
+    font-family: 'Funnel Display', serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    margin-bottom: 8px;
+  }
+  .activity ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .activity li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--ink-2);
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .activity li:last-child { border-bottom: none; padding-bottom: 0; }
+  .delta {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    margin-right: 6px;
+    font-feature-settings: 'tnum';
+  }
+  .delta.minus { color: var(--bad); }
+  .delta.plus { color: var(--ok); }
+  .activity .when {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-4);
+  }
+
+  /* ── action bar ───────────────────────────────────────────── */
+  .action-bar {
+    border-top: 1px solid var(--hair);
+    padding: 12px 14px 18px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    background: #FFFFFF;
+  }
+  .btn {
+    flex: 1;
+    padding: 13px;
+    font-family: 'Funnel Sans';
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 12px;
+    border: 1px solid var(--ink);
+    background: #FFFFFF;
+    color: var(--ink);
+    cursor: pointer;
+    letter-spacing: 0.005em;
+    transition: transform 0.1s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.primary {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .btn.accent {
+    background: var(--accent);
+    color: #FFFFFF;
+    border-color: var(--accent);
+  }
+
+  /* ── add screen ───────────────────────────────────────────── */
+  .add-bar {
+    padding: 13px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--hair);
+    flex-shrink: 0;
+  }
+  .add-bar .cancel {
+    font-size: 12px;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+  .add-bar h3 {
+    font-family: 'Funnel Display', serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .add-bar .step {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink-4);
+    font-feature-settings: 'tnum';
+  }
+
+  .photo-cta {
+    margin: 16px 18px 14px;
+    aspect-ratio: 16 / 11;
+    border: 1.5px dashed var(--hair-2);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        var(--paper),
+        var(--paper) 8px,
+        rgba(184, 100, 44, 0.025) 8px,
+        rgba(184, 100, 44, 0.025) 16px
+      );
+    color: var(--ink-2);
+  }
+  .photo-cta .label {
+    font-family: 'Funnel Display', serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .photo-cta .req {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .form {
+    padding: 0 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ink-3);
+    display: flex;
+    justify-content: space-between;
+  }
+  .field-label .auto {
+    color: var(--accent);
+    text-transform: none;
+    letter-spacing: 0.02em;
+    font-size: 9.5px;
+  }
+  .input {
+    font-size: 13px;
+    padding: 11px 13px;
+    border: 1px solid var(--hair);
+    border-radius: 11px;
+    background: #FFFFFF;
+    color: var(--ink);
+    font-feature-settings: 'tnum';
+  }
+  .input.locked {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+  }
+  .input.placeholder {
+    color: var(--ink-4);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stepper {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--hair);
+    border-radius: 11px;
+    padding: 5px 8px;
+    background: #FFFFFF;
+  }
+  .stepper button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--hair);
+    background: var(--paper);
+    border-radius: 7px;
+    font-size: 14px;
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .stepper .v {
+    flex: 1;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    font-feature-settings: 'tnum';
+  }
+  .price-input {
+    font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+    font-weight: 600;
+  }
+
+  /* ── footer ───────────────────────────────────────────────── */
+  .foot {
+    padding: 32px 48px 48px;
+    border-top: 1px solid var(--hair);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink-4);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  @media (max-width: 1100px) {
+    .foot { padding: 32px 24px; flex-direction: column; gap: 8px; }
+  }
+
+  /* small touches */
+  .ink-marker {
+    color: var(--accent);
+    font-style: italic;
+  }
+  .divider-dot {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    background: var(--ink-4);
+    border-radius: 50%;
+    margin: 0 6px;
+    vertical-align: 3px;
+  }
+</style>
+</head>
+<body>
+
+<header class="top-bar">
+  <div class="brand">
+    <div class="brand-mark">Naili Shoes</div>
+    <div class="brand-sub">Inventory tool · Sidi Bouzid, Tunisia</div>
+  </div>
+  <div class="meta">
+    <div><strong>v0.1</strong> · first mockup</div>
+    <div>nailshoes.hoodhood.ai</div>
+  </div>
+</header>
+
+<section class="headline">
+  <h1>Three screens.<br>One offline workflow <em>that just works</em>.</h1>
+  <p>The phone in Naili's hand doesn't need a notebook anymore. It searches in 200 ms, holds 500 articles offline, takes the photo of every new shoe that comes in, and remembers what was sold and when. The VPS at hoodhood.ai exists only as a backup mirror — Naili doesn't think about it.</p>
+</section>
+
+<main class="deck">
+
+  <!-- ═════════════ SCREEN 1: SEARCH ═════════════ -->
+  <div class="frame">
+    <div class="frame-label">
+      <span class="num">1</span>
+      <span>Search</span>
+      <span class="line"></span>
+    </div>
+    <div class="frame-caption">The customer is on the phone.</div>
+    <div class="frame-note">Naili types two words. The first result answers the call. The second offers a near-match. Total time: 4 seconds.</div>
+    <div class="phone">
+      <div class="screen">
+
+        <div class="status-bar">
+          <span>14:23</span>
+          <span class="icons">
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;">4G</span>
+            <span class="battery"><span style="width: 78%;"></span></span>
+          </span>
+        </div>
+
+        <div class="app-header">
+          <div>
+            <h2>Naili Shoes</h2>
+            <div class="meta-line">124 articles <span class="divider-dot"></span> 420 items</div>
+          </div>
+          <span class="pill"><span class="dot"></span>Offline</span>
+        </div>
+
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <span class="search-text">white 42</span>
+          <span class="search-count">3 found</span>
+        </div>
+
+        <div class="recent">
+          <span class="recent-label">Recent</span>
+          <span class="recent-chip">brown 40</span>
+          <span class="recent-chip">SH-0042</span>
+        </div>
+
+        <div class="results">
+
+          <div class="result featured">
+            <div class="photo">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6l1-2h6l1 2"/></svg>
+            </div>
+            <div class="result-body">
+              <div class="result-row">
+                <span class="result-name">White running shoe</span>
+                <span class="result-price">68 TND</span>
+              </div>
+              <span class="result-sku">SH-0042 · Lotto · sport</span>
+              <span class="badge ok">In stock · 2 in size 42</span>
+            </div>
+          </div>
+
+          <div class="result">
+            <div class="photo">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6l1-2h6l1 2"/></svg>
+            </div>
+            <div class="result-body">
+              <div class="result-row">
+                <span class="result-name">Slim white sneaker</span>
+                <span class="result-price">95 TND</span>
+              </div>
+              <span class="result-sku">SH-0078 · low cut</span>
+              <span class="badge warn">42 out · 41 and 43 in stock</span>
+            </div>
+          </div>
+
+          <div class="result">
+            <div class="photo">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6l1-2h6l1 2"/></svg>
+            </div>
+            <div class="result-body">
+              <div class="result-row">
+                <span class="result-name">Classic white loafer</span>
+                <span class="result-price">110 TND</span>
+              </div>
+              <span class="result-sku">SH-0061 · leather</span>
+              <span class="badge ok">4 in size 42</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bottom-nav">
+          <span class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            Search
+          </span>
+          <span class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            List
+          </span>
+          <span class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Add
+          </span>
+          <span class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════ SCREEN 2: ARTICLE DETAIL ═════════════ -->
+  <div class="frame">
+    <div class="frame-label">
+      <span class="num">2</span>
+      <span>Article</span>
+      <span class="line"></span>
+    </div>
+    <div class="frame-caption">Every size in one glance.</div>
+    <div class="frame-note">A dense grid replaces a notebook page. The sale's been logged — quantity is the sum of movements, not a stored value, so two devices can edit safely.</div>
+    <div class="phone">
+      <div class="screen">
+
+        <div class="status-bar">
+          <span>14:25</span>
+          <span class="icons">
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;">4G</span>
+            <span class="battery"><span style="width: 76%;"></span></span>
+          </span>
+        </div>
+
+        <div class="detail-bar">
+          <span class="back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </span>
+          <span class="sku">SH-0042</span>
+          <span class="more">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </span>
+        </div>
+
+        <div class="hero-photo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6l1-2h6l1 2"/></svg>
+        </div>
+
+        <div class="detail-titles">
+          <h3>White running shoe</h3>
+          <div class="subt">White <span class="divider-dot"></span> Lotto <span class="divider-dot"></span> Sport</div>
+          <div class="detail-pricing">
+            <div class="price-block">
+              <span class="lbl">Cost</span>
+              <span class="val">38 TND</span>
+            </div>
+            <div class="price-block">
+              <span class="lbl">Sale</span>
+              <span class="val">68 TND</span>
+            </div>
+            <span class="stock-badge">7 in stock</span>
+          </div>
+        </div>
+
+        <div class="sizes">
+          <div class="sizes-head">
+            <h4>Stock by size</h4>
+            <span class="hint">tap to adjust</span>
+          </div>
+          <div class="size-grid">
+            <div class="size-cell zero"><span class="s">38</span><span class="q">0</span></div>
+            <div class="size-cell has"><span class="s">39</span><span class="q">1</span></div>
+            <div class="size-cell has"><span class="s">40</span><span class="q">3</span></div>
+            <div class="size-cell zero"><span class="s">41</span><span class="q">0</span></div>
+            <div class="size-cell focus"><span class="s">42</span><span class="q">2</span></div>
+            <div class="size-cell has"><span class="s">43</span><span class="q">1</span></div>
+            <div class="size-cell zero"><span class="s">44</span><span class="q">0</span></div>
+            <div class="size-cell zero"><span class="s">45</span><span class="q">0</span></div>
+          </div>
+        </div>
+
+        <div class="activity">
+          <h4>Recent activity</h4>
+          <ul>
+            <li>
+              <span><span class="delta minus">−1</span>size 42 · sale</span>
+              <span class="when">14:18</span>
+            </li>
+            <li>
+              <span><span class="delta minus">−1</span>size 40 · sale</span>
+              <span class="when">yesterday</span>
+            </li>
+            <li>
+              <span><span class="delta plus">+5</span>size 40 · purchase</span>
+              <span class="when">Mon 28 Apr</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn">− Sell</button>
+          <button class="btn primary">+ Restock</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════ SCREEN 3: ADD ARTICLE ═════════════ -->
+  <div class="frame">
+    <div class="frame-label">
+      <span class="num">3</span>
+      <span>Add</span>
+      <span class="line"></span>
+    </div>
+    <div class="frame-caption">A new shoe arrives — photo first.</div>
+    <div class="frame-note">The camera opens before the keyboard. SKU is auto-generated; sizes parse from a comma-separated string. One-handed entry while a delivery box is open on the floor.</div>
+    <div class="phone">
+      <div class="screen">
+
+        <div class="status-bar">
+          <span>14:30</span>
+          <span class="icons">
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;">4G</span>
+            <span class="battery"><span style="width: 74%;"></span></span>
+          </span>
+        </div>
+
+        <div class="add-bar">
+          <span class="cancel">Cancel</span>
+          <h3>Add article</h3>
+          <span class="step">3 / 6</span>
+        </div>
+
+        <div class="photo-cta">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6l1-2h6l1 2"/></svg>
+          <span class="label">Tap to take photo</span>
+          <span class="req">required</span>
+        </div>
+
+        <div class="form">
+
+          <div class="field">
+            <span class="field-label">Code <span class="auto">auto-generated</span></span>
+            <span class="input locked">SH-0125</span>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Name</span>
+            <span class="input placeholder">e.g. Brown leather boot</span>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <span class="field-label">Color</span>
+              <span class="input">brown</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Brand <span class="auto">optional</span></span>
+              <span class="input placeholder">—</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Sizes <span class="auto">comma-separated</span></span>
+            <span class="input">39, 40, 41, 42, 43</span>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Quantity per size</span>
+            <div class="stepper">
+              <button>−</button>
+              <span class="v">2</span>
+              <button>+</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <span class="field-label">Cost (TND)</span>
+              <span class="input price-input">42</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Sale (TND)</span>
+              <span class="input price-input">75</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="action-bar">
+          <button class="btn">Save and add another</button>
+          <button class="btn accent">Save</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="foot">
+  <span>Naili Shoes · first mockup · v0.1</span>
+  <span>Funnel Display · Funnel Sans · JetBrains Mono</span>
+</footer>
+
+</body>
+</html>

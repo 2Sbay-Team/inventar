@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-ssr/
+coverage/
+playwright-report/
+playwright/.cache/
+test-results/
+.vite/
+*.local
+.eslintcache

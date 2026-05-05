@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+cd "$(git rev-parse --show-toplevel)/web"
+npx lint-staged
+npm run typecheck
