@@ -1,8 +1,50 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // GenerateSW: workbox builds the SW from the manifest of built assets.
+    // injectRegister: false — we register manually in src/pwa/register-sw.ts
+    // so the update-toast UX stays under our control (SPEC §7).
+    // manifest: false — we ship a static /public/manifest.webmanifest so it
+    // gets nginx's no-cache headers (DEPLOY §4).
+    VitePWA({
+      strategies: 'generateSW',
+      registerType: 'autoUpdate',
+      injectRegister: false,
+      manifest: false,
+      includeAssets: [
+        'manifest.webmanifest',
+        'favicon.ico',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/icon-maskable-192.png',
+        'icons/icon-maskable-512.png',
+        'icons/apple-touch-icon.png',
+        'icons/favicon-16.png',
+        'icons/favicon-32.png',
+        'fonts/*.woff2',
+        'robots.txt',
+      ],
+      workbox: {
+        // Built JS/CSS/HTML/icons/fonts are precached as cache-first immutable.
+        // Fonts are now self-hosted, so the gfonts runtimeCaching rules are gone.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2,txt}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/health$/, /^\/robots\.txt$/],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: false,
+      },
+      devOptions: {
+        // Disabled by default: dev server doesn't need a SW. Production
+        // E2E uses `npm run preview` against the built `dist/`.
+        enabled: false,
+      },
+    }),
+  ],
   server: {
     host: '127.0.0.1',
     port: 5173,
@@ -18,5 +60,18 @@ export default defineConfig({
     sourcemap: true,
     cssCodeSplit: true,
     assetsInlineLimit: 0,
+    rollupOptions: {
+      output: {
+        // Split the 498 KB main chunk so unrelated screen code doesn't block
+        // the initial paint. react/router/i18n/db each become their own
+        // long-cacheable chunk; product code lives in the index entry.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          i18n: ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          db: ['dexie'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-radio-group'],
+        },
+      },
+    },
   },
 });
