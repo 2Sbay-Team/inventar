@@ -40,10 +40,16 @@ test.describe('Search normalisation across FR/AR/EN', () => {
   test('case + whitespace-only differences still produce identical result sets', async ({
     page,
   }) => {
+    // Wait for the filter to actually apply before snapshotting — without
+    // these waits, `allTextContents` can race the React re-render and
+    // capture the unfiltered list (3 articles) rather than the filtered
+    // single match.
     await page.getByTestId('search-input').fill('white 42');
+    await expect(page.getByTestId('result-card')).toHaveCount(1);
     const a = await page.getByTestId('result-card').allTextContents();
     await page.getByTestId('search-input').fill('');
     await page.getByTestId('search-input').fill('WHITE  42');
+    await expect(page.getByTestId('result-card')).toHaveCount(1);
     const b = await page.getByTestId('result-card').allTextContents();
     expect(b).toEqual(a);
   });
