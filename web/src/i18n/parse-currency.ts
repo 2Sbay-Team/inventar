@@ -1,20 +1,24 @@
-import { type Locale } from '../types';
+import { type CurrencyCode, type Locale } from '../types';
+import { getMinorUnitDigits } from './currency';
 import { normaliseDigits } from '../query/normalise-digits';
 
-// ADR-005: parse user-typed currency input back to integer millimes. Strict
-// per-locale parsing — the rules mirror what `formatCurrency` outputs, so
-// round-tripping `parse(format(x)) === x` holds for the locale the value was
-// formatted in.
+// ADR-005 (revised): parse user-typed currency input back to integer minor
+// units of the supplied currency. Strict per-locale parsing — the rules
+// mirror what `formatCurrency` outputs, so round-tripping
+// `parse(format(x), locale, ccy) === x` holds for the (locale, currency)
+// pair the value was formatted in.
 //   - en: '.' is the decimal mark, ',' is thousands grouping
 //   - fr / ar: ',' is the decimal mark, '.' is thousands grouping
 // NBSP grouping (U+00A0, U+202F) is tolerated in all locales.
 //
 // String arithmetic only — no float multiplication. Keeps the round-trip
-// exact at millime precision.
+// exact at minor-unit precision.
 
-const MILLIMES_PER_TND_DIGITS = 3;
-
-export function parseCurrency(input: string, locale: Locale): number | null {
+export function parseCurrency(
+  input: string,
+  locale: Locale,
+  currency: CurrencyCode,
+): number | null {
   if (typeof input !== 'string') return null;
 
   let s = normaliseDigits(input);
@@ -31,7 +35,8 @@ export function parseCurrency(input: string, locale: Locale): number | null {
   }
 
   // Drop everything that is not a digit, dot, or comma — currency markers
-  // ("TND", "د.ت"), whitespace (incl. NBSP / NNBSP), letters, all gone.
+  // ("TND", "د.ت", "$", "€"), whitespace (incl. NBSP / NNBSP), letters,
+  // all gone.
   s = s.replace(/[^\d.,]/g, '');
   if (s === '') return null;
 
@@ -52,15 +57,16 @@ export function parseCurrency(input: string, locale: Locale): number | null {
   if (intPart !== '' && !/^\d+$/.test(intPart)) return null;
   if (fracPart !== '' && !/^\d+$/.test(fracPart)) return null;
 
-  // Reject precision that exceeds millimes — the user is asking for sub-
-  // millime resolution we don't have.
-  if (fracPart.length > MILLIMES_PER_TND_DIGITS) return null;
+  const minorDigits = getMinorUnitDigits(currency);
+  // Reject precision that exceeds the minor unit — the user is asking for
+  // sub-minor-unit resolution we don't have.
+  if (fracPart.length > minorDigits) return null;
 
-  const fracPadded = fracPart.padEnd(MILLIMES_PER_TND_DIGITS, '0');
-  const millimesStr = `${intPart === '' ? '0' : intPart}${fracPadded}`;
+  const fracPadded = fracPart.padEnd(minorDigits, '0');
+  const minorStr = `${intPart === '' ? '0' : intPart}${fracPadded}`;
   // Strip any leading zeros from the int portion before parsing — `Number`
   // handles it, but we want a clean integer.
-  const millimes = Number(millimesStr);
-  if (!Number.isFinite(millimes)) return null;
-  return negative ? -millimes : millimes;
+  const minor = Number(minorStr);
+  if (!Number.isFinite(minor)) return null;
+  return negative ? -minor : minor;
 }

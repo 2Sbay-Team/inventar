@@ -13,6 +13,8 @@ export default tseslint.config(
       'playwright-report/**',
       'test-results/**',
       '.husky/**',
+      'scripts/**',
+      'public/**',
     ],
   },
   js.configs.recommended,

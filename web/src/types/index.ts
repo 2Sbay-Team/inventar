@@ -5,6 +5,10 @@
 export type UUID = string;
 export type ISODate = string;
 export type Locale = 'fr' | 'ar' | 'en';
+// ISO 4217 currency code (3 letters). Validated at the input boundary
+// (currency picker) — we don't enumerate the full set in the type because
+// Intl.supportedValuesOf changes between runtimes.
+export type CurrencyCode = string;
 
 export type Category = 'sport' | 'dress' | 'casual' | 'kids' | 'women' | 'men';
 
@@ -25,6 +29,13 @@ export interface ShopProfile {
   id: 'singleton';
   name: string;
   locale: Locale;
+  // FK into photos. Stored as a Photo row so the logo participates in the
+  // standard backup/export flow alongside article photos.
+  logo_photo_id: UUID | null;
+  // ISO 4217. Money fields on Article/Expense store integer minor units of
+  // this currency (the legacy `_tnd` suffix is historical and means "minor
+  // units" — see ADR-005). Switching currency does NOT rescale stored values.
+  currency: CurrencyCode;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;

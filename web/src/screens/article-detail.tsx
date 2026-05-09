@@ -7,7 +7,9 @@ import { ActivityFeed } from '../components/activity-feed';
 import { QuickAdjustSheet, type QuickAdjustTarget } from '../components/quick-adjust-sheet';
 import { MoreMenuSheet } from '../components/more-menu-sheet';
 import { PhotoThumb } from '../components/photo-thumb';
+import { Minus, Plus } from 'lucide-react';
 import { useArticleDetail } from '../hooks/use-article-detail';
+import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
@@ -21,6 +23,7 @@ export function ArticleDetailScreen(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const detail = useArticleDetail(id);
   const { locale } = useLocale();
+  const currency = useCurrency();
 
   const [adjustTarget, setAdjustTarget] = useState<QuickAdjustTarget | null>(null);
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
@@ -179,7 +182,7 @@ export function ArticleDetailScreen(): JSX.Element {
               className="font-mono text-[13px] font-semibold tabular-nums"
               dir="ltr"
             >
-              {formatCurrency(article.cost_price_tnd, locale)}
+              {formatCurrency(article.cost_price_tnd, locale, currency)}
             </span>
           </div>
           <div className="flex flex-col">
@@ -191,7 +194,7 @@ export function ArticleDetailScreen(): JSX.Element {
               className="font-mono text-[13px] font-semibold tabular-nums"
               dir="ltr"
             >
-              {formatCurrency(article.sale_price_tnd, locale)}
+              {formatCurrency(article.sale_price_tnd, locale, currency)}
             </span>
           </div>
           <span
@@ -229,16 +232,18 @@ export function ArticleDetailScreen(): JSX.Element {
           type="button"
           data-testid="action-sell"
           onClick={openSellTopVariant}
-          className="border-hair flex-1 rounded-xl border bg-white py-3 text-sm font-medium"
+          className="border-hair inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border bg-white py-3 text-sm font-medium"
         >
+          <Minus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
           {t('action_sell')}
         </button>
         <button
           type="button"
           data-testid="action-restock"
           onClick={openRestockTopVariant}
-          className="bg-ink flex-1 rounded-xl py-3 text-sm font-medium text-white"
+          className="bg-ink inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-medium text-white"
         >
+          <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
           {t('action_restock')}
         </button>
       </div>

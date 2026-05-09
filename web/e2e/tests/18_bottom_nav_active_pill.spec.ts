@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { onboardViaSeed } from '../helpers/onboarding';
 
-// Mockup §1 — the active nav item gets a soft cognac pill behind icon + label.
-// --accent-soft = #F4E4D2 = rgb(244, 228, 210).
+// The active nav item gets a soft accent pill behind icon + label.
+// --accent-soft = #FFE4D6 = rgb(255, 228, 214).
 
-const ACCENT_SOFT = 'rgb(244, 228, 210)';
+const ACCENT_SOFT = 'rgb(255, 228, 214)';
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 
 async function bgColour(page: Page, testId: string): Promise<string> {

@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
+import { Plus } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
+import { useCurrency } from '../hooks/use-currency';
 import { useLive } from '../hooks/use-live';
 import { useLocale } from '../hooks/use-locale';
 import { db } from '../db/db';
@@ -82,6 +84,7 @@ export function DashboardScreen(): JSX.Element {
   const { t: tExpense } = useTranslation('expense');
   const { t: tCommon } = useTranslation('common');
   const { locale } = useLocale();
+  const currency = useCurrency();
   const [period, setPeriod] = useState<Period>('today');
   const metrics = useLive<PeriodMetrics>(() => computeMetrics(period), [period]);
 
@@ -102,7 +105,7 @@ export function DashboardScreen(): JSX.Element {
   };
 
   async function saveExpense(): Promise<void> {
-    const amount = parseCurrency(expAmount, locale);
+    const amount = parseCurrency(expAmount, locale, currency);
     if (amount === null || amount <= 0) return;
     await addExpense(db, {
       category: expCategory,
@@ -149,12 +152,12 @@ export function DashboardScreen(): JSX.Element {
           <BigNumber
             testId="big-revenue"
             label={t('big_revenue')}
-            value={formatCurrency(m.revenue, locale)}
+            value={formatCurrency(m.revenue, locale, currency)}
           />
           <BigNumber
             testId="big-profit"
             label={t('big_profit')}
-            value={formatCurrency(m.netProfit, locale)}
+            value={formatCurrency(m.netProfit, locale, currency)}
           />
           <BigNumber
             testId="big-pairs"
@@ -165,12 +168,24 @@ export function DashboardScreen(): JSX.Element {
 
         <section data-testid="cash-block" className="border-hair rounded-xl border bg-white p-3">
           <h3 className="font-display mb-2 text-sm font-medium">{t('cash_title')}</h3>
-          <Row label={t('cash_revenue')} value={formatCurrency(m.revenue, locale)} sign="+" />
-          <Row label={t('cash_purchases')} value={formatCurrency(m.purchases, locale)} sign="−" />
-          <Row label={t('cash_expenses')} value={formatCurrency(m.expenses, locale)} sign="−" />
+          <Row
+            label={t('cash_revenue')}
+            value={formatCurrency(m.revenue, locale, currency)}
+            sign="+"
+          />
+          <Row
+            label={t('cash_purchases')}
+            value={formatCurrency(m.purchases, locale, currency)}
+            sign="−"
+          />
+          <Row
+            label={t('cash_expenses')}
+            value={formatCurrency(m.expenses, locale, currency)}
+            sign="−"
+          />
           <Row
             label={t('cash_in_pocket')}
-            value={formatCurrency(m.inPocket, locale)}
+            value={formatCurrency(m.inPocket, locale, currency)}
             sign="="
             bold
           />
@@ -178,9 +193,22 @@ export function DashboardScreen(): JSX.Element {
 
         <section data-testid="profit-block" className="border-hair rounded-xl border bg-white p-3">
           <h3 className="font-display mb-2 text-sm font-medium">{t('profit_title')}</h3>
-          <Row label={t('profit_gross')} value={formatCurrency(m.grossProfit, locale)} sign="+" />
-          <Row label={t('profit_expenses')} value={formatCurrency(m.expenses, locale)} sign="−" />
-          <Row label={t('profit_net')} value={formatCurrency(m.netProfit, locale)} sign="=" bold />
+          <Row
+            label={t('profit_gross')}
+            value={formatCurrency(m.grossProfit, locale, currency)}
+            sign="+"
+          />
+          <Row
+            label={t('profit_expenses')}
+            value={formatCurrency(m.expenses, locale, currency)}
+            sign="−"
+          />
+          <Row
+            label={t('profit_net')}
+            value={formatCurrency(m.netProfit, locale, currency)}
+            sign="="
+            bold
+          />
         </section>
       </main>
 
@@ -188,8 +216,9 @@ export function DashboardScreen(): JSX.Element {
         type="button"
         data-testid="add-expense-fab"
         onClick={() => setExpenseOpen(true)}
-        className="bg-accent absolute bottom-20 end-5 rounded-full px-4 py-3 text-sm font-medium text-white shadow-lg"
+        className="bg-accent absolute bottom-20 end-5 inline-flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium text-white shadow-lg"
       >
+        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
         {t('add_expense')}
       </button>
 
@@ -225,7 +254,7 @@ export function DashboardScreen(): JSX.Element {
               inputMode="decimal"
               value={expAmount}
               onChange={(e) => setExpAmount(e.target.value)}
-              placeholder={tExpense('amount')}
+              placeholder={tExpense('amount', { currency })}
               className="border-hair mt-3 w-full rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
             />
             <input

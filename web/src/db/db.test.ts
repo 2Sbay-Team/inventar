@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v1)', () => {
+describe('InventarDB schema (v3)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,8 +15,8 @@ describe('InventarDB schema (v1)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 1', () => {
-    expect(db.verno).toBe(1);
+  it('opens at version 3', () => {
+    expect(db.verno).toBe(3);
   });
 
   it('has the seven tables from DATA_MODEL §3', () => {
@@ -121,6 +121,8 @@ describe('InventarDB CRUD smoke (v1)', () => {
       id: 'singleton',
       name: 'Naili Shoes',
       locale: 'fr',
+      logo_photo_id: null,
+      currency: 'TND',
       created_at: NOW,
       updated_at: NOW,
       last_backup_at: null,
@@ -128,6 +130,8 @@ describe('InventarDB CRUD smoke (v1)', () => {
     const read = await db.profile.get('singleton');
     expect(read?.name).toBe('Naili Shoes');
     expect(read?.locale).toBe('fr');
+    expect(read?.logo_photo_id).toBeNull();
+    expect(read?.currency).toBe('TND');
   });
 
   it('queries variants by [article_id+size] compound index', async () => {

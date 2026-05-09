@@ -6,6 +6,7 @@ import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
 import { compressPhoto } from '../utils/compress-photo';
+import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { useLive } from '../hooks/use-live';
 import { nextInternalCode } from '../repos/internal-code';
@@ -48,6 +49,7 @@ export function AddArticleScreen(): JSX.Element {
   const { t: tCategory } = useTranslation('category');
   const navigate = useNavigate();
   const { locale } = useLocale();
+  const currency = useCurrency();
 
   const [form, setForm] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -101,8 +103,8 @@ export function AddArticleScreen(): JSX.Element {
     setErrors(e);
     if (Object.keys(e).length > 0) return;
     setSubmitting(true);
-    const cost = Math.max(0, parseCurrency(form.costInput, locale) ?? 0);
-    const sale = Math.max(0, parseCurrency(form.saleInput, locale) ?? 0);
+    const cost = Math.max(0, parseCurrency(form.costInput, locale, currency) ?? 0);
+    const sale = Math.max(0, parseCurrency(form.saleInput, locale, currency) ?? 0);
     const sizes = parseSizes(form.sizes).map((size) => ({ size, initial_qty: form.qty }));
     await createArticle(db, {
       name: form.name.trim(),
@@ -336,7 +338,7 @@ export function AddArticleScreen(): JSX.Element {
           className="border-hair space-y-3 rounded-2xl border bg-white p-4"
         >
           <div className="grid grid-cols-2 gap-2">
-            <Field label={t('field_cost')} hint={t('optional')}>
+            <Field label={t('field_cost', { currency })} hint={t('optional')}>
               <input
                 data-testid="field-cost"
                 type="text"
@@ -346,7 +348,7 @@ export function AddArticleScreen(): JSX.Element {
                 className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
               />
             </Field>
-            <Field label={t('field_sale')} hint={t('optional')}>
+            <Field label={t('field_sale', { currency })} hint={t('optional')}>
               <input
                 data-testid="field-sale"
                 type="text"

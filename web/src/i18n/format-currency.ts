@@ -1,10 +1,10 @@
-import { type Locale } from '../types';
+import { type CurrencyCode, type Locale } from '../types';
+import { getMinorUnitDigits, getMinorUnitFactor } from './currency';
 
-// ADR-005: money is stored as integer millimes (1 TND = 1000 millimes). The
-// display layer is the only place that crosses back into decimal TND, and it
-// always shows 3 fraction digits because that is the actual unit precision.
-const MILLIMES_PER_TND = 1000;
-const TND_FRACTION_DIGITS = 3;
+// ADR-005 (revised): money is stored as integer minor units of the user's
+// chosen currency (TND=millimes, USD=cents, JPY=yen). The display layer is
+// the only place that crosses back into the major unit, and the number of
+// fraction digits is derived from the currency code (CLDR via Intl).
 
 const EASTERN: readonly string[] = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
 
@@ -20,15 +20,16 @@ function intlBaseLocale(locale: Locale): string {
   return 'fr-TN';
 }
 
-// Renders an integer millimes amount as a localised currency string (TND).
-// Per SPEC §5: Intl.NumberFormat(..., {style:'currency', currency:'TND'}).
-export function formatCurrency(millimes: number, locale: Locale): string {
-  const tnd = millimes / MILLIMES_PER_TND;
+// Renders an integer minor-unit amount as a localised currency string. The
+// fraction digit count comes from CLDR (TND=3, USD=2, JPY=0).
+export function formatCurrency(minor: number, locale: Locale, currency: CurrencyCode): string {
+  const digits = getMinorUnitDigits(currency);
+  const major = minor / getMinorUnitFactor(currency);
   const formatted = new Intl.NumberFormat(intlBaseLocale(locale), {
     style: 'currency',
-    currency: 'TND',
-    minimumFractionDigits: TND_FRACTION_DIGITS,
-    maximumFractionDigits: TND_FRACTION_DIGITS,
-  }).format(tnd);
+    currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(major);
   return locale === 'ar' ? toEasternDigits(formatted) : formatted;
 }

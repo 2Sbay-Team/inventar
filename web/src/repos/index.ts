@@ -11,3 +11,5 @@ export * from './movements';
 export * from './variants';
 export * from './articles';
 export * from './expenses';
+export * from './meta';
+export * from './recent-searches';

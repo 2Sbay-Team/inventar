@@ -1,7 +1,14 @@
-export default function App() {
+import { BrowserRouter, useRoutes } from 'react-router-dom';
+import { routes } from './routes';
+
+function AppRoutes(): JSX.Element | null {
+  return useRoutes(routes);
+}
+
+export default function App(): JSX.Element {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-paper text-ink">
-      <h1 className="text-3xl font-medium tracking-tight">Inventar — bootstrap</h1>
-    </main>
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   );
 }

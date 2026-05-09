@@ -1,15 +1,19 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { db, resetDatabase } from '../db/db';
 import { upsertProfile, markBackedUp } from '../repos/profile';
+import { storePhoto } from '../repos/photos';
 import { exportBackupBlob, backupFilename } from '../backup/export';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
-import { type Locale } from '../types';
+import { listSupportedCurrencies } from '../i18n/currency';
+import { ChevronRight } from 'lucide-react';
+import { type CurrencyCode, type Locale } from '../types';
 
 const APP_VERSION = '1.0.0';
 
@@ -25,11 +29,15 @@ export function SettingsScreen(): JSX.Element {
   const { locale, setLocale } = useLocale();
   const profile = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [importData, setImportData] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetText, setResetText] = useState('');
   const [shopNameDraft, setShopNameDraft] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
+  const currencies = useMemo(() => listSupportedCurrencies(), []);
 
   async function exportData(): Promise<void> {
     const { blob } = await exportBackupBlob(db, { appVersion: APP_VERSION });
@@ -78,6 +86,65 @@ export function SettingsScreen(): JSX.Element {
     setShopNameDraft(null);
   }
 
+  function pickLogoFile(): void {
+    logoInputRef.current?.click();
+  }
+
+  async function handleLogoFile(file: File): Promise<void> {
+    if (!profile) return;
+    setLogoBusy(true);
+    try {
+      // Lazy-load the photo compressor (browser-image-compression is ~54 KB).
+      // Keeps the initial Settings chunk small so the screen mounts fast.
+      const { compressPhoto } = await import('../utils/compress-photo');
+      const compressed = await compressPhoto(file);
+      const stored = await storePhoto(db, {
+        blob: compressed.blob,
+        width: compressed.width,
+        height: compressed.height,
+        mime: compressed.mime,
+      });
+      await upsertProfile(db, {
+        name: profile.name,
+        locale: profile.locale,
+        logo_photo_id: stored.id,
+      });
+    } finally {
+      setLogoBusy(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  }
+
+  async function removeLogo(): Promise<void> {
+    if (!profile) return;
+    setLogoBusy(true);
+    try {
+      await upsertProfile(db, {
+        name: profile.name,
+        locale: profile.locale,
+        logo_photo_id: null,
+      });
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  function selectCurrency(code: CurrencyCode): void {
+    if (!profile || code === profile.currency) return;
+    // Confirm before changing — switching does NOT rescale stored numbers.
+    setPendingCurrency(code);
+  }
+
+  async function confirmCurrencyChange(): Promise<void> {
+    if (!profile || !pendingCurrency) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      currency: pendingCurrency,
+    });
+    setPendingCurrency(null);
+  }
+
   return (
     <ScreenLayout>
       <ShopHeader />
@@ -107,11 +174,58 @@ export function SettingsScreen(): JSX.Element {
         </section>
 
         <section
-          data-testid="section-shop-name"
+          data-testid="section-shop-profile"
           className="border-hair rounded-2xl border bg-white p-4"
         >
-          <h3 className="font-display text-base font-medium mb-2">{t('shop_name')}</h3>
+          <h3 className="font-display text-base font-medium mb-3">{t('shop_profile')}</h3>
+
+          <div className="flex items-center gap-3">
+            <PhotoThumb
+              photoId={profile?.logo_photo_id ?? null}
+              size={56}
+              testId="shop-logo-preview"
+              className="rounded-full"
+            />
+            <div className="flex flex-1 flex-col gap-2">
+              <button
+                type="button"
+                data-testid="shop-logo-pick"
+                onClick={pickLogoFile}
+                disabled={logoBusy}
+                className="border-hair rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
+              >
+                {profile?.logo_photo_id ? t('shop_logo_change') : t('shop_logo_add')}
+              </button>
+              {profile?.logo_photo_id ? (
+                <button
+                  type="button"
+                  data-testid="shop-logo-remove"
+                  onClick={() => void removeLogo()}
+                  disabled={logoBusy}
+                  className="text-bad border-bad/30 rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
+                >
+                  {t('shop_logo_remove')}
+                </button>
+              ) : null}
+            </div>
+            <input
+              ref={logoInputRef}
+              data-testid="shop-logo-input"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleLogoFile(f);
+              }}
+            />
+          </div>
+
+          <label htmlFor="settings-shop-name" className="text-ink-3 mt-4 mb-1 block text-xs">
+            {t('shop_name')}
+          </label>
           <input
+            id="settings-shop-name"
             data-testid="shop-name-edit"
             type="text"
             value={shopNameDraft ?? profile?.name ?? ''}
@@ -119,6 +233,50 @@ export function SettingsScreen(): JSX.Element {
             onBlur={() => void applyShopName()}
             className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
           />
+
+          <label htmlFor="settings-currency" className="text-ink-3 mt-4 mb-1 block text-xs">
+            {t('currency')}
+          </label>
+          <select
+            id="settings-currency"
+            data-testid="settings-currency"
+            value={profile?.currency ?? ''}
+            onChange={(e) => selectCurrency(e.target.value)}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
+          >
+            {currencies.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+
+          {pendingCurrency ? (
+            <div
+              data-testid="currency-confirm"
+              className="border-bad/30 mt-3 rounded-xl border bg-paper p-3"
+            >
+              <p className="text-sm">{t('currency_change_warning')}</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  data-testid="currency-cancel"
+                  onClick={() => setPendingCurrency(null)}
+                  className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
+                >
+                  {tCommon('cancel')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="currency-confirm-btn"
+                  onClick={() => void confirmCurrencyChange()}
+                  className="bg-ink flex-1 rounded-xl py-2.5 text-sm text-white"
+                >
+                  {tCommon('confirm')}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section
@@ -201,9 +359,7 @@ export function SettingsScreen(): JSX.Element {
             className="flex items-center justify-between"
           >
             <h3 className="font-display text-base font-medium">{t('archive_bin')}</h3>
-            <span aria-hidden className="text-ink-3 text-lg">
-              ›
-            </span>
+            <ChevronRight aria-hidden className="text-ink-3 h-5 w-5" strokeWidth={2} />
           </Link>
         </section>
 

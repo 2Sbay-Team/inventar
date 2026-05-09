@@ -5,38 +5,44 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Vibrant / playful palette: cream background, coral primary,
+        // cyan info accent, slate text. Stock badges keep green semantics.
         paper: {
-          DEFAULT: '#F4F1EA',
-          deep: '#EBE6DA',
+          DEFAULT: '#FFF8F2',
+          deep: '#FCEFE2',
         },
         ink: {
-          DEFAULT: '#1B1815',
-          '2': '#4A4339',
-          '3': '#8A8073',
-          '4': '#B8AE9F',
+          DEFAULT: '#1F2937',
+          '2': '#4B5563',
+          '3': '#6B7280',
+          '4': '#9CA3AF',
         },
         hair: {
-          DEFAULT: 'rgba(27, 24, 21, 0.08)',
-          '2': 'rgba(27, 24, 21, 0.14)',
+          DEFAULT: 'rgba(31, 41, 55, 0.08)',
+          '2': 'rgba(31, 41, 55, 0.14)',
         },
         accent: {
-          DEFAULT: '#B8642C',
-          soft: '#F4E4D2',
-          ink: '#6B3815',
+          DEFAULT: '#FF6B35',
+          soft: '#FFE4D6',
+          ink: '#C44417',
+        },
+        info: {
+          DEFAULT: '#06B6D4',
+          soft: '#CFFAFE',
         },
         ok: {
-          DEFAULT: '#3D6B47',
-          soft: '#DCE8DC',
+          DEFAULT: '#16A34A',
+          soft: '#DCFCE7',
         },
         warn: {
-          DEFAULT: '#A8741C',
-          soft: '#F2E5C9',
+          DEFAULT: '#D97706',
+          soft: '#FEF3C7',
         },
         bad: {
-          DEFAULT: '#8C3C32',
-          soft: '#EBD5D0',
+          DEFAULT: '#DC2626',
+          soft: '#FEE2E2',
         },
-        device: '#16140F',
+        device: '#0F172A',
       },
       fontFamily: {
         display: ['"Funnel Display"', 'serif'],

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Plus } from 'lucide-react';
+import { BackupBanner } from '../components/backup-banner';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
 import { SearchBar } from '../components/search-bar';
@@ -64,6 +66,7 @@ export function SearchScreen(): JSX.Element {
     <ScreenLayout>
       <ShopHeader articles={counts.articles} items={counts.items} />
       <SearchBar value={query} onChange={setQuery} count={results.length} />
+      <BackupBanner />
 
       {recents.length > 0 ? (
         <div data-testid="recent-row" className="mt-2 flex items-center gap-2 px-5">
@@ -127,8 +130,9 @@ function EmptyZero(): JSX.Element {
       <Link
         to="/add"
         data-testid="empty-zero-cta"
-        className="bg-accent rounded-xl px-4 py-2.5 text-sm font-medium text-white"
+        className="bg-accent inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
       >
+        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
         {t('empty_first_cta')}
       </Link>
     </section>
@@ -146,8 +150,9 @@ function EmptyMatch({ query }: { query: string }): JSX.Element {
       <Link
         to="/add"
         data-testid="empty-match-cta"
-        className="border-hair text-ink-2 rounded-xl border bg-white px-4 py-2.5 text-sm"
+        className="border-hair text-ink-2 inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2.5 text-sm"
       >
+        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.25} />
         {t('add_as_new')}
       </Link>
     </section>

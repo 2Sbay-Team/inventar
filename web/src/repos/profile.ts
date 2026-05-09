@@ -1,6 +1,8 @@
 import { type InventarDB } from '../db/db';
-import { type Locale, type ShopProfile } from '../types';
+import { type CurrencyCode, type Locale, type ShopProfile, type UUID } from '../types';
 import { nowISO } from '../utils/now';
+
+export const DEFAULT_CURRENCY: CurrencyCode = 'TND';
 
 // SPEC §2.1 onboarding produces exactly one ShopProfile row, primary key
 // is the literal string "singleton" (DATA_MODEL §2). We never insert a
@@ -15,21 +17,38 @@ export async function getProfile(db: InventarDB): Promise<ShopProfile | undefine
 export interface UpsertProfileInput {
   name: string;
   locale: Locale;
+  // Optional: when omitted, the existing logo (if any) is preserved. Pass
+  // `null` explicitly to clear, or a UUID to set/replace.
+  logo_photo_id?: UUID | null;
+  // Optional: when omitted, the existing currency is preserved (or
+  // DEFAULT_CURRENCY for first-time creation).
+  currency?: CurrencyCode;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
 // subsequent calls (preserves created_at, refreshes updated_at).
+//
+// Logo lifecycle: when logo_photo_id changes (replaced or cleared), the
+// previous Photo row is hard-deleted to avoid orphaned blobs. A profile
+// only ever has one logo, so soft-delete adds no value here.
 export async function upsertProfile(
   db: InventarDB,
   input: UpsertProfileInput,
 ): Promise<ShopProfile> {
   const ts = nowISO();
-  return db.transaction('rw', db.profile, async () => {
+  return db.transaction('rw', db.profile, db.photos, async () => {
     const existing = await db.profile.get(SINGLETON_ID);
+    const nextLogo =
+      input.logo_photo_id === undefined ? (existing?.logo_photo_id ?? null) : input.logo_photo_id;
+    if (existing && existing.logo_photo_id && existing.logo_photo_id !== nextLogo) {
+      await db.photos.delete(existing.logo_photo_id);
+    }
     const next: ShopProfile = {
       id: SINGLETON_ID,
       name: input.name,
       locale: input.locale,
+      logo_photo_id: nextLogo,
+      currency: input.currency ?? existing?.currency ?? DEFAULT_CURRENCY,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

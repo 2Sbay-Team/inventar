@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:e2e": "VITE_E2E=true tsc -b && VITE_E2E=true vite build",
     "preview": "vite preview",
+    "preview:e2e": "npm run build:e2e && vite preview",
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
@@ -26,6 +28,7 @@
     "dexie": "4.0.10",
     "i18next": "23.16.4",
     "i18next-browser-languagedetector": "8.0.0",
+    "lucide-react": "^0.469.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-i18next": "15.1.1",

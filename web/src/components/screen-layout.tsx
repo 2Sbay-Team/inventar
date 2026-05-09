@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { AppFooter } from './app-footer';
 import { BottomNav } from './bottom-nav';
 
 interface ScreenLayoutProps {
@@ -21,6 +22,7 @@ export function ScreenLayout({ children, hideNav }: ScreenLayoutProps): JSX.Elem
         className="border-hair relative flex min-h-screen w-full flex-col bg-paper min-[600px]:max-w-[480px] min-[600px]:border-x min-[600px]:shadow-sm"
       >
         <div className="flex flex-1 flex-col">{children}</div>
+        <AppFooter />
         {hideNav ? null : <BottomNav />}
       </div>
     </div>
