@@ -9,6 +9,7 @@ test('grocery: add spaghetti, sell some, see stock + today profit', async ({ pag
   // Onboard as grocery via UI so store_type=grocery.
   await page.goto('/');
   await page.getByTestId('lang-en').click();
+  await page.getByTestId('intent-new').click();
   await page.getByTestId('onb-store-grocery').click();
   await page.getByTestId('shop-name-input').fill('Mini Mart');
   await page.getByTestId('continue').click();

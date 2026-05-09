@@ -10,6 +10,7 @@ test.describe('Multi-vertical store types', () => {
     await page.goto('/');
     await expect(page.getByTestId('onboarding')).toBeVisible();
     await page.getByTestId('lang-en').click();
+    await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
 
     // The 4 cards are present and clickable.
@@ -21,6 +22,7 @@ test.describe('Multi-vertical store types', () => {
   test('selecting kiosk persists to ShopProfile.store_type after onboarding', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
+    await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
 
     await page.getByTestId('onb-store-kiosk').click();
@@ -66,6 +68,7 @@ test.describe('Switching store type from Settings', () => {
     // Start as a shoes shop (default).
     await page.goto('/');
     await page.getByTestId('lang-en').click();
+    await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
     await page.getByTestId('shop-name-input').fill('Type Switcher');
     await page.getByTestId('continue').click();
@@ -108,6 +111,7 @@ test.describe('Switching store type from Settings', () => {
   test('cancel button on store-type warning leaves type unchanged', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
+    await page.getByTestId('intent-new').click();
     await page.getByTestId('shop-name-input').fill('Cancel Test');
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
@@ -140,6 +144,7 @@ test.describe('Sizeless mode (kiosk)', () => {
   test('Add Article hides sizes and shows kiosk categories', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
+    await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
     await page.getByTestId('onb-store-kiosk').click();
     await page.getByTestId('shop-name-input').fill('Mini Mart');

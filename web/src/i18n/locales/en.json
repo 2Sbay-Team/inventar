@@ -20,6 +20,7 @@
     "edit": "Edit",
     "close": "Close",
     "retry": "Retry",
+    "saving": "Saving…",
     "offline": "Offline",
     "tnd": "TND",
     "dash": "—",
@@ -58,7 +59,16 @@
     "shop_name_placeholder": "e.g. Naili Shoes",
     "shop_name_min": "At least 2 characters",
     "backup_card_title": "Your data lives only on this device",
-    "backup_card_body": "Settings → Export Data lets you back up to WhatsApp, Drive, or email. We'll remind you weekly."
+    "backup_card_body": "Settings → Export Data lets you back up to WhatsApp, Drive, or email. We'll remind you weekly.",
+    "intent_title": "Starting fresh, or restoring a backup?",
+    "intent_subtitle": "Pick how you want to get started.",
+    "intent_new": "Set up a new store",
+    "intent_new_desc": "Pick your shop type, name, and currency.",
+    "intent_import": "I have a backup file",
+    "intent_import_desc": "Restore your articles, photos, and history from a JSON file.",
+    "import_busy": "Restoring backup…",
+    "import_invalid": "We couldn't read this backup. Make sure it's the JSON file Inventar exported.",
+    "import_failed": "Something went wrong while restoring. Please try again."
   },
   "search": {
     "placeholder": "Search…",

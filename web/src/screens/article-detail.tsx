@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ScreenLayout } from '../components/screen-layout';
@@ -8,7 +8,7 @@ import { QuickAdjustSheet, type QuickAdjustTarget } from '../components/quick-ad
 import { MoreMenuSheet } from '../components/more-menu-sheet';
 import { PhotoThumb } from '../components/photo-thumb';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Minus, Plus, QrCode, X } from 'lucide-react';
+import { Camera, Minus, Plus, QrCode, X } from 'lucide-react';
 import { ArticleQR } from '../components/article-qr';
 import { STORE_TYPES } from '../config/store-types';
 import { useArticleDetail } from '../hooks/use-article-detail';
@@ -17,6 +17,9 @@ import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
+import { db } from '../db/db';
+import { updateArticle } from '../repos/articles';
+import { storePhoto, softDeletePhoto } from '../repos/photos';
 import { type MovementType, type Variant } from '../types';
 import { type SizeGridCell } from '../repos/quantity';
 
@@ -35,6 +38,8 @@ export function ArticleDetailScreen(): JSX.Element {
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
   const [moreOpen, setMoreOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const variantsById = useMemo(() => {
     const m = new Map<string, Variant>();
@@ -95,6 +100,30 @@ export function ArticleDetailScreen(): JSX.Element {
     const cell = sizes[0];
     if (!cell) return;
     openAdjust(cell, 'purchase');
+  }
+
+  async function handleNewPhoto(file: File): Promise<void> {
+    setPhotoBusy(true);
+    try {
+      const previousPhotoId = article.photo_id;
+      const { compressPhoto } = await import('../utils/compress-photo');
+      const compressed = await compressPhoto(file);
+      const stored = await storePhoto(db, {
+        blob: compressed.blob,
+        width: compressed.width,
+        height: compressed.height,
+        mime: compressed.mime,
+      });
+      await updateArticle(db, article.id, { photo_id: stored.id });
+      if (previousPhotoId) {
+        // Soft-delete keeps the row for any in-flight backup; the next
+        // hard-delete cascade or import-replace will reclaim the bytes.
+        await softDeletePhoto(db, previousPhotoId);
+      }
+    } finally {
+      setPhotoBusy(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
   }
 
   return (
@@ -170,13 +199,35 @@ export function ArticleDetailScreen(): JSX.Element {
 
       <div
         data-testid="hero-photo"
-        className="bg-paper-deep mx-4 mt-4 aspect-[16/11] overflow-hidden rounded-2xl"
+        className="bg-paper-deep relative mx-4 mt-4 aspect-[16/11] overflow-hidden rounded-2xl"
       >
         <PhotoThumb
           photoId={article.photo_id}
           size={320}
           className="!h-full !w-full !rounded-2xl border-0"
           testId="hero-photo-img"
+        />
+        <button
+          type="button"
+          data-testid="hero-photo-change"
+          onClick={() => photoInputRef.current?.click()}
+          disabled={photoBusy}
+          aria-label={t('menu_new_photo')}
+          className="absolute bottom-2 end-2 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-ink shadow-[0_2px_8px_rgba(0,0,0,0.18)] backdrop-blur-sm transition-all hover:bg-white active:scale-[0.97] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <Camera aria-hidden className="h-3.5 w-3.5" strokeWidth={2.25} />
+          <span>{photoBusy ? tCommon('saving') : t('menu_new_photo')}</span>
+        </button>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          data-testid="hero-photo-input"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleNewPhoto(f);
+          }}
         />
       </div>
 

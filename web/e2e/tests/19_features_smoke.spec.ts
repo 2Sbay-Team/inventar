@@ -162,6 +162,7 @@ test.describe('feature smoke — buttons that other specs miss', () => {
         .catch(() => false)
     ) {
       await page.getByTestId('lang-fr').click();
+      await page.getByTestId('intent-new').click();
       await page.getByTestId('shop-name-input').fill('Boutique FR');
       await page.getByTestId('continue').click();
       await page.getByTestId('got-it').click();

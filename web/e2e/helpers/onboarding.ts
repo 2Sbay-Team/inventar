@@ -8,6 +8,7 @@ declare global {
       sellOne: (articleName: string, size: string) => Promise<void>;
       reset: () => Promise<void>;
       deleteDb: () => Promise<void>;
+      exportJson: () => Promise<string>;
     };
   }
 }
@@ -19,6 +20,9 @@ export async function onboardViaUI(
 ): Promise<void> {
   await expect(page.getByTestId('onboarding')).toBeVisible();
   await page.getByTestId(`lang-${options.lang}`).click();
+  await expect(page.getByTestId('step-intent')).toBeVisible();
+  await page.getByTestId('intent-new').click();
+  await expect(page.getByTestId('step-name')).toBeVisible();
   await page.getByTestId('shop-name-input').fill(options.shopName);
   await page.getByTestId('continue').click();
   await expect(page.getByTestId('step-backup-card')).toBeVisible();

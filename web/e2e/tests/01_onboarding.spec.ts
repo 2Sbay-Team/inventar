@@ -12,10 +12,12 @@ test.describe('Onboarding', () => {
     await page.goto('/');
   });
 
-  test('walks language → name → backup card → search', async ({ page }) => {
+  test('walks language → intent → name → backup card → search', async ({ page }) => {
     await expect(page.getByTestId('onboarding')).toBeVisible();
     await expect(page.getByTestId('step-language')).toBeVisible();
     await page.getByTestId('lang-en').click();
+    await expect(page.getByTestId('step-intent')).toBeVisible();
+    await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
     await expect(page.getByTestId('continue')).toBeDisabled();
     await page.getByTestId('shop-name-input').fill('A');
@@ -31,6 +33,7 @@ test.describe('Onboarding', () => {
 
   test('Arabic locale flips to RTL with Eastern numerals in counts', async ({ page }) => {
     await page.getByTestId('lang-ar').click();
+    await page.getByTestId('intent-new').click();
     await page.getByTestId('shop-name-input').fill('متجر الاختبار');
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
@@ -39,5 +42,49 @@ test.describe('Onboarding', () => {
     expect(dir).toBe('rtl');
     const lang = await page.evaluate(() => document.documentElement.lang);
     expect(lang).toBe('ar');
+  });
+
+  test('intent step offers backup-import path that bypasses setup', async ({ page }) => {
+    // Seed a real shop, export it, reset the database, then re-onboard
+    // through the import path and confirm the data lands.
+    await page.evaluate(async () => {
+      await window.__inventarSeed!.seed({
+        shopName: 'Restored Shop',
+        locale: 'en',
+        reset: true,
+      });
+    });
+    const exportedJson = await page.evaluate(() => window.__inventarSeed!.exportJson());
+    expect(exportedJson.length).toBeGreaterThan(50);
+
+    await page.evaluate(async () => {
+      await window.__inventarSeed!.reset();
+    });
+    await page.goto('/');
+    await expect(page.getByTestId('step-language')).toBeVisible();
+    await page.getByTestId('lang-en').click();
+    await expect(page.getByTestId('step-intent')).toBeVisible();
+
+    await page.getByTestId('intent-import-input').setInputFiles({
+      name: 'inventar-backup.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(exportedJson),
+    });
+
+    await expect(page.getByTestId('search-screen')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('shop-name')).toHaveText('Restored Shop');
+  });
+
+  test('intent import surfaces an error for an invalid JSON file', async ({ page }) => {
+    await page.getByTestId('lang-en').click();
+    await expect(page.getByTestId('step-intent')).toBeVisible();
+    await page.getByTestId('intent-import-input').setInputFiles({
+      name: 'broken.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('this is not json'),
+    });
+    await expect(page.getByTestId('intent-import-error')).toBeVisible();
+    // Still on intent step — no profile was written.
+    await expect(page.getByTestId('step-intent')).toBeVisible();
   });
 });

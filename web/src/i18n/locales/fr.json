@@ -20,6 +20,7 @@
     "edit": "Modifier",
     "close": "Fermer",
     "retry": "Réessayer",
+    "saving": "Enregistrement…",
     "offline": "Hors ligne",
     "tnd": "TND",
     "dash": "—",
@@ -58,7 +59,16 @@
     "shop_name_placeholder": "ex. Naili Shoes",
     "shop_name_min": "Au moins 2 caractères",
     "backup_card_title": "Vos données restent sur cet appareil",
-    "backup_card_body": "Réglages → Exporter les données vous permet de sauvegarder vers WhatsApp, Drive ou e-mail. Nous vous le rappellerons chaque semaine."
+    "backup_card_body": "Réglages → Exporter les données vous permet de sauvegarder vers WhatsApp, Drive ou e-mail. Nous vous le rappellerons chaque semaine.",
+    "intent_title": "Nouveau magasin ou restauration ?",
+    "intent_subtitle": "Choisissez comment commencer.",
+    "intent_new": "Configurer un nouveau magasin",
+    "intent_new_desc": "Choisissez le type, le nom et la devise.",
+    "intent_import": "J'ai un fichier de sauvegarde",
+    "intent_import_desc": "Restaurez vos articles, photos et historique depuis un fichier JSON.",
+    "import_busy": "Restauration en cours…",
+    "import_invalid": "Impossible de lire cette sauvegarde. Vérifiez qu'il s'agit du fichier JSON exporté par Inventar.",
+    "import_failed": "Une erreur s'est produite pendant la restauration. Réessayez."
   },
   "search": {
     "placeholder": "Rechercher…",

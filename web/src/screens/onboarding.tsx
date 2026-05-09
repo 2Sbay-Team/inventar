@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   Boxes,
   ChevronRight,
+  FileUp,
   Footprints,
   Shirt,
   ShoppingCart,
+  Sparkles,
   Store,
   Upload,
   X,
@@ -15,8 +17,9 @@ import {
 import { AppFooter } from '../components/app-footer';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { db } from '../db/db';
-import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, upsertProfile } from '../repos/profile';
+import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
+import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { setLocale } from '../i18n/i18next';
 import { useLocale } from '../hooks/use-locale';
@@ -56,7 +59,7 @@ export function OnboardingScreen(): JSX.Element {
   const { locale } = useLocale();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<'language' | 'name' | 'backup_card'>('language');
+  const [step, setStep] = useState<'language' | 'intent' | 'name' | 'backup_card'>('language');
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
   const [storeType, setStoreType] = useState<StoreType>(DEFAULT_STORE_TYPE);
@@ -64,7 +67,10 @@ export function OnboardingScreen(): JSX.Element {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const currencies = listSupportedCurrencies();
 
   // Revoke any previous preview URL when the file changes / unmounts so we
@@ -105,7 +111,42 @@ export function OnboardingScreen(): JSX.Element {
 
   function pickLanguage(code: Locale): void {
     void setLocale(code);
-    setStep('name');
+    setStep('intent');
+  }
+
+  function pickImportFile(): void {
+    setImportError(null);
+    importInputRef.current?.click();
+  }
+
+  async function handleImportFile(file: File): Promise<void> {
+    setImporting(true);
+    setImportError(null);
+    try {
+      const text = await file.text();
+      // 'replace' wipes the empty fresh-install state so the imported
+      // profile + articles + photos land cleanly. The OnboardingOnly
+      // gate redirects to '/' on its own once useProfile() sees the
+      // newly-written singleton row.
+      await importBackup({ data: text, mode: 'replace' }, db);
+      const restored = await getProfile(db);
+      if (restored?.locale) {
+        // Honor the locale the backup was created in — it usually
+        // matches what the user is expecting from their previous setup.
+        await setLocale(restored.locale);
+      }
+      await ensurePersistence(db);
+      navigate('/', { replace: true });
+    } catch (e) {
+      if (e instanceof BackupParseError || e instanceof BackupIntegrityError) {
+        setImportError(t('onboarding:import_invalid'));
+      } else {
+        setImportError(t('onboarding:import_failed'));
+      }
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
   }
 
   function submitName(): void {
@@ -202,8 +243,8 @@ export function OnboardingScreen(): JSX.Element {
           </section>
         ) : null}
 
-        {step === 'name' ? (
-          <section data-testid="step-name" className="space-y-6">
+        {step === 'intent' ? (
+          <section data-testid="step-intent" className="space-y-6">
             <div className="text-center">
               <button
                 type="button"
@@ -212,6 +253,107 @@ export function OnboardingScreen(): JSX.Element {
                 className="text-ink-3 hover:text-accent mb-2 text-xs font-medium transition-colors"
               >
                 {t('onboarding:change_language')}
+              </button>
+              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
+                {t('onboarding:intent_title')}
+              </h1>
+              <p className="text-ink-2 mt-3 text-[15px] leading-relaxed">
+                {t('onboarding:intent_subtitle')}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                data-testid="intent-new"
+                onClick={() => setStep('name')}
+                disabled={importing}
+                className="animate-onb-in border-hair hover:border-accent hover:bg-accent-soft/30 active:scale-[0.98] group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.06)] disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <span
+                  aria-hidden
+                  className="bg-accent-soft text-accent flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+                >
+                  <Sparkles className="h-5 w-5" strokeWidth={2} />
+                </span>
+                <span className="flex flex-1 flex-col">
+                  <span className="text-ink text-base font-semibold leading-tight">
+                    {t('onboarding:intent_new')}
+                  </span>
+                  <span className="text-ink-3 mt-0.5 text-xs">
+                    {t('onboarding:intent_new_desc')}
+                  </span>
+                </span>
+                <ChevronRight
+                  aria-hidden
+                  className="text-ink-4 group-hover:text-accent h-4 w-4 rtl:rotate-180"
+                  strokeWidth={2.25}
+                />
+              </button>
+
+              <button
+                type="button"
+                data-testid="intent-import"
+                onClick={pickImportFile}
+                disabled={importing}
+                className="animate-onb-in border-hair hover:border-accent hover:bg-accent-soft/30 active:scale-[0.98] group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.06)] disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <span
+                  aria-hidden
+                  className="bg-accent-soft text-accent flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+                >
+                  <FileUp className="h-5 w-5" strokeWidth={2} />
+                </span>
+                <span className="flex flex-1 flex-col">
+                  <span className="text-ink text-base font-semibold leading-tight">
+                    {importing ? t('onboarding:import_busy') : t('onboarding:intent_import')}
+                  </span>
+                  <span className="text-ink-3 mt-0.5 text-xs">
+                    {t('onboarding:intent_import_desc')}
+                  </span>
+                </span>
+                <ChevronRight
+                  aria-hidden
+                  className="text-ink-4 group-hover:text-accent h-4 w-4 rtl:rotate-180"
+                  strokeWidth={2.25}
+                />
+              </button>
+
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                data-testid="intent-import-input"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleImportFile(f);
+                }}
+              />
+
+              {importError ? (
+                <p
+                  data-testid="intent-import-error"
+                  role="alert"
+                  className="text-bad bg-bad/5 border-bad/20 rounded-xl border px-3 py-2 text-xs"
+                >
+                  {importError}
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {step === 'name' ? (
+          <section data-testid="step-name" className="space-y-6">
+            <div className="text-center">
+              <button
+                type="button"
+                data-testid="back-to-intent"
+                onClick={() => setStep('intent')}
+                className="text-ink-3 hover:text-accent mb-2 text-xs font-medium transition-colors"
+              >
+                ← {t('common:back')}
               </button>
               <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
                 {t('onboarding:setup_title')}

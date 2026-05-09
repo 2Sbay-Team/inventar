@@ -5,6 +5,7 @@ import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
 import { recordMovement } from '../repos/movements';
 import { addExpense } from '../repos/expenses';
+import { exportBackupBlob } from '../backup/export';
 import { type Locale } from '../types';
 import { setLocale } from '../i18n/i18next';
 
@@ -121,11 +122,17 @@ async function deleteDb(): Promise<void> {
   await indexedDB.deleteDatabase(DB_NAME);
 }
 
+async function exportJson(): Promise<string> {
+  const { blob } = await exportBackupBlob(db, { appVersion: 'e2e' });
+  return blob.text();
+}
+
 interface SeedAPI {
   seed: (input: SeedInput) => Promise<void>;
   sellOne: (articleName: string, size: string) => Promise<void>;
   reset: () => Promise<void>;
   deleteDb: () => Promise<void>;
+  exportJson: () => Promise<string>;
 }
 
 declare global {
@@ -142,6 +149,7 @@ export function mountTestSeed(): void {
     sellOne,
     reset: deleteAll,
     deleteDb,
+    exportJson,
   };
   window.__inventarSeed = api;
 }

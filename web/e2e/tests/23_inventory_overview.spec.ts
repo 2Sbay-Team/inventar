@@ -40,6 +40,7 @@ test.describe('Inventory overview (kiosk — sizeless)', () => {
     // Onboard as kiosk via UI.
     await page.goto('/');
     await page.getByTestId('lang-en').click();
+    await page.getByTestId('intent-new').click();
     await page.getByTestId('onb-store-kiosk').click();
     await page.getByTestId('shop-name-input').fill('Kiosk Test');
     await page.getByTestId('continue').click();
