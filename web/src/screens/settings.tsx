@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
+import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { db, resetDatabase } from '../db/db';
@@ -12,7 +13,7 @@ import { storePhoto } from '../repos/photos';
 import { exportBackupBlob, backupFilename } from '../backup/export';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Download as DownloadIcon, Smartphone } from 'lucide-react';
 import { type CurrencyCode, type Locale } from '../types';
 
 const APP_VERSION = '1.0.0';
@@ -38,6 +39,7 @@ export function SettingsScreen(): JSX.Element {
   const [logoBusy, setLogoBusy] = useState(false);
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
   const currencies = useMemo(() => listSupportedCurrencies(), []);
+  const installState = useInstallPrompt();
 
   async function exportData(): Promise<void> {
     const { blob } = await exportBackupBlob(db, { appVersion: APP_VERSION });
@@ -280,10 +282,54 @@ export function SettingsScreen(): JSX.Element {
         </section>
 
         <section
+          data-testid="section-install"
+          className="border-hair rounded-2xl border bg-white p-4"
+        >
+          <h3 className="font-display text-base font-medium mb-2">{t('install_section')}</h3>
+          {installState.kind === 'installed' ? (
+            <p data-testid="install-already" className="text-ok text-sm">
+              ✓ {t('install_already')}
+            </p>
+          ) : installState.kind === 'installable' ? (
+            <>
+              <button
+                type="button"
+                data-testid="install-button"
+                onClick={() => void installState.install()}
+                className="bg-accent inline-flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-white"
+              >
+                <DownloadIcon aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+                {t('install_button')}
+              </button>
+              <p className="text-ink-3 mt-2 text-xs leading-relaxed">{t('install_hint')}</p>
+            </>
+          ) : installState.kind === 'ios-instructions' ? (
+            <div data-testid="install-ios" className="space-y-2">
+              <div className="bg-paper-deep flex items-start gap-3 rounded-xl p-3">
+                <Smartphone
+                  aria-hidden
+                  className="text-accent mt-0.5 h-5 w-5 flex-shrink-0"
+                  strokeWidth={2}
+                />
+                <div>
+                  <p className="text-ink text-sm font-medium">{t('install_ios_title')}</p>
+                  <p className="text-ink-2 mt-1 text-xs leading-relaxed">
+                    {t('install_ios_steps')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-ink-3 text-xs leading-relaxed">{t('install_unsupported')}</p>
+          )}
+        </section>
+
+        <section
           data-testid="section-backup"
           className="border-hair rounded-2xl border bg-white p-4"
         >
-          <h3 className="font-display text-base font-medium mb-2">{t('backup_section')}</h3>
+          <h3 className="font-display text-base font-medium mb-1">{t('backup_section')}</h3>
+          <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('backup_sync_hint')}</p>
           <div className="flex flex-col gap-2">
             <button
               type="button"
