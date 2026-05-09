@@ -93,3 +93,13 @@ test('stress: 200 articles — list screen renders without timeout', async ({ pa
   // At least one result-card rendered = list is not stuck on loading state.
   await expect(page.getByTestId('result-card').first()).toBeVisible({ timeout: 5000 });
 });
+
+// 1000-article scaling test was attempted but the SEED itself doesn't
+// finish in a reasonable test timeout — `createArticle` runs one full
+// Dexie transaction per article + spawns variants + initial movements,
+// so 1000 articles ≈ 11k transactions. The actual app perf at that
+// scale is unverified. To characterise it properly we'd need either:
+//   (a) a fast bulkAdd-only seed surface that bypasses createArticle's
+//       per-article validation + internal_code allocation, or
+//   (b) a real device with a populated db measured manually.
+// Both deferred. 200-article stress above is our verified ceiling.

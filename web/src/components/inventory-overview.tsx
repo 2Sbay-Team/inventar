@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Boxes, Package, Wallet } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, Boxes, FileText, Package, Wallet } from 'lucide-react';
 import { db } from '../db/db';
 import { useCurrency } from '../hooks/use-currency';
 import { useLive } from '../hooks/use-live';
@@ -49,16 +50,11 @@ const EMPTY: OverviewMetrics = {
 // is small enough (article count capped at ~hundreds) that re-running on
 // every Dexie change via useLive is fine.
 async function computeOverview(): Promise<OverviewMetrics> {
-  const [articles, variants] = await Promise.all([
-    db.articles
-      .where('deleted_at')
-      .equals('NULL')
-      .or('deleted_at')
-      .equals(null as never)
-      .toArray()
-      .catch(async () => (await db.articles.toArray()).filter((a) => a.deleted_at === null)),
-    db.variants.toArray(),
-  ]);
+  // Plain toArray + in-memory filter. Article count is bounded (target
+  // catalogue ≤ ~500) so this stays cheap, and we avoid the indexed-
+  // null-equality compatibility dance that Dexie + IndexedDB are picky
+  // about across versions.
+  const [articles, variants] = await Promise.all([db.articles.toArray(), db.variants.toArray()]);
   const aliveArticles = articles.filter((a) => a.deleted_at === null);
   const articleById = new Map(aliveArticles.map((a) => [a.id, a]));
 
@@ -143,7 +139,17 @@ export function InventoryOverview(): JSX.Element {
 
   return (
     <section data-testid="inventory-overview" className="space-y-3">
-      <h3 className="font-display text-ink text-base font-semibold">{t('inventory_title')}</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-ink text-base font-semibold">{t('inventory_title')}</h3>
+        <Link
+          to="/stock-report"
+          data-testid="open-stock-report"
+          className="text-accent hover:text-accent-ink inline-flex items-center gap-1 text-xs font-medium"
+        >
+          <FileText aria-hidden className="h-3.5 w-3.5" strokeWidth={2.25} />
+          {t('open_stock_report')}
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         <Tile

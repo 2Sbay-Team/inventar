@@ -208,7 +208,8 @@
     "inv_article_count": "Articles",
     "inv_low_stock": "Low / out of stock",
     "inv_by_category": "Stock by category",
-    "inv_low_stock_list_title": "Needs restocking"
+    "inv_low_stock_list_title": "Needs restocking",
+    "open_stock_report": "Detailed report"
   },
   "expense": {
     "title": "Add expense",
@@ -342,5 +343,16 @@
     "install_title": "Install as a real app",
     "install_body": "On Android Chrome or desktop Chrome / Edge: Settings → Install as app, or use the browser menu (⋮ → Install app). On iPhone / iPad: tap Share → Add to Home Screen. The app gets its own icon and runs full-screen.",
     "footer_note": "Lost or stuck? Tap Settings → Reset everything to start over. Your shop's data lives only on this device — back it up first."
+  },
+  "stock_report": {
+    "title": "Stock report",
+    "summary": "Summary",
+    "print_button": "Print / PDF",
+    "print_subtitle": "Stock report — {{date}}",
+    "totals": "{{articles}} articles · {{units}} units · {{value}} at cost",
+    "total_articles": "Articles",
+    "total_units": "Units",
+    "total_value": "Stock value (cost)",
+    "empty": "Nothing in stock yet. Add an article to populate this report."
   }
 }

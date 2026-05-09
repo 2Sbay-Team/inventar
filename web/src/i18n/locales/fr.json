@@ -208,7 +208,8 @@
     "inv_article_count": "Articles",
     "inv_low_stock": "Stock bas / épuisé",
     "inv_by_category": "Stock par catégorie",
-    "inv_low_stock_list_title": "À réapprovisionner"
+    "inv_low_stock_list_title": "À réapprovisionner",
+    "open_stock_report": "Rapport détaillé"
   },
   "expense": {
     "title": "Ajouter une dépense",
@@ -342,5 +343,16 @@
     "install_title": "Installer comme une vraie app",
     "install_body": "Sur Chrome Android ou Chrome / Edge bureau : Réglages → Installer en tant qu'app, ou via le menu navigateur (⋮ → Installer l'app). Sur iPhone / iPad : appuyez sur Partager → Sur l'écran d'accueil. L'app obtient sa propre icône et s'ouvre en plein écran.",
     "footer_note": "Perdu ou bloqué ? Réglages → Tout réinitialiser pour repartir à zéro. Les données de votre boutique vivent uniquement sur cet appareil — sauvegardez d'abord."
+  },
+  "stock_report": {
+    "title": "Rapport de stock",
+    "summary": "Résumé",
+    "print_button": "Imprimer / PDF",
+    "print_subtitle": "Rapport de stock — {{date}}",
+    "totals": "{{articles}} articles · {{units}} unités · {{value}} au coût",
+    "total_articles": "Articles",
+    "total_units": "Unités",
+    "total_value": "Valeur du stock (coût)",
+    "empty": "Aucun article en stock pour l'instant. Ajoutez un article pour remplir ce rapport."
   }
 }

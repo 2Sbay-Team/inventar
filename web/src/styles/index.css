@@ -33,3 +33,35 @@
     animation: none;
   }
 }
+
+/* Print rules — used by /stock-report. Strips background gradient,
+   nav chrome, banners, and the bottom nav so the printed page is just
+   the inventory data. Avoids breaking inside an article row so each
+   item stays on one row of the printed page. */
+@media print {
+  html,
+  body,
+  .bg-paper {
+    background: #ffffff !important;
+  }
+  /* Anything tagged with a print:hidden class (Tailwind variant) is
+     already removed in JSX. The rules below catch the global chrome
+     that the report screen doesn't author directly. */
+  [data-testid='app-footer'],
+  [data-testid='bottom-nav'],
+  [data-testid='install-banner'],
+  [data-testid='install-banner-checking'],
+  [data-testid='install-banner-installed'],
+  [data-testid='install-banner-unsupported'],
+  [data-testid='backup-banner'] {
+    display: none !important;
+  }
+  [data-testid='report-row'] {
+    page-break-inside: avoid;
+  }
+  /* Margins land in the @page block, not on body, so multi-page prints
+     get consistent gutters. */
+  @page {
+    margin: 14mm 12mm;
+  }
+}

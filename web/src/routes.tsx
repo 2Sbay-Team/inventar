@@ -28,6 +28,9 @@ const ArticleDetailScreen = lazy(() =>
   import('./screens/article-detail').then((m) => ({ default: m.ArticleDetailScreen })),
 );
 const HelpScreen = lazy(() => import('./screens/help').then((m) => ({ default: m.HelpScreen })));
+const StockReportScreen = lazy(() =>
+  import('./screens/stock-report').then((m) => ({ default: m.StockReportScreen })),
+);
 
 // Onboarding gate. SPEC §2.1: a user without a ShopProfile row must complete
 // onboarding before any other screen renders. The gate also protects against
@@ -144,6 +147,16 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <HelpScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    path: '/stock-report',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <StockReportScreen />
         </OnboardingGate>
       </Lazy>
     ),
