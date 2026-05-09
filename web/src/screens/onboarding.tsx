@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,7 +7,6 @@ import {
   Footprints,
   Shirt,
   ShoppingCart,
-  Sparkles,
   Store,
   Upload,
   X,
@@ -34,28 +33,20 @@ const STORE_TYPE_ICONS: Record<StoreType, LucideIcon> = {
   grocery: ShoppingCart,
 };
 
-// Maps navigator.language ("en-US", "fr-CA", "ar-TN", ...) to one of our
-// 3 locales, or null if no match. Only the first 2 chars are used since
-// region variants don't matter to us.
-function detectDeviceLocale(): Locale | null {
-  if (typeof navigator === 'undefined' || !navigator.language) return null;
-  const tag = navigator.language.toLowerCase().slice(0, 2);
-  if (tag === 'fr') return 'fr';
-  if (tag === 'ar') return 'ar';
-  if (tag === 'en') return 'en';
-  return null;
-}
-
 interface LanguageOption {
   code: Locale;
   label: string;
-  flag: string;
+  // Short uppercase badge (FR / AR / EN) shown in a rounded chip in
+  // place of a country flag — Arabic is spoken across many countries
+  // so a single flag misrepresents the language. Same treatment for
+  // all three keeps things visually consistent.
+  badge: string;
 }
 
 const LANGUAGE_OPTIONS: ReadonlyArray<LanguageOption> = [
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'ar', label: 'العربية', flag: '🇹🇳' },
-  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'Français', badge: 'FR' },
+  { code: 'ar', label: 'العربية', badge: 'AR' },
+  { code: 'en', label: 'English', badge: 'EN' },
 ];
 
 // SPEC §2.1 onboarding: language → shop name → "got it" backup card → land
@@ -69,9 +60,6 @@ export function OnboardingScreen(): JSX.Element {
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
   const [storeType, setStoreType] = useState<StoreType>(DEFAULT_STORE_TYPE);
-  // Detect once at mount — flagged with a "Recommended" pill on the
-  // matching language card so users find their language faster.
-  const recommendedLocale = useMemo(() => detectDeviceLocale(), []);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -181,52 +169,35 @@ export function OnboardingScreen(): JSX.Element {
               <p className="text-ink-3 text-center text-xs uppercase tracking-widest">
                 {t('onboarding:language_hint')}
               </p>
-              {LANGUAGE_OPTIONS.map(({ code, label, flag }, i) => {
-                const isRecommended = recommendedLocale === code;
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    data-testid={`lang-${code}`}
-                    onClick={() => pickLanguage(code)}
-                    style={{ animationDelay: `${80 + i * 70}ms` }}
-                    className="animate-onb-in border-hair hover:border-accent hover:bg-accent-soft/30 active:scale-[0.98] group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              {LANGUAGE_OPTIONS.map(({ code, label, badge }, i) => (
+                <button
+                  key={code}
+                  type="button"
+                  data-testid={`lang-${code}`}
+                  onClick={() => pickLanguage(code)}
+                  style={{ animationDelay: `${80 + i * 70}ms` }}
+                  className="animate-onb-in border-hair hover:border-accent hover:bg-accent-soft/30 active:scale-[0.98] group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                >
+                  {/* Language code in a coral badge — same visual treatment
+                      for FR / AR / EN. No country flags so a language
+                      isn't tied to a single country (Arabic ≠ Tunisia). */}
+                  <span
+                    aria-hidden
+                    className="bg-accent-soft text-accent flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl font-mono text-sm font-bold tracking-wide"
                   >
-                    {/* Flag in a rounded badge for visual consistency with
-                        the new icon system. */}
-                    <span
-                      aria-hidden
-                      className="bg-paper-deep flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-2xl leading-none"
-                    >
-                      {flag}
-                    </span>
-                    <span className="flex flex-1 flex-col">
-                      <span className="flex items-center gap-2">
-                        <span className="text-ink text-lg font-semibold leading-tight">
-                          {label}
-                        </span>
-                        {isRecommended ? (
-                          <span
-                            data-testid={`lang-recommended-${code}`}
-                            className="bg-accent-soft text-accent inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide"
-                          >
-                            <Sparkles aria-hidden className="h-2.5 w-2.5" strokeWidth={2.5} />
-                            {t('onboarding:recommended')}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="text-ink-3 text-xs">
-                        {t(`onboarding:lang_name_${code}`)}
-                      </span>
-                    </span>
-                    <ChevronRight
-                      aria-hidden
-                      className="text-ink-4 group-hover:text-accent h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
-                      strokeWidth={2.25}
-                    />
-                  </button>
-                );
-              })}
+                    {badge}
+                  </span>
+                  <span className="flex flex-1 flex-col">
+                    <span className="text-ink text-lg font-semibold leading-tight">{label}</span>
+                    <span className="text-ink-3 text-xs">{t(`onboarding:lang_name_${code}`)}</span>
+                  </span>
+                  <ChevronRight
+                    aria-hidden
+                    className="text-ink-4 group-hover:text-accent h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+                    strokeWidth={2.25}
+                  />
+                </button>
+              ))}
             </div>
           </section>
         ) : null}
