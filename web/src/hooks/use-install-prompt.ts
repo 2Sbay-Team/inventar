@@ -10,6 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export type InstallState =
+  | { kind: 'checking' }
   | { kind: 'unsupported' }
   | { kind: 'ios-instructions' }
   | { kind: 'installable'; install: () => Promise<'accepted' | 'dismissed'> }
@@ -18,7 +19,7 @@ export type InstallState =
 // Module-level cache so we don't lose `beforeinstallprompt` events that
 // fire before any React component has mounted. The browser only fires
 // this event once per page load — if we miss it, the install prompt is
-// gone for that session. Hooks read from this cache at mount time.
+// gone for that session.
 let cachedEvent: BeforeInstallPromptEvent | null = null;
 let cachedInstalled = false;
 const subscribers = new Set<() => void>();
@@ -53,7 +54,21 @@ function isIOS(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
-function compute(): InstallState {
+// True if the device LIKELY can fire beforeinstallprompt eventually.
+// Used to keep us in 'checking' state instead of jumping to 'unsupported'.
+function isInstallCapableBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  // Chromium-based: Chrome, Edge, Opera, Samsung Internet, Brave (mostly).
+  // Firefox does NOT fire the event. iOS Safari handled separately.
+  if (/Firefox/i.test(ua)) return false;
+  if (isIOS()) return false;
+  return /Chrome|Chromium|Edg|OPR|SamsungBrowser/i.test(ua);
+}
+
+const CHECK_TIMEOUT_MS = 3500;
+
+function compute(checking: boolean): InstallState {
   if (cachedInstalled || isStandalone()) return { kind: 'installed' };
   if (cachedEvent) {
     const evt = cachedEvent;
@@ -72,22 +87,34 @@ function compute(): InstallState {
     };
   }
   if (isIOS()) return { kind: 'ios-instructions' };
+  // We may still be early — the browser hasn't fired the event yet.
+  // Stay in `checking` until either the event fires or our timeout
+  // elapses, otherwise we jump straight to `unsupported` and the user
+  // gets a confusing "use a recent browser" message on Chrome.
+  if (checking && isInstallCapableBrowser()) return { kind: 'checking' };
   return { kind: 'unsupported' };
 }
 
 export function useInstallPrompt(): InstallState {
-  const [state, setState] = useState<InstallState>(compute);
+  const [checking, setChecking] = useState(true);
+  const [state, setState] = useState<InstallState>(() => compute(true));
 
   useEffect(() => {
-    const update = (): void => setState(compute());
+    const update = (): void => setState(compute(checking));
     subscribers.add(update);
-    // Re-check on mount in case the event fired between module-load and now
-    // OR the user installed via a different mechanism in another tab.
     update();
+    // Stop being in `checking` mode after the timeout — by then either
+    // the event fired (we'd be `installable`) or the browser isn't going
+    // to fire it (we drop to `unsupported`).
+    const timer = window.setTimeout(() => {
+      setChecking(false);
+      setState(compute(false));
+    }, CHECK_TIMEOUT_MS);
     return () => {
       subscribers.delete(update);
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [checking]);
 
   return state;
 }

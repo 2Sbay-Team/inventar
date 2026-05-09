@@ -52,6 +52,22 @@ export function InstallBanner(): JSX.Element | null {
     window.history.replaceState({}, '', next);
   }, [installState, arrivedToInstall]);
 
+  // While the install API is still warming up (SW registering, browser
+  // checking PWA criteria), show a soft "checking" pill if the user
+  // arrived to install — keeps them from thinking the link is broken.
+  if (installState.kind === 'checking') {
+    if (!arrivedToInstall) return null;
+    return (
+      <aside
+        data-testid="install-banner-checking"
+        className="bg-paper-deep border-hair mx-4 mt-2 flex items-center gap-3 rounded-2xl border px-3 py-2.5"
+      >
+        <Download aria-hidden className="text-ink-3 h-5 w-5 flex-shrink-0" strokeWidth={2} />
+        <p className="text-ink-2 flex-1 text-[13px] leading-tight">{t('install_checking')}</p>
+      </aside>
+    );
+  }
+
   // Already-installed feedback: only shown if user explicitly came from the
   // install link. Otherwise no banner — installed users don't need a nag.
   if (installState.kind === 'installed') {
@@ -78,16 +94,26 @@ export function InstallBanner(): JSX.Element | null {
   }
 
   // Unsupported browser feedback: same logic — only nag if user explicitly
-  // tried to install.
+  // tried to install. Now shows a real fallback (browser-menu instructions)
+  // instead of the useless "use a recent browser" message.
   if (installState.kind === 'unsupported') {
     if (!arrivedToInstall) return null;
     return (
       <aside
         data-testid="install-banner-unsupported"
-        className="bg-warn-soft border-warn/30 mx-4 mt-2 flex items-center gap-3 rounded-2xl border px-3 py-2.5"
+        className="bg-warn-soft border-warn/30 mx-4 mt-2 flex items-start gap-3 rounded-2xl border px-3 py-2.5"
       >
-        <Smartphone aria-hidden className="text-warn h-5 w-5 flex-shrink-0" strokeWidth={2} />
-        <p className="text-ink flex-1 text-[13px] leading-tight">{t('install_unsupported')}</p>
+        <Smartphone
+          aria-hidden
+          className="text-warn mt-0.5 h-5 w-5 flex-shrink-0"
+          strokeWidth={2}
+        />
+        <div className="flex-1">
+          <p className="text-ink text-[13px] font-medium leading-tight">
+            {t('install_manual_title')}
+          </p>
+          <p className="text-ink-2 mt-1 text-[12px] leading-relaxed">{t('install_manual_steps')}</p>
+        </div>
         <button
           type="button"
           onClick={() => setArrivedToInstall(false)}

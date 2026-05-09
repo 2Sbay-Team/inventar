@@ -8,6 +8,19 @@ import imageCompression from 'browser-image-compression';
 
 export const MAX_PHOTO_BYTES = 200 * 1024;
 export const MAX_PHOTO_DIMENSION = 1280;
+// Hard ceiling on the INPUT file size before compression. Modern phone
+// cameras top out around 8 MB; anything larger is likely either a 50 MP
+// pro photo (rare) or a malicious giant file aimed at exhausting browser
+// memory (the compressor pulls the whole image into a canvas). Reject
+// before we hand it to the compressor.
+export const MAX_INPUT_BYTES = 25 * 1024 * 1024;
+
+export class PhotoTooLargeError extends Error {
+  constructor(public readonly bytes: number) {
+    super(`Photo too large: ${bytes} bytes (max ${MAX_INPUT_BYTES})`);
+    this.name = 'PhotoTooLargeError';
+  }
+}
 
 export interface CompressedPhoto {
   blob: Blob;
@@ -56,6 +69,12 @@ export async function compressPhoto(
   file: File | Blob,
   options: CompressPhotoOptions = {},
 ): Promise<CompressedPhoto> {
+  // Hard cap on input size — protects against accidental or malicious
+  // upload of huge files that would OOM the browser when the compressor
+  // decodes them onto a canvas.
+  if (file.size > MAX_INPUT_BYTES) {
+    throw new PhotoTooLargeError(file.size);
+  }
   const maxBytes = options.maxBytes ?? MAX_PHOTO_BYTES;
   const maxDimension = options.maxDimension ?? MAX_PHOTO_DIMENSION;
 
