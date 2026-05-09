@@ -23,7 +23,7 @@
     "offline": "Hors ligne",
     "tnd": "TND",
     "dash": "—",
-    "powered_by": "Plus de projets sur hoodhood.ai"
+    "powered_by": "Conçu par hoodhood.ai"
   },
   "nav": {
     "search": "Recherche",
@@ -41,7 +41,11 @@
     "language_hint": "Pour commencer, choisissez votre langue de travail.",
     "pick_language": "Choisissez votre langue",
     "setup_title": "Configurez votre boutique",
-    "setup_subtitle": "Deux informations pour commencer. Vous pourrez tout modifier plus tard dans Réglages.",
+    "setup_subtitle": "Quelques détails pour commencer. Vous pourrez tout modifier plus tard dans Réglages.",
+    "logo_label": "Logo de la boutique",
+    "logo_add": "Ajouter",
+    "logo_clear": "Retirer",
+    "logo_hint": "Facultatif — vous pourrez l'ajouter ou le changer dans Réglages",
     "pick_currency": "Choisissez votre devise",
     "pick_currency_hint": "Vous pourrez changer plus tard dans Réglages.",
     "shop_name_label": "Nom de la boutique",

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Boxes, Check } from 'lucide-react';
+import { Boxes, Camera, Check, X } from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
 import { db } from '../db/db';
 import { DEFAULT_CURRENCY, upsertProfile } from '../repos/profile';
+import { storePhoto } from '../repos/photos';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { setLocale } from '../i18n/i18next';
 import { useLocale } from '../hooks/use-locale';
@@ -36,8 +37,48 @@ export function OnboardingScreen(): JSX.Element {
   const [step, setStep] = useState<'language' | 'name' | 'backup_card'>('language');
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const currencies = listSupportedCurrencies();
+
+  // Revoke any previous preview URL when the file changes / unmounts so we
+  // don't leak object URLs on long onboarding sessions.
+  useEffect(() => {
+    return () => {
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+    };
+  }, [logoPreview]);
+
+  function pickLogo(): void {
+    logoInputRef.current?.click();
+  }
+
+  async function handleLogoFile(file: File): Promise<void> {
+    setLogoBusy(true);
+    try {
+      // Lazy-load the compressor (browser-image-compression is ~54 KB) so
+      // it only ships when a user actually picks a logo.
+      const { compressPhoto } = await import('../utils/compress-photo');
+      const compressed = await compressPhoto(file);
+      const compressedFile = new File([compressed.blob], 'logo.jpg', { type: compressed.mime });
+      const url = URL.createObjectURL(compressedFile);
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+      setLogoFile(compressedFile);
+      setLogoPreview(url);
+    } finally {
+      setLogoBusy(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  }
+
+  function clearLogo(): void {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoFile(null);
+    setLogoPreview(null);
+  }
 
   function pickLanguage(code: Locale): void {
     void setLocale(code);
@@ -54,7 +95,27 @@ export function OnboardingScreen(): JSX.Element {
 
   async function confirmBackupCard(): Promise<void> {
     setSubmitting(true);
-    await upsertProfile(db, { name: shopName.trim(), locale, currency });
+    let logoPhotoId: string | null = null;
+    if (logoFile) {
+      // Read dimensions for the Photo row metadata. Cheap thanks to
+      // createImageBitmap; we already shipped the blob through the
+      // compressor so the size is bounded.
+      const bitmap = await createImageBitmap(logoFile);
+      const stored = await storePhoto(db, {
+        blob: logoFile,
+        width: bitmap.width,
+        height: bitmap.height,
+        mime: logoFile.type || 'image/jpeg',
+      });
+      bitmap.close?.();
+      logoPhotoId = stored.id;
+    }
+    await upsertProfile(db, {
+      name: shopName.trim(),
+      locale,
+      currency,
+      logo_photo_id: logoPhotoId,
+    });
     await ensurePersistence(db);
     setSubmitting(false);
     navigate('/', { replace: true });
@@ -119,6 +180,49 @@ export function OnboardingScreen(): JSX.Element {
               <p className="text-ink-2 mt-3 text-[15px] leading-relaxed">
                 {t('onboarding:setup_subtitle')}
               </p>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                data-testid="onb-logo-pick"
+                onClick={pickLogo}
+                disabled={logoBusy}
+                aria-label={t('onboarding:logo_label')}
+                className="border-hair group hover:border-accent relative h-24 w-24 overflow-hidden rounded-full border-2 border-dashed bg-white transition-colors disabled:opacity-50"
+              >
+                {logoPreview ? (
+                  <img src={logoPreview} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="text-ink-3 group-hover:text-accent flex h-full w-full flex-col items-center justify-center gap-1">
+                    <Camera aria-hidden className="h-6 w-6" strokeWidth={1.75} />
+                    <span className="text-[10px] font-medium">{t('onboarding:logo_add')}</span>
+                  </div>
+                )}
+              </button>
+              {logoFile ? (
+                <button
+                  type="button"
+                  data-testid="onb-logo-clear"
+                  onClick={clearLogo}
+                  className="text-ink-3 hover:text-bad inline-flex items-center gap-1 text-xs"
+                >
+                  <X aria-hidden className="h-3 w-3" strokeWidth={2.5} />
+                  {t('onboarding:logo_clear')}
+                </button>
+              ) : (
+                <p className="text-ink-3 text-xs">{t('onboarding:logo_hint')}</p>
+              )}
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleLogoFile(f);
+                }}
+              />
             </div>
 
             <div className="space-y-2">

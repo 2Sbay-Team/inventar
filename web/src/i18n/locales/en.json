@@ -23,7 +23,7 @@
     "offline": "Offline",
     "tnd": "TND",
     "dash": "—",
-    "powered_by": "More projects at hoodhood.ai"
+    "powered_by": "Built by hoodhood.ai"
   },
   "nav": {
     "search": "Search",
@@ -41,7 +41,11 @@
     "language_hint": "First, pick the language you'll work in.",
     "pick_language": "Choose your language",
     "setup_title": "Set up your shop",
-    "setup_subtitle": "Just two things to get started. You can change everything later in Settings.",
+    "setup_subtitle": "A few details to get started. You can change everything later in Settings.",
+    "logo_label": "Shop logo",
+    "logo_add": "Add logo",
+    "logo_clear": "Remove",
+    "logo_hint": "Optional — you can add or change it anytime in Settings",
     "pick_currency": "Choose your currency",
     "pick_currency_hint": "You can change this later in Settings.",
     "shop_name_label": "Shop name",
