@@ -54,7 +54,7 @@ export function OnboardingScreen(): JSX.Element {
     <div className="bg-paper flex min-h-screen flex-col">
       <main
         data-testid="onboarding"
-        className="flex flex-1 flex-col items-stretch justify-center px-6 py-12"
+        className="mx-auto flex w-full flex-1 flex-col items-stretch justify-center px-6 py-12 min-[600px]:max-w-[480px]"
       >
         {step === 'language' ? (
           <section data-testid="step-language" className="space-y-6">
