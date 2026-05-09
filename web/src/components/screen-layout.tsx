@@ -11,15 +11,24 @@ interface ScreenLayoutProps {
   hideNav?: boolean;
 }
 
-// Outer wrapper paints the warm paper across the full viewport; the inner
-// shell is centred and capped at 480px above the 600px breakpoint, full-width
-// below. The bottom nav lives inside the shell so it stays aligned.
+// Outer wrapper paints the paper across the full viewport; the inner shell
+// is centred and grows progressively with the viewport so the layout adapts
+// to phones, tablets, and desktops without locking to a single phone-width
+// column. Touch targets stay finger-sized at every step (we only widen the
+// column, we don't downsize controls).
+//
+// Tiers — in sync with onboarding's main wrapper:
+//   < 600px  : full-width (phone)
+//   ≥ 600px  : 540px (small tablet / large phone landscape)
+//   ≥ 768px  : 640px (tablet portrait)
+//   ≥ 1024px : 768px (laptop / tablet landscape)
+//   ≥ 1280px : 880px (desktop)
 export function ScreenLayout({ children, hideNav }: ScreenLayoutProps): JSX.Element {
   return (
     <div className="bg-paper flex min-h-screen w-full flex-col items-center">
       <div
         data-testid="app-shell"
-        className="border-hair relative flex min-h-screen w-full flex-col bg-paper min-[600px]:max-w-[480px] min-[600px]:border-x min-[600px]:shadow-sm"
+        className="border-hair relative flex min-h-screen w-full flex-col bg-paper min-[600px]:max-w-[540px] min-[600px]:border-x min-[600px]:shadow-sm min-[768px]:max-w-[640px] min-[1024px]:max-w-[768px] min-[1280px]:max-w-[880px]"
       >
         <div className="flex flex-1 flex-col">{children}</div>
         <AppFooter />
