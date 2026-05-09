@@ -25,4 +25,7 @@ export const META_KEYS = {
   backup_banner_dismissed_at: 'backup_banner_dismissed_at',
   install_banner_dismissed_at: 'install_banner_dismissed_at',
   last_seen_version: 'last_seen_version',
+  auto_backup_handle: 'auto_backup_handle',
+  auto_backup_folder_name: 'auto_backup_folder_name',
+  auto_backup_at: 'auto_backup_at',
 } as const;

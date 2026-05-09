@@ -7,6 +7,13 @@ import { ShopHeader } from '../components/shop-header';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
+import { useLive } from '../hooks/use-live';
+import {
+  isAutoBackupSupported,
+  pickAutoBackupFolder,
+  setAutoBackupHandle,
+} from '../utils/auto-backup';
+import { getMeta, META_KEYS } from '../repos/meta';
 import { db, resetDatabase } from '../db/db';
 import { upsertProfile, markBackedUp } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
@@ -40,6 +47,27 @@ export function SettingsScreen(): JSX.Element {
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
   const currencies = useMemo(() => listSupportedCurrencies(), []);
   const installState = useInstallPrompt();
+  const autoBackupSupported = useMemo(() => isAutoBackupSupported(), []);
+  const autoBackupFolder = useLive<string | null>(
+    async () => (await getMeta<string>(db, META_KEYS.auto_backup_folder_name)) ?? null,
+    [],
+    null,
+  );
+  const autoBackupAt = useLive<string | null>(
+    async () => (await getMeta<string>(db, META_KEYS.auto_backup_at)) ?? null,
+    [],
+    null,
+  );
+
+  async function setupAutoBackup(): Promise<void> {
+    const picked = await pickAutoBackupFolder();
+    if (!picked) return;
+    await setAutoBackupHandle(db, picked.handle, picked.name);
+  }
+
+  async function disableAutoBackup(): Promise<void> {
+    await setAutoBackupHandle(db, null, null);
+  }
 
   async function exportData(): Promise<void> {
     const { blob } = await exportBackupBlob(db, { appVersion: APP_VERSION });
@@ -361,6 +389,57 @@ export function SettingsScreen(): JSX.Element {
             <p data-testid="last-backup" className="text-ink-3 font-mono text-xs text-start mt-1">
               {t('backup_last')}: {profile?.last_backup_at ?? t('backup_never')}
             </p>
+          </div>
+
+          <div
+            data-testid="auto-backup"
+            className="border-hair mt-4 rounded-xl border bg-paper p-3"
+          >
+            <h4 className="text-ink text-sm font-medium">{t('auto_backup_title')}</h4>
+            {!autoBackupSupported ? (
+              <p className="text-ink-3 mt-2 text-xs leading-relaxed">
+                {t('auto_backup_unsupported')}
+              </p>
+            ) : autoBackupFolder ? (
+              <>
+                <p className="text-ink-2 mt-1 truncate text-xs">📁 {autoBackupFolder}</p>
+                <p className="text-ink-3 font-mono mt-1 text-[11px]">
+                  {autoBackupAt
+                    ? t('auto_backup_status_idle', { when: autoBackupAt })
+                    : t('auto_backup_status_never')}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    data-testid="auto-backup-change"
+                    onClick={() => void setupAutoBackup()}
+                    className="border-hair flex-1 rounded-lg border bg-white py-2 text-xs"
+                  >
+                    {t('auto_backup_change')}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="auto-backup-disable"
+                    onClick={() => void disableAutoBackup()}
+                    className="text-bad border-bad/30 flex-1 rounded-lg border bg-white py-2 text-xs"
+                  >
+                    {t('auto_backup_disable')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-ink-3 mt-1 text-xs leading-relaxed">{t('auto_backup_hint')}</p>
+                <button
+                  type="button"
+                  data-testid="auto-backup-pick"
+                  onClick={() => void setupAutoBackup()}
+                  className="bg-accent mt-2 w-full rounded-lg py-2 text-xs font-medium text-white"
+                >
+                  {t('auto_backup_pick')}
+                </button>
+              </>
+            )}
           </div>
           {importData ? (
             <div
