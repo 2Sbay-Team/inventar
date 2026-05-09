@@ -20,8 +20,9 @@ import { storePhoto } from '../repos/photos';
 import { exportBackupBlob, backupFilename } from '../backup/export';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
+import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { ChevronRight, Download as DownloadIcon, Smartphone } from 'lucide-react';
-import { type CurrencyCode, type Locale } from '../types';
+import { type CurrencyCode, type Locale, type StoreType } from '../types';
 
 const APP_VERSION = '1.0.0';
 
@@ -34,6 +35,7 @@ const LANGUAGES: ReadonlyArray<{ code: Locale; label: string }> = [
 export function SettingsScreen(): JSX.Element {
   const { t } = useTranslation('settings');
   const { t: tCommon } = useTranslation('common');
+  const { t: tStoreTypes } = useTranslation('store_types');
   const { locale, setLocale } = useLocale();
   const profile = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +47,7 @@ export function SettingsScreen(): JSX.Element {
   const [shopNameDraft, setShopNameDraft] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
+  const [pendingStoreType, setPendingStoreType] = useState<StoreType | null>(null);
   const currencies = useMemo(() => listSupportedCurrencies(), []);
   const installState = useInstallPrompt();
   const autoBackupSupported = useMemo(() => isAutoBackupSupported(), []);
@@ -175,6 +178,21 @@ export function SettingsScreen(): JSX.Element {
     setPendingCurrency(null);
   }
 
+  function selectStoreType(code: StoreType): void {
+    if (!profile || code === profile.store_type) return;
+    setPendingStoreType(code);
+  }
+
+  async function confirmStoreTypeChange(): Promise<void> {
+    if (!profile || !pendingStoreType) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      store_type: pendingStoreType,
+    });
+    setPendingStoreType(null);
+  }
+
   return (
     <ScreenLayout>
       <ShopHeader />
@@ -300,6 +318,50 @@ export function SettingsScreen(): JSX.Element {
                   type="button"
                   data-testid="currency-confirm-btn"
                   onClick={() => void confirmCurrencyChange()}
+                  className="bg-ink flex-1 rounded-xl py-2.5 text-sm text-white"
+                >
+                  {tCommon('confirm')}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <label htmlFor="settings-store-type" className="text-ink-3 mt-4 mb-1 block text-xs">
+            {t('store_type')}
+          </label>
+          <select
+            id="settings-store-type"
+            data-testid="settings-store-type"
+            value={profile?.store_type ?? ''}
+            onChange={(e) => selectStoreType(e.target.value as StoreType)}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
+          >
+            {STORE_TYPE_ORDER.map((code) => (
+              <option key={code} value={code}>
+                {tStoreTypes(STORE_TYPES[code].label_key)}
+              </option>
+            ))}
+          </select>
+
+          {pendingStoreType ? (
+            <div
+              data-testid="store-type-confirm"
+              className="border-bad/30 mt-3 rounded-xl border bg-paper p-3"
+            >
+              <p className="text-sm">{t('store_type_change_warning')}</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  data-testid="store-type-cancel"
+                  onClick={() => setPendingStoreType(null)}
+                  className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
+                >
+                  {tCommon('cancel')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="store-type-confirm-btn"
+                  onClick={() => void confirmStoreTypeChange()}
                   className="bg-ink flex-1 rounded-xl py-2.5 text-sm text-white"
                 >
                   {tCommon('confirm')}

@@ -38,6 +38,7 @@ interface FormState {
   qty: number;
   costInput: string;
   saleInput: string;
+  notes: string;
 }
 
 const INITIAL: FormState = {
@@ -51,6 +52,7 @@ const INITIAL: FormState = {
   qty: 1,
   costInput: '',
   saleInput: '',
+  notes: '',
 };
 
 export function AddArticleScreen(): JSX.Element {
@@ -143,7 +145,7 @@ export function AddArticleScreen(): JSX.Element {
       brand: form.brand.trim() === '' ? null : form.brand.trim(),
       cost_price_tnd: cost,
       sale_price_tnd: sale,
-      notes: null,
+      notes: form.notes.trim() === '' ? null : form.notes.trim(),
       sizes,
     });
     setSubmitting(false);
@@ -402,6 +404,22 @@ export function AddArticleScreen(): JSX.Element {
               {errors.sale}
             </p>
           ) : null}
+
+          <Field
+            label={t(storeType === 'grocery' ? 'field_expiry_label' : 'field_notes')}
+            hint={t('optional')}
+          >
+            <input
+              data-testid="field-notes"
+              type="text"
+              value={form.notes}
+              onChange={(e) => patch({ notes: e.target.value })}
+              placeholder={t(
+                storeType === 'grocery' ? 'field_expiry_placeholder' : 'field_notes_placeholder',
+              )}
+              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
+            />
+          </Field>
         </section>
       </div>
 

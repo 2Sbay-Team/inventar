@@ -4,6 +4,8 @@ import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
+import { STORE_TYPES } from '../config/store-types';
+import { useProfile } from '../hooks/use-profile';
 import { ShopHeader } from '../components/shop-header';
 import { useCurrency } from '../hooks/use-currency';
 import { useLive } from '../hooks/use-live';
@@ -85,6 +87,8 @@ export function DashboardScreen(): JSX.Element {
   const { t: tCommon } = useTranslation('common');
   const { locale } = useLocale();
   const currency = useCurrency();
+  const profile = useProfile();
+  const sized = STORE_TYPES[profile?.store_type ?? 'shoes'].has_sizes;
   const [period, setPeriod] = useState<Period>('today');
   const metrics = useLive<PeriodMetrics>(() => computeMetrics(period), [period]);
 
@@ -161,7 +165,7 @@ export function DashboardScreen(): JSX.Element {
           />
           <BigNumber
             testId="big-pairs"
-            label={t('big_pairs')}
+            label={t(sized ? 'big_pairs' : 'big_units')}
             value={formatNumber(m.pairsSold, locale)}
           />
         </section>

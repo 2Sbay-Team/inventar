@@ -1,7 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Boxes, Camera, Check, X } from 'lucide-react';
+import {
+  Boxes,
+  ChevronRight,
+  Footprints,
+  Shirt,
+  ShoppingCart,
+  Sparkles,
+  Store,
+  Upload,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { db } from '../db/db';
@@ -12,6 +23,28 @@ import { setLocale } from '../i18n/i18next';
 import { useLocale } from '../hooks/use-locale';
 import { ensurePersistence } from '../pwa/persistence';
 import { type CurrencyCode, type Locale, type StoreType } from '../types';
+
+// Lucide replacements for the per-store-type emoji flags. Onboarding owns
+// this mapping (rather than the data-only STORE_TYPES config) so the
+// config can stay JSX-free and importable from non-React modules.
+const STORE_TYPE_ICONS: Record<StoreType, LucideIcon> = {
+  shoes: Footprints,
+  clothes: Shirt,
+  kiosk: Store,
+  grocery: ShoppingCart,
+};
+
+// Maps navigator.language ("en-US", "fr-CA", "ar-TN", ...) to one of our
+// 3 locales, or null if no match. Only the first 2 chars are used since
+// region variants don't matter to us.
+function detectDeviceLocale(): Locale | null {
+  if (typeof navigator === 'undefined' || !navigator.language) return null;
+  const tag = navigator.language.toLowerCase().slice(0, 2);
+  if (tag === 'fr') return 'fr';
+  if (tag === 'ar') return 'ar';
+  if (tag === 'en') return 'en';
+  return null;
+}
 
 interface LanguageOption {
   code: Locale;
@@ -36,6 +69,9 @@ export function OnboardingScreen(): JSX.Element {
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
   const [storeType, setStoreType] = useState<StoreType>(DEFAULT_STORE_TYPE);
+  // Detect once at mount — flagged with a "Recommended" pill on the
+  // matching language card so users find their language faster.
+  const recommendedLocale = useMemo(() => detectDeviceLocale(), []);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -145,28 +181,52 @@ export function OnboardingScreen(): JSX.Element {
               <p className="text-ink-3 text-center text-xs uppercase tracking-widest">
                 {t('onboarding:language_hint')}
               </p>
-              {LANGUAGE_OPTIONS.map(({ code, label, flag }) => (
-                <button
-                  key={code}
-                  type="button"
-                  data-testid={`lang-${code}`}
-                  onClick={() => pickLanguage(code)}
-                  className="border-hair hover:border-accent hover:bg-accent-soft/40 group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start transition-colors"
-                >
-                  <span aria-hidden className="text-2xl leading-none">
-                    {flag}
-                  </span>
-                  <span className="flex flex-1 flex-col">
-                    <span className="text-ink text-lg font-medium leading-tight">{label}</span>
-                    <span className="text-ink-3 text-xs">{t(`onboarding:lang_name_${code}`)}</span>
-                  </span>
-                  <Check
-                    aria-hidden
-                    className="text-accent h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
-                    strokeWidth={2.5}
-                  />
-                </button>
-              ))}
+              {LANGUAGE_OPTIONS.map(({ code, label, flag }, i) => {
+                const isRecommended = recommendedLocale === code;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    data-testid={`lang-${code}`}
+                    onClick={() => pickLanguage(code)}
+                    style={{ animationDelay: `${80 + i * 70}ms` }}
+                    className="animate-onb-in border-hair hover:border-accent hover:bg-accent-soft/30 active:scale-[0.98] group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                  >
+                    {/* Flag in a rounded badge for visual consistency with
+                        the new icon system. */}
+                    <span
+                      aria-hidden
+                      className="bg-paper-deep flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-2xl leading-none"
+                    >
+                      {flag}
+                    </span>
+                    <span className="flex flex-1 flex-col">
+                      <span className="flex items-center gap-2">
+                        <span className="text-ink text-lg font-semibold leading-tight">
+                          {label}
+                        </span>
+                        {isRecommended ? (
+                          <span
+                            data-testid={`lang-recommended-${code}`}
+                            className="bg-accent-soft text-accent inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide"
+                          >
+                            <Sparkles aria-hidden className="h-2.5 w-2.5" strokeWidth={2.5} />
+                            {t('onboarding:recommended')}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-ink-3 text-xs">
+                        {t(`onboarding:lang_name_${code}`)}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      aria-hidden
+                      className="text-ink-4 group-hover:text-accent h-4 w-4 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+                      strokeWidth={2.25}
+                    />
+                  </button>
+                );
+              })}
             </div>
           </section>
         ) : null}
@@ -192,9 +252,10 @@ export function OnboardingScreen(): JSX.Element {
 
             <div className="space-y-2">
               <p className="text-ink-2 text-sm font-medium">{t('onboarding:store_type_label')}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {STORE_TYPE_ORDER.map((code) => {
+              <div className="grid grid-cols-2 gap-3">
+                {STORE_TYPE_ORDER.map((code, i) => {
                   const cfg = STORE_TYPES[code];
+                  const Icon = STORE_TYPE_ICONS[code];
                   const active = storeType === code;
                   return (
                     <button
@@ -203,16 +264,21 @@ export function OnboardingScreen(): JSX.Element {
                       data-testid={`onb-store-${code}`}
                       onClick={() => setStoreType(code)}
                       aria-pressed={active}
-                      className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-start transition-colors ${
+                      style={{ animationDelay: `${100 + i * 60}ms` }}
+                      className={`animate-onb-in active:scale-[0.98] flex flex-col items-start gap-1.5 rounded-2xl border p-3.5 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                         active
-                          ? 'border-accent bg-accent-soft/50'
-                          : 'border-hair hover:border-accent/50 bg-white'
+                          ? 'border-accent bg-accent-soft/40 shadow-[0_4px_14px_rgba(255,107,53,0.12)]'
+                          : 'border-hair bg-white hover:border-accent/40 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.05)]'
                       }`}
                     >
-                      <span aria-hidden className="text-2xl leading-none">
-                        {cfg.flag}
+                      <span
+                        className={`mb-0.5 flex h-9 w-9 items-center justify-center rounded-xl ${
+                          active ? 'bg-accent text-white' : 'bg-paper-deep text-ink-2'
+                        }`}
+                      >
+                        <Icon aria-hidden className="h-5 w-5" strokeWidth={2} />
                       </span>
-                      <span className="text-ink text-sm font-medium leading-tight">
+                      <span className="text-ink text-sm font-semibold leading-tight">
                         {t(`store_types:${cfg.label_key}`)}
                       </span>
                       <span className="text-ink-3 text-[11px] leading-snug">
@@ -224,21 +290,25 @@ export function OnboardingScreen(): JSX.Element {
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2">
+            <div className="space-y-2">
+              <p className="text-ink-2 text-sm font-medium">{t('onboarding:logo_label')}</p>
               <button
                 type="button"
                 data-testid="onb-logo-pick"
                 onClick={pickLogo}
                 disabled={logoBusy}
-                aria-label={t('onboarding:logo_label')}
-                className="border-hair group hover:border-accent relative h-24 w-24 overflow-hidden rounded-full border-2 border-dashed bg-white transition-colors disabled:opacity-50"
+                aria-label={t('onboarding:logo_drop_zone')}
+                className="border-hair hover:border-accent active:scale-[0.99] group relative flex h-32 w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed bg-white transition-all duration-300 hover:bg-accent-soft/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 {logoPreview ? (
                   <img src={logoPreview} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="text-ink-3 group-hover:text-accent flex h-full w-full flex-col items-center justify-center gap-1">
-                    <Camera aria-hidden className="h-6 w-6" strokeWidth={1.75} />
-                    <span className="text-[10px] font-medium">{t('onboarding:logo_add')}</span>
+                  <div className="text-ink-3 group-hover:text-accent flex flex-col items-center justify-center gap-2 transition-colors">
+                    <span className="bg-paper-deep group-hover:bg-accent-soft flex h-10 w-10 items-center justify-center rounded-full transition-colors">
+                      <Upload aria-hidden className="h-5 w-5" strokeWidth={2} />
+                    </span>
+                    <span className="text-sm font-medium">{t('onboarding:logo_drop_zone')}</span>
+                    <span className="text-ink-4 text-[11px]">{t('onboarding:logo_hint')}</span>
                   </div>
                 )}
               </button>
@@ -252,9 +322,7 @@ export function OnboardingScreen(): JSX.Element {
                   <X aria-hidden className="h-3 w-3" strokeWidth={2.5} />
                   {t('onboarding:logo_clear')}
                 </button>
-              ) : (
-                <p className="text-ink-3 text-xs">{t('onboarding:logo_hint')}</p>
-              )}
+              ) : null}
               <input
                 ref={logoInputRef}
                 type="file"
@@ -309,7 +377,7 @@ export function OnboardingScreen(): JSX.Element {
               data-testid="continue"
               disabled={shopName.trim().length < 2 || submitting}
               onClick={submitName}
-              className="bg-accent w-full rounded-xl py-3 font-medium text-white disabled:opacity-50"
+              className="bg-accent w-full rounded-xl py-3 font-medium text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               {t('common:continue')}
             </button>
@@ -332,7 +400,7 @@ export function OnboardingScreen(): JSX.Element {
               data-testid="got-it"
               disabled={submitting}
               onClick={() => void confirmBackupCard()}
-              className="bg-accent w-full rounded-xl py-3 font-medium text-white disabled:opacity-50"
+              className="bg-accent w-full rounded-xl py-3 font-medium text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               {t('common:got_it')}
             </button>

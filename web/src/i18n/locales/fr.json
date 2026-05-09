@@ -44,6 +44,8 @@
     "lang_name_ar": "Arabe",
     "lang_name_en": "Anglais",
     "change_language": "← Changer de langue",
+    "recommended": "Recommandé",
+    "logo_drop_zone": "Touchez pour téléverser le logo",
     "setup_title": "Configurez votre boutique",
     "setup_subtitle": "Quelques détails pour commencer. Vous pourrez tout modifier plus tard dans Réglages.",
     "store_type_label": "Quel type de boutique ?",
@@ -130,7 +132,11 @@
     "err_name_required": "Le nom est obligatoire (min. 2 caractères)",
     "err_photo_required": "La photo est obligatoire",
     "err_invalid_sizes": "Les tailles doivent être alphanumériques, séparées par virgules",
-    "warn_cost_exceeds_sale": "Vous perdriez de l'argent — continuer ?"
+    "warn_cost_exceeds_sale": "Vous perdriez de l'argent — continuer ?",
+    "field_notes": "Notes",
+    "field_notes_placeholder": "Quelque chose d'autre à retenir",
+    "field_expiry_label": "Péremption / notes",
+    "field_expiry_placeholder": "ex. péremp. 2026-08-15"
   },
   "color": {
     "white": "blanc",
@@ -173,6 +179,7 @@
     "big_revenue": "Revenu",
     "big_profit": "Bénéfice net",
     "big_pairs": "Paires vendues",
+    "big_units": "Articles vendus",
     "cash_title": "Trésorerie sur la période",
     "cash_revenue": "Revenu (ventes)",
     "cash_purchases": "Achats (nouveau stock)",
@@ -209,6 +216,8 @@
     "language": "Langue",
     "currency": "Devise",
     "currency_change_warning": "Changer de devise ne convertit pas vos prix existants — leur valeur numérique stockée reste la même, simplement affichée dans la nouvelle devise. Continuer ?",
+    "store_type": "Type de boutique",
+    "store_type_change_warning": "Changer le type de boutique ne migre pas vos articles existants — ils gardent leurs catégories et leurs tailles. Les nouveaux articles utiliseront les valeurs par défaut du nouveau type. Continuer ?",
     "shop_profile": "Profil de la boutique",
     "shop_name": "Nom de la boutique",
     "shop_logo": "Logo de la boutique",

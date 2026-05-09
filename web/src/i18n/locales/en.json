@@ -44,6 +44,8 @@
     "lang_name_ar": "Arabic",
     "lang_name_en": "English",
     "change_language": "← Change language",
+    "recommended": "Recommended",
+    "logo_drop_zone": "Tap to upload your shop logo",
     "setup_title": "Set up your shop",
     "setup_subtitle": "A few details to get started. You can change everything later in Settings.",
     "store_type_label": "What kind of shop?",
@@ -130,7 +132,11 @@
     "err_name_required": "Name is required (min 2 characters)",
     "err_photo_required": "Photo is required",
     "err_invalid_sizes": "Sizes must be alphanumeric, comma-separated",
-    "warn_cost_exceeds_sale": "You'll lose money on this — continue?"
+    "warn_cost_exceeds_sale": "You'll lose money on this — continue?",
+    "field_notes": "Notes",
+    "field_notes_placeholder": "Anything else to remember",
+    "field_expiry_label": "Expiry / notes",
+    "field_expiry_placeholder": "e.g. exp. 2026-08-15"
   },
   "color": {
     "white": "white",
@@ -173,6 +179,7 @@
     "big_revenue": "Revenue",
     "big_profit": "Net profit",
     "big_pairs": "Pairs sold",
+    "big_units": "Items sold",
     "cash_title": "Cash this period",
     "cash_revenue": "Revenue (sales)",
     "cash_purchases": "Purchases (new stock)",
@@ -209,6 +216,8 @@
     "language": "Language",
     "currency": "Currency",
     "currency_change_warning": "Switching currency does not convert your existing prices — they keep their stored numeric value, just shown in the new currency. Continue?",
+    "store_type": "Store type",
+    "store_type_change_warning": "Switching store type does not migrate your existing articles — they keep their categories and sizes. New articles will use the new store-type defaults. Continue?",
     "shop_profile": "Shop profile",
     "shop_name": "Shop name",
     "shop_logo": "Shop logo",

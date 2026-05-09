@@ -31,7 +31,6 @@ test.describe('Multi-vertical store types', () => {
 
     // Read it back from IndexedDB via the seed surface.
     const storeType = await page.evaluate(async () => {
-       
       const dbReq = indexedDB.open('inventar');
       return new Promise<string>((resolve, reject) => {
         dbReq.onsuccess = () => {
@@ -59,6 +58,81 @@ test.describe('Multi-vertical store types', () => {
     await expect(page.getByTestId('category-casual')).toBeVisible();
     // Sizes input should also be visible (sized store).
     await expect(page.getByTestId('field-sizes')).toBeVisible();
+  });
+});
+
+test.describe('Switching store type from Settings', () => {
+  test('select kiosk in Settings → confirm warning → store_type updates', async ({ page }) => {
+    // Start as a shoes shop (default).
+    await page.goto('/');
+    await page.getByTestId('lang-en').click();
+    await expect(page.getByTestId('step-name')).toBeVisible();
+    await page.getByTestId('shop-name-input').fill('Type Switcher');
+    await page.getByTestId('continue').click();
+    await page.getByTestId('got-it').click();
+    await expect(page.getByTestId('search-screen')).toBeVisible();
+
+    // Settings → Shop profile → store-type select.
+    await page.getByTestId('nav-settings').click();
+    await expect(page.getByTestId('section-shop-profile')).toBeVisible();
+    await page.getByTestId('settings-store-type').selectOption('kiosk');
+
+    // Confirm warning appears + confirm button changes the store_type.
+    await expect(page.getByTestId('store-type-confirm')).toBeVisible();
+    await page.getByTestId('store-type-confirm-btn').click();
+    await expect(page.getByTestId('store-type-confirm')).toHaveCount(0);
+
+    // Read back from IndexedDB.
+    const storeType = await page.evaluate(async () => {
+      const dbReq = indexedDB.open('inventar');
+      return new Promise<string>((resolve, reject) => {
+        dbReq.onsuccess = () => {
+          const db = dbReq.result;
+          const tx = db.transaction('profile', 'readonly');
+          const req = tx.objectStore('profile').get('singleton');
+          req.onsuccess = () =>
+            resolve((req.result as { store_type?: string } | undefined)?.store_type ?? 'unknown');
+          req.onerror = () => reject(req.error);
+        };
+        dbReq.onerror = () => reject(dbReq.error);
+      });
+    });
+    expect(storeType).toBe('kiosk');
+
+    // Add Article should now show kiosk categories AND no sizes input.
+    await page.getByTestId('nav-add').click();
+    await expect(page.getByTestId('field-sizes')).toHaveCount(0);
+    await expect(page.getByTestId('category-drinks')).toBeVisible();
+  });
+
+  test('cancel button on store-type warning leaves type unchanged', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('lang-en').click();
+    await page.getByTestId('shop-name-input').fill('Cancel Test');
+    await page.getByTestId('continue').click();
+    await page.getByTestId('got-it').click();
+
+    await page.getByTestId('nav-settings').click();
+    await page.getByTestId('settings-store-type').selectOption('grocery');
+    await expect(page.getByTestId('store-type-confirm')).toBeVisible();
+    await page.getByTestId('store-type-cancel').click();
+    await expect(page.getByTestId('store-type-confirm')).toHaveCount(0);
+
+    const storeType = await page.evaluate(async () => {
+      const dbReq = indexedDB.open('inventar');
+      return new Promise<string>((resolve, reject) => {
+        dbReq.onsuccess = () => {
+          const db = dbReq.result;
+          const tx = db.transaction('profile', 'readonly');
+          const req = tx.objectStore('profile').get('singleton');
+          req.onsuccess = () =>
+            resolve((req.result as { store_type?: string } | undefined)?.store_type ?? 'unknown');
+          req.onerror = () => reject(req.error);
+        };
+        dbReq.onerror = () => reject(dbReq.error);
+      });
+    });
+    expect(storeType).toBe('shoes');
   });
 });
 
