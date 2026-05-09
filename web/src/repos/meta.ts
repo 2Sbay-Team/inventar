@@ -23,5 +23,6 @@ export const META_KEYS = {
   recent_searches: 'recent_searches',
   persistence_requested: 'persistence_requested',
   backup_banner_dismissed_at: 'backup_banner_dismissed_at',
+  install_banner_dismissed_at: 'install_banner_dismissed_at',
   last_seen_version: 'last_seen_version',
 } as const;

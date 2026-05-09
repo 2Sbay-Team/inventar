@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { BackupBanner } from '../components/backup-banner';
+import { InstallBanner } from '../components/install-banner';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
 import { SearchBar } from '../components/search-bar';
@@ -66,6 +67,7 @@ export function SearchScreen(): JSX.Element {
     <ScreenLayout>
       <ShopHeader articles={counts.articles} items={counts.items} />
       <SearchBar value={query} onChange={setQuery} count={results.length} />
+      <InstallBanner />
       <BackupBanner />
 
       {recents.length > 0 ? (
