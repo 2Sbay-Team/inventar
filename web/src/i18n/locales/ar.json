@@ -46,6 +46,7 @@
     "change_language": "→ تغيير اللغة",
     "setup_title": "إعداد متجرك",
     "setup_subtitle": "بضع تفاصيل للبدء. يمكنك تغيير كل شيء لاحقاً في الإعدادات.",
+    "store_type_label": "ما نوع متجرك ؟",
     "logo_label": "شعار المتجر",
     "logo_add": "إضافة",
     "logo_clear": "إزالة",
@@ -147,7 +148,22 @@
     "casual": "كاجوال",
     "kids": "أطفال",
     "women": "نسائي",
-    "men": "رجالي"
+    "men": "رجالي",
+    "shirts": "قمصان",
+    "pants": "بناطيل",
+    "dresses": "فساتين",
+    "accessories": "إكسسوارات",
+    "drinks": "مشروبات",
+    "snacks": "وجبات خفيفة",
+    "tobacco": "تبغ",
+    "magazines": "مجلات",
+    "phone_credit": "تعبئة هاتف",
+    "produce": "خضروات وفواكه",
+    "dairy": "ألبان",
+    "dry_goods": "بقالة جافة",
+    "frozen": "مجمدات",
+    "beverages": "مشروبات",
+    "other": "أخرى"
   },
   "dashboard": {
     "period_today": "اليوم",
@@ -264,6 +280,16 @@
   },
   "update": {
     "toast": "تم التحديث إلى v{{version}}"
+  },
+  "store_types": {
+    "shoes_label": "أحذية",
+    "shoes_desc": "أحذية / أحذية طويلة — مخزون بمقاسات",
+    "clothes_label": "ملابس",
+    "clothes_desc": "ملابس — مخزون بمقاسات",
+    "kiosk_label": "كشك",
+    "kiosk_desc": "بقالة صغيرة، وجبات، مجلات",
+    "grocery_label": "بقالة",
+    "grocery_desc": "طعام، مشروبات، احتياجات يومية"
   },
   "help": {
     "title": "دليل سريع",

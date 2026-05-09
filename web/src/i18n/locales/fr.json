@@ -46,6 +46,7 @@
     "change_language": "← Changer de langue",
     "setup_title": "Configurez votre boutique",
     "setup_subtitle": "Quelques détails pour commencer. Vous pourrez tout modifier plus tard dans Réglages.",
+    "store_type_label": "Quel type de boutique ?",
     "logo_label": "Logo de la boutique",
     "logo_add": "Ajouter",
     "logo_clear": "Retirer",
@@ -147,7 +148,22 @@
     "casual": "décontracté",
     "kids": "enfants",
     "women": "femmes",
-    "men": "hommes"
+    "men": "hommes",
+    "shirts": "chemises",
+    "pants": "pantalons",
+    "dresses": "robes",
+    "accessories": "accessoires",
+    "drinks": "boissons",
+    "snacks": "snacks",
+    "tobacco": "tabac",
+    "magazines": "magazines",
+    "phone_credit": "recharge mobile",
+    "produce": "fruits & légumes",
+    "dairy": "laitier",
+    "dry_goods": "épicerie sèche",
+    "frozen": "surgelés",
+    "beverages": "boissons",
+    "other": "autre"
   },
   "dashboard": {
     "period_today": "Aujourd'hui",
@@ -264,6 +280,16 @@
   },
   "update": {
     "toast": "Mis à jour vers v{{version}}"
+  },
+  "store_types": {
+    "shoes_label": "Chaussures",
+    "shoes_desc": "Chaussures / bottes — stock par taille",
+    "clothes_label": "Vêtements",
+    "clothes_desc": "Habillement — stock par taille",
+    "kiosk_label": "Kiosque",
+    "kiosk_desc": "Mini-marché, snacks, magazines",
+    "grocery_label": "Épicerie",
+    "grocery_desc": "Alimentation, boissons, produits du quotidien"
   },
   "help": {
     "title": "Guide rapide",

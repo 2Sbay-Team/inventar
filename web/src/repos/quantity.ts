@@ -18,7 +18,10 @@ export async function quantityFor(db: InventarDB, variantId: UUID): Promise<numb
 
 export interface SizeGridCell {
   variant_id: UUID;
-  size: string;
+  // Null for sizeless store types (kiosk / grocery) — those articles get
+  // a single placeholder variant. The size grid UI is hidden in that case
+  // so the null value never reaches the render path.
+  size: string | null;
   qty: number;
   hidden: boolean;
 }

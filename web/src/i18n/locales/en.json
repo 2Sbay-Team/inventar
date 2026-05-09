@@ -46,6 +46,7 @@
     "change_language": "← Change language",
     "setup_title": "Set up your shop",
     "setup_subtitle": "A few details to get started. You can change everything later in Settings.",
+    "store_type_label": "What kind of shop?",
     "logo_label": "Shop logo",
     "logo_add": "Add logo",
     "logo_clear": "Remove",
@@ -147,7 +148,22 @@
     "casual": "casual",
     "kids": "kids",
     "women": "women",
-    "men": "men"
+    "men": "men",
+    "shirts": "shirts",
+    "pants": "pants",
+    "dresses": "dresses",
+    "accessories": "accessories",
+    "drinks": "drinks",
+    "snacks": "snacks",
+    "tobacco": "tobacco",
+    "magazines": "magazines",
+    "phone_credit": "phone credit",
+    "produce": "produce",
+    "dairy": "dairy",
+    "dry_goods": "dry goods",
+    "frozen": "frozen",
+    "beverages": "beverages",
+    "other": "other"
   },
   "dashboard": {
     "period_today": "Today",
@@ -264,6 +280,16 @@
   },
   "update": {
     "toast": "Updated to v{{version}}"
+  },
+  "store_types": {
+    "shoes_label": "Shoes",
+    "shoes_desc": "Shoes / boots — sized stock",
+    "clothes_label": "Clothes",
+    "clothes_desc": "Apparel — sized stock",
+    "kiosk_label": "Kiosk",
+    "kiosk_desc": "Mini-mart, snacks, magazines",
+    "grocery_label": "Grocery",
+    "grocery_desc": "Food, drinks, daily goods"
   },
   "help": {
     "title": "Quick guide",

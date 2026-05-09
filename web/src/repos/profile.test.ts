@@ -29,6 +29,7 @@ describe('profile repo', () => {
     expect(p.locale).toBe('fr');
     expect(p.logo_photo_id).toBeNull();
     expect(p.currency).toBe('TND');
+    expect(p.store_type).toBe('shoes');
     expect(p.created_at).toBe('2026-05-07T08:00:00.000Z');
     expect(p.updated_at).toBe('2026-05-07T08:00:00.000Z');
     expect(p.last_backup_at).toBeNull();

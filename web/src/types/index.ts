@@ -10,7 +10,15 @@ export type Locale = 'fr' | 'ar' | 'en';
 // Intl.supportedValuesOf changes between runtimes.
 export type CurrencyCode = string;
 
-export type Category = 'sport' | 'dress' | 'casual' | 'kids' | 'women' | 'men';
+// Free-form category string. The app suggests a per-store-type list of
+// categories (see config/store-types.ts) but stores accept any string so
+// migrations between store types don't have to rewrite article rows.
+export type Category = string;
+
+// Top-level shop archetype. Drives which categories the user sees, whether
+// articles need sizes (Variant.size becomes optional for sizeless types),
+// and which dashboard widgets are most relevant.
+export type StoreType = 'shoes' | 'clothes' | 'kiosk' | 'grocery';
 
 export type MovementType = 'sale' | 'purchase' | 'adjustment' | 'return';
 
@@ -36,6 +44,9 @@ export interface ShopProfile {
   // this currency (the legacy `_tnd` suffix is historical and means "minor
   // units" — see ADR-005). Switching currency does NOT rescale stored values.
   currency: CurrencyCode;
+  // What kind of shop. Drives category suggestions + whether articles
+  // require sizes. Existing pre-multi-vertical installs default to 'shoes'.
+  store_type: StoreType;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
@@ -61,7 +72,10 @@ export interface Article {
 export interface Variant {
   id: UUID;
   article_id: UUID;
-  size: string;
+  // Size label (e.g. "42", "XL"). Null for sizeless store types
+  // (kiosk / grocery) — those articles get one default variant where
+  // size is just a placeholder. See config/store-types.ts.
+  size: string | null;
   hidden: boolean;
   updated_at: ISODate;
   deleted_at: ISODate | null;

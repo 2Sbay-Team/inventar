@@ -10,7 +10,9 @@ import { type MovementType, type UUID } from '../types';
 
 export interface QuickAdjustTarget {
   variantId: UUID;
-  size: string;
+  // Size label for sized articles, null for sizeless ones (kiosk / grocery).
+  // Sheet header uses an article-only title in the null case.
+  size: string | null;
   articleName: string;
   currentQty: number;
 }
@@ -81,7 +83,9 @@ export function QuickAdjustSheet({
           className="bg-paper fixed inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-3xl p-5 shadow-xl"
         >
           <Dialog.Title className="font-display text-lg font-medium">
-            {t('title', { size: target.size, name: target.articleName })}
+            {target.size
+              ? t('title', { size: target.size, name: target.articleName })
+              : target.articleName}
           </Dialog.Title>
           <p data-testid="adjust-current" className="text-ink-3 mt-1 font-mono text-xs">
             {t('current', { n: formatNumber(target.currentQty, locale) })}

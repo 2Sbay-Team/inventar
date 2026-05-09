@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ScreenLayout } from '../components/screen-layout';
+import { STORE_TYPES } from '../config/store-types';
 import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
@@ -9,12 +10,22 @@ import { compressPhoto } from '../utils/compress-photo';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { useLive } from '../hooks/use-live';
+import { useProfile } from '../hooks/use-profile';
 import { nextInternalCode } from '../repos/internal-code';
 import { parseCurrency } from '../i18n/parse-currency';
 import { type Category, type UUID } from '../types';
 import { CANONICAL_COLOURS } from '../query/colour-aliases';
 
-const CATEGORIES: ReadonlyArray<Category> = ['sport', 'dress', 'casual', 'kids', 'women', 'men'];
+// Default fallback while profile is loading. Replaced by per-store-type
+// list from STORE_TYPES once we have the profile.
+const DEFAULT_CATEGORIES: ReadonlyArray<Category> = [
+  'sport',
+  'dress',
+  'casual',
+  'kids',
+  'women',
+  'men',
+];
 
 interface FormState {
   photoId: UUID | null;
@@ -50,8 +61,19 @@ export function AddArticleScreen(): JSX.Element {
   const navigate = useNavigate();
   const { locale } = useLocale();
   const currency = useCurrency();
+  const profile = useProfile();
+  const storeType = profile?.store_type ?? 'shoes';
+  const storeCfg = STORE_TYPES[storeType];
+  const categories = useMemo(
+    () => (storeCfg.categories.length > 0 ? storeCfg.categories : DEFAULT_CATEGORIES),
+    [storeCfg],
+  );
+  const needsSizes = storeCfg.has_sizes;
 
-  const [form, setForm] = useState<FormState>(INITIAL);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...INITIAL,
+    category: storeCfg.categories[0] ?? 'sport',
+  }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,9 +114,11 @@ export function AddArticleScreen(): JSX.Element {
     const e: Record<string, string> = {};
     if (!form.photoId) e.photo = t('err_photo_required');
     if (form.name.trim().length < 2) e.name = t('err_name_required');
-    const parsed = parseSizes(form.sizes);
-    if (parsed.length === 0) e.sizes = t('err_invalid_sizes');
-    if (!parsed.every((s) => /^[A-Za-z0-9]+$/.test(s))) e.sizes = t('err_invalid_sizes');
+    if (needsSizes) {
+      const parsed = parseSizes(form.sizes);
+      if (parsed.length === 0) e.sizes = t('err_invalid_sizes');
+      if (!parsed.every((s) => /^[A-Za-z0-9]+$/.test(s))) e.sizes = t('err_invalid_sizes');
+    }
     return e;
   }
 
@@ -105,7 +129,12 @@ export function AddArticleScreen(): JSX.Element {
     setSubmitting(true);
     const cost = Math.max(0, parseCurrency(form.costInput, locale, currency) ?? 0);
     const sale = Math.max(0, parseCurrency(form.saleInput, locale, currency) ?? 0);
-    const sizes = parseSizes(form.sizes).map((size) => ({ size, initial_qty: form.qty }));
+    // Sized stores: use the user-typed size list. Sizeless stores: create
+    // a single placeholder variant with size '' so the rest of the schema
+    // stays uniform.
+    const sizes = needsSizes
+      ? parseSizes(form.sizes).map((size) => ({ size, initial_qty: form.qty }))
+      : [{ size: '', initial_qty: form.qty }];
     await createArticle(db, {
       name: form.name.trim(),
       photo_id: form.photoId,
@@ -271,7 +300,7 @@ export function AddArticleScreen(): JSX.Element {
 
           <Field label={t('field_category')}>
             <div data-testid="category-chips" className="flex flex-wrap gap-1.5">
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <button
                   key={c}
                   type="button"
@@ -291,21 +320,25 @@ export function AddArticleScreen(): JSX.Element {
           data-testid="add-section-stock"
           className="border-hair space-y-3 rounded-2xl border bg-white p-4"
         >
-          <Field label={t('field_sizes')}>
-            <input
-              data-testid="field-sizes"
-              type="text"
-              value={form.sizes}
-              onChange={(e) => patch({ sizes: e.target.value })}
-              placeholder={t('field_sizes_placeholder')}
-              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
-              inputMode="numeric"
-            />
-          </Field>
-          {errors.sizes ? (
-            <p data-testid="err-sizes" className="text-bad text-xs">
-              {errors.sizes}
-            </p>
+          {needsSizes ? (
+            <>
+              <Field label={t('field_sizes')}>
+                <input
+                  data-testid="field-sizes"
+                  type="text"
+                  value={form.sizes}
+                  onChange={(e) => patch({ sizes: e.target.value })}
+                  placeholder={t('field_sizes_placeholder')}
+                  className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
+                  inputMode="numeric"
+                />
+              </Field>
+              {errors.sizes ? (
+                <p data-testid="err-sizes" className="text-bad text-xs">
+                  {errors.sizes}
+                </p>
+              ) : null}
+            </>
           ) : null}
 
           <Field label={t('field_qty')}>

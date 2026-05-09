@@ -68,6 +68,27 @@ export class InventarDB extends Dexie {
             if (!('currency' in p)) p.currency = 'TND';
           });
       });
+    // v4: Add store_type to ShopProfile, default 'shoes' for existing
+    // installs (the only thing the app supported pre-multi-vertical).
+    this.version(4)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, *colors, category, archived_at, deleted_at, updated_at, search_blob',
+        variants: 'id, article_id, [article_id+size], deleted_at',
+        movements: 'id, variant_id, type, created_at, [variant_id+created_at], deleted_at',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: { store_type?: string }) => {
+            if (!('store_type' in p)) p.store_type = 'shoes';
+          });
+      });
   }
 }
 

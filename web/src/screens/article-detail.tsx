@@ -8,9 +8,11 @@ import { QuickAdjustSheet, type QuickAdjustTarget } from '../components/quick-ad
 import { MoreMenuSheet } from '../components/more-menu-sheet';
 import { PhotoThumb } from '../components/photo-thumb';
 import { Minus, Plus } from 'lucide-react';
+import { STORE_TYPES } from '../config/store-types';
 import { useArticleDetail } from '../hooks/use-article-detail';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
+import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
 import { type MovementType, type Variant } from '../types';
@@ -24,6 +26,8 @@ export function ArticleDetailScreen(): JSX.Element {
   const detail = useArticleDetail(id);
   const { locale } = useLocale();
   const currency = useCurrency();
+  const profile = useProfile();
+  const needsSizes = STORE_TYPES[profile?.store_type ?? 'shoes'].has_sizes;
 
   const [adjustTarget, setAdjustTarget] = useState<QuickAdjustTarget | null>(null);
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
@@ -208,16 +212,18 @@ export function ArticleDetailScreen(): JSX.Element {
         </div>
       </section>
 
-      <section className="border-hair border-t px-5 py-4">
-        <div className="mb-2 flex items-baseline justify-between">
-          <h4 className="font-display text-[13px] font-medium">{t('sizes_title')}</h4>
-          <span className="text-ink-4 text-[10.5px]">{t('sizes_hint')}</span>
-        </div>
-        <SizeGrid
-          cells={detail.sizes}
-          onCellClick={(cell) => openAdjust(cell, cell.qty > 0 ? 'sale' : 'purchase')}
-        />
-      </section>
+      {needsSizes ? (
+        <section className="border-hair border-t px-5 py-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h4 className="font-display text-[13px] font-medium">{t('sizes_title')}</h4>
+            <span className="text-ink-4 text-[10.5px]">{t('sizes_hint')}</span>
+          </div>
+          <SizeGrid
+            cells={detail.sizes}
+            onCellClick={(cell) => openAdjust(cell, cell.qty > 0 ? 'sale' : 'purchase')}
+          />
+        </section>
+      ) : null}
 
       <section className="border-hair flex-1 overflow-y-auto border-t px-5 py-4">
         <h4 className="font-display mb-2 text-[13px] font-medium">{t('activity_title')}</h4>

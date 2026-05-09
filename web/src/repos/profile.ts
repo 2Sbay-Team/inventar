@@ -1,8 +1,15 @@
 import { type InventarDB } from '../db/db';
-import { type CurrencyCode, type Locale, type ShopProfile, type UUID } from '../types';
+import {
+  type CurrencyCode,
+  type Locale,
+  type ShopProfile,
+  type StoreType,
+  type UUID,
+} from '../types';
 import { nowISO } from '../utils/now';
 
 export const DEFAULT_CURRENCY: CurrencyCode = 'TND';
+export const DEFAULT_STORE_TYPE: StoreType = 'shoes';
 
 // SPEC §2.1 onboarding produces exactly one ShopProfile row, primary key
 // is the literal string "singleton" (DATA_MODEL §2). We never insert a
@@ -23,6 +30,9 @@ export interface UpsertProfileInput {
   // Optional: when omitted, the existing currency is preserved (or
   // DEFAULT_CURRENCY for first-time creation).
   currency?: CurrencyCode;
+  // Optional: when omitted, the existing store_type is preserved (or
+  // DEFAULT_STORE_TYPE for first-time creation).
+  store_type?: StoreType;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -49,6 +59,7 @@ export async function upsertProfile(
       locale: input.locale,
       logo_photo_id: nextLogo,
       currency: input.currency ?? existing?.currency ?? DEFAULT_CURRENCY,
+      store_type: input.store_type ?? existing?.store_type ?? DEFAULT_STORE_TYPE,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

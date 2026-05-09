@@ -3,14 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Boxes, Camera, Check, X } from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
+import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { db } from '../db/db';
-import { DEFAULT_CURRENCY, upsertProfile } from '../repos/profile';
+import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { setLocale } from '../i18n/i18next';
 import { useLocale } from '../hooks/use-locale';
 import { ensurePersistence } from '../pwa/persistence';
-import { type CurrencyCode, type Locale } from '../types';
+import { type CurrencyCode, type Locale, type StoreType } from '../types';
 
 interface LanguageOption {
   code: Locale;
@@ -34,6 +35,7 @@ export function OnboardingScreen(): JSX.Element {
   const [step, setStep] = useState<'language' | 'name' | 'backup_card'>('language');
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
+  const [storeType, setStoreType] = useState<StoreType>(DEFAULT_STORE_TYPE);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -111,6 +113,7 @@ export function OnboardingScreen(): JSX.Element {
       name: shopName.trim(),
       locale,
       currency,
+      store_type: storeType,
       logo_photo_id: logoPhotoId,
     });
     await ensurePersistence(db);
@@ -185,6 +188,40 @@ export function OnboardingScreen(): JSX.Element {
               <p className="text-ink-2 mt-3 text-[15px] leading-relaxed">
                 {t('onboarding:setup_subtitle')}
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-ink-2 text-sm font-medium">{t('onboarding:store_type_label')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {STORE_TYPE_ORDER.map((code) => {
+                  const cfg = STORE_TYPES[code];
+                  const active = storeType === code;
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      data-testid={`onb-store-${code}`}
+                      onClick={() => setStoreType(code)}
+                      aria-pressed={active}
+                      className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-start transition-colors ${
+                        active
+                          ? 'border-accent bg-accent-soft/50'
+                          : 'border-hair hover:border-accent/50 bg-white'
+                      }`}
+                    >
+                      <span aria-hidden className="text-2xl leading-none">
+                        {cfg.flag}
+                      </span>
+                      <span className="text-ink text-sm font-medium leading-tight">
+                        {t(`store_types:${cfg.label_key}`)}
+                      </span>
+                      <span className="text-ink-3 text-[11px] leading-snug">
+                        {t(`store_types:${cfg.desc_key}`)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="flex flex-col items-center gap-2">

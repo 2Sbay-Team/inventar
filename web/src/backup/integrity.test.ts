@@ -48,6 +48,7 @@ describe('integrityHash', () => {
       locale: 'fr',
       logo_photo_id: null,
       currency: 'TND',
+      store_type: 'shoes',
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
       last_backup_at: null,

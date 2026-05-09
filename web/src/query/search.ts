@@ -15,7 +15,9 @@ import { type ParsedQuery, parseQuery } from './parse-query';
 // Ties broken alphabetically on article.name.
 
 export interface SizeStock {
-  size: string;
+  // Null for sizeless store types (kiosk / grocery) — stock-by-size UI is
+  // hidden in that case so the consumer never reads the null.
+  size: string | null;
   qty: number;
 }
 
@@ -72,7 +74,7 @@ async function loadCandidateArticles(
     article,
     variants: (byArticle.get(article.id) ?? [])
       .slice()
-      .sort((a, b) => a.size.localeCompare(b.size, undefined, { numeric: true })),
+      .sort((a, b) => (a.size ?? '').localeCompare(b.size ?? '', undefined, { numeric: true })),
   }));
 }
 
