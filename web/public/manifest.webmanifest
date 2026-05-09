@@ -1,15 +1,19 @@
 {
+  "id": "/",
   "name": "Inventar",
   "short_name": "Inventar",
   "description": "Offline inventory for one shop, on one phone.",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "background_color": "#FFF8F2",
   "theme_color": "#FFF8F2",
   "lang": "fr",
   "dir": "auto",
+  "categories": ["business", "productivity", "shopping"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/apple-touch-icon.png",

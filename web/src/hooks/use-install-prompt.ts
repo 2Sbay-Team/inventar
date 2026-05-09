@@ -66,6 +66,31 @@ function isInstallCapableBrowser(): boolean {
   return /Chrome|Chromium|Edg|OPR|SamsungBrowser/i.test(ua);
 }
 
+// Chrome on Android wraps installed PWAs in a WebAPK whose
+// targetSdkVersion comes from the Chrome version itself. Android 14+
+// rejects WebAPKs with targetSdkVersion below 23 with the dreaded
+// "unsafe app blocked" dialog. The user then thinks our app is broken
+// when in fact their Chrome is outdated.
+//
+// We check the major Chrome version (UA-CH would be cleaner but isn't
+// universally available). Chrome 100+ ships modern WebAPKs; we use 110
+// as a generous threshold to leave headroom.
+const MIN_CHROME_FOR_INSTALL = 110;
+
+export function detectOutdatedChromeOnAndroid(): { current: number; needed: number } | null {
+  if (typeof navigator === 'undefined') return null;
+  const ua = navigator.userAgent;
+  if (!/Android/i.test(ua)) return null;
+  // Match plain Chrome and Chrome-derivatives that share the WebAPK
+  // pipeline. Edge / Opera / SamsungBrowser do too but with their own
+  // version numbers — we only act on the standalone "Chrome/N" token.
+  const m = ua.match(/Chrome\/(\d+)/);
+  if (!m || !m[1]) return null;
+  const current = Number.parseInt(m[1], 10);
+  if (!Number.isFinite(current) || current >= MIN_CHROME_FOR_INSTALL) return null;
+  return { current, needed: MIN_CHROME_FOR_INSTALL };
+}
+
 const CHECK_TIMEOUT_MS = 3500;
 
 function compute(checking: boolean): InstallState {

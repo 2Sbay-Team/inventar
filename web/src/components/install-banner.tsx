@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Download, Smartphone } from 'lucide-react';
+import { AlertTriangle, Check, Download, Smartphone } from 'lucide-react';
 import { db } from '../db/db';
-import { useInstallPrompt } from '../hooks/use-install-prompt';
+import { detectOutdatedChromeOnAndroid, useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLive } from '../hooks/use-live';
 import { getMeta, setMeta, META_KEYS } from '../repos/meta';
 import { nowISO } from '../utils/now';
@@ -51,6 +51,52 @@ export function InstallBanner(): JSX.Element | null {
     const next = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
     window.history.replaceState({}, '', next);
   }, [installState, arrivedToInstall]);
+
+  // Detect outdated Chrome on Android — the most common cause of the
+  // "unsafe app blocked" install error users hit on older devices. This
+  // runs AFTER all hooks so the hook order stays stable.
+  const outdatedChrome = detectOutdatedChromeOnAndroid();
+  if (outdatedChrome && (arrivedToInstall || installState.kind === 'installable')) {
+    return (
+      <aside
+        data-testid="install-banner-outdated-chrome"
+        className="bg-bad-soft border-bad/30 mx-4 mt-2 flex items-start gap-3 rounded-2xl border px-3 py-2.5"
+      >
+        <AlertTriangle
+          aria-hidden
+          className="text-bad mt-0.5 h-5 w-5 flex-shrink-0"
+          strokeWidth={2}
+        />
+        <div className="flex-1">
+          <p className="text-ink text-[13px] font-medium leading-tight">
+            {t('install_old_chrome_title')}
+          </p>
+          <p className="text-ink-2 mt-1 text-[12px] leading-relaxed">
+            {t('install_old_chrome_body', {
+              current: outdatedChrome.current,
+              needed: outdatedChrome.needed,
+            })}
+          </p>
+          <a
+            href="https://play.google.com/store/apps/details?id=com.android.chrome"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bad mt-1 inline-block text-xs font-semibold underline-offset-2 hover:underline"
+          >
+            {t('install_old_chrome_cta')}
+          </a>
+        </div>
+        <button
+          type="button"
+          onClick={() => setArrivedToInstall(false)}
+          className="text-ink-3 px-1 text-xs"
+          aria-label="dismiss"
+        >
+          ×
+        </button>
+      </aside>
+    );
+  }
 
   // While the install API is still warming up (SW registering, browser
   // checking PWA criteria), show a soft "checking" pill if the user
