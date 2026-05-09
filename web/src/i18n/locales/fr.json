@@ -75,6 +75,8 @@
   },
   "article": {
     "copy_sku": "Copier le code",
+    "show_qr": "Afficher le QR code",
+    "qr_hint": "Imprimez-le et collez-le sur l'étagère. Scannez-le avec n'importe quel appareil photo pour ouvrir cet article instantanément.",
     "price_cost": "Coût",
     "price_sale": "Vente",
     "in_stock_total": "{{n}} en stock",
@@ -136,7 +138,13 @@
     "field_notes": "Notes",
     "field_notes_placeholder": "Quelque chose d'autre à retenir",
     "field_expiry_label": "Péremption / notes",
-    "field_expiry_placeholder": "ex. péremp. 2026-08-15"
+    "field_expiry_placeholder": "ex. péremp. 2026-08-15",
+    "scan_button": "Scanner",
+    "scan_title": "Scanner code-barre ou QR",
+    "scan_hint": "Visez un code-barre ou un QR code",
+    "scan_unsupported_title": "Scanner non supporté ici",
+    "scan_unsupported_body": "Utilisez Chrome sur Android, Edge ou Safari pour le scanner intégré. Vous pouvez toujours saisir le code à la main dans les Notes.",
+    "scan_error_title": "Caméra indisponible"
   },
   "color": {
     "white": "blanc",
@@ -192,7 +200,15 @@
     "top_sellers": "Meilleures ventes",
     "activity": "Activité",
     "add_expense": "Ajouter une dépense",
-    "empty": "Aucune activité sur cette période"
+    "empty": "Aucune activité sur cette période",
+    "inventory_title": "Vue d'ensemble du stock",
+    "inv_units_pairs": "Paires en stock",
+    "inv_units_items": "Unités en stock",
+    "inv_value_cost": "Valeur du stock (coût)",
+    "inv_article_count": "Articles",
+    "inv_low_stock": "Stock bas / épuisé",
+    "inv_by_category": "Stock par catégorie",
+    "inv_low_stock_list_title": "À réapprovisionner"
   },
   "expense": {
     "title": "Ajouter une dépense",

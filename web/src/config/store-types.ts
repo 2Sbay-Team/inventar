@@ -21,6 +21,10 @@ export interface StoreTypeConfig {
   label_key: string;
   // Short i18n key for the one-line description shown under each card.
   desc_key: string;
+  // 2-letter prefix used for the auto-allocated internal_code on new
+  // articles. Old articles keep whatever prefix they were created with —
+  // the parser strips by '-' so prefix changes don't break sequencing.
+  sku_prefix: string;
 }
 
 export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
@@ -30,6 +34,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
     flag: '👟',
     label_key: 'shoes_label',
     desc_key: 'shoes_desc',
+    sku_prefix: 'SH',
   },
   clothes: {
     has_sizes: true,
@@ -37,6 +42,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
     flag: '👕',
     label_key: 'clothes_label',
     desc_key: 'clothes_desc',
+    sku_prefix: 'CL',
   },
   kiosk: {
     has_sizes: false,
@@ -44,6 +50,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
     flag: '🏪',
     label_key: 'kiosk_label',
     desc_key: 'kiosk_desc',
+    sku_prefix: 'KI',
   },
   grocery: {
     has_sizes: false,
@@ -51,6 +58,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
     flag: '🛒',
     label_key: 'grocery_label',
     desc_key: 'grocery_desc',
+    sku_prefix: 'GR',
   },
 };
 

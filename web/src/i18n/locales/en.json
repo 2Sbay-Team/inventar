@@ -75,6 +75,8 @@
   },
   "article": {
     "copy_sku": "Copy SKU",
+    "show_qr": "Show QR code",
+    "qr_hint": "Print this and stick it on the shelf. Scan it with any phone camera to open this article instantly.",
     "price_cost": "Cost",
     "price_sale": "Sale",
     "in_stock_total": "{{n}} in stock",
@@ -136,7 +138,13 @@
     "field_notes": "Notes",
     "field_notes_placeholder": "Anything else to remember",
     "field_expiry_label": "Expiry / notes",
-    "field_expiry_placeholder": "e.g. exp. 2026-08-15"
+    "field_expiry_placeholder": "e.g. exp. 2026-08-15",
+    "scan_button": "Scan",
+    "scan_title": "Scan barcode or QR",
+    "scan_hint": "Point at a barcode or QR code",
+    "scan_unsupported_title": "Scanner not supported here",
+    "scan_unsupported_body": "Use Chrome on Android, Edge, or Safari for the in-app scanner. You can still type the SKU into Notes.",
+    "scan_error_title": "Camera unavailable"
   },
   "color": {
     "white": "white",
@@ -192,7 +200,15 @@
     "top_sellers": "Top sellers",
     "activity": "Activity",
     "add_expense": "Add expense",
-    "empty": "No activity for this period"
+    "empty": "No activity for this period",
+    "inventory_title": "Stock overview",
+    "inv_units_pairs": "Pairs in stock",
+    "inv_units_items": "Units in stock",
+    "inv_value_cost": "Stock value (cost)",
+    "inv_article_count": "Articles",
+    "inv_low_stock": "Low / out of stock",
+    "inv_by_category": "Stock by category",
+    "inv_low_stock_list_title": "Needs restocking"
   },
   "expense": {
     "title": "Add expense",

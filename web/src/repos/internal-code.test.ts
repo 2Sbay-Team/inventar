@@ -63,4 +63,20 @@ describe('nextInternalCode', () => {
     await db.articles.add(mkArticle({ id: 'a', internal_code: 'SH-9999' }));
     expect(await nextInternalCode(db)).toBe('SH-10000');
   });
+
+  it('uses the requested prefix on an empty catalogue', async () => {
+    expect(await nextInternalCode(db, 'KI')).toBe('KI-0001');
+    expect(await nextInternalCode(db, 'GR')).toBe('GR-0001');
+  });
+
+  it('continues numbering across mixed prefixes (post store-type switch)', async () => {
+    // Simulates a shop that started as shoes (SH-0001..SH-0003) and
+    // switched to clothes — the next clothes code should be CL-0004,
+    // not CL-0001, because it builds on the global numeric max.
+    await db.articles.bulkAdd([
+      mkArticle({ id: 'a', internal_code: 'SH-0001' }),
+      mkArticle({ id: 'b', internal_code: 'SH-0003' }),
+    ]);
+    expect(await nextInternalCode(db, 'CL')).toBe('CL-0004');
+  });
 });

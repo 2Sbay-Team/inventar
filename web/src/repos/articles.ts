@@ -23,6 +23,10 @@ export interface CreateArticleInput {
   // Each size with its initial quantity. Quantity 0 still creates the
   // variant (so the size grid lists it), but skips the seed movement.
   sizes: Array<{ size: string; initial_qty: number }>;
+  // Optional: SKU prefix for the auto-allocated internal_code. Defaults
+  // to 'SH' if omitted. Callers that know the active store_type should
+  // pass STORE_TYPES[store_type].sku_prefix.
+  sku_prefix?: string;
 }
 
 export interface CreateArticleResult {
@@ -43,7 +47,7 @@ export async function createArticle(
 
   const ts = nowISO();
   return db.transaction('rw', [db.articles, db.variants, db.movements], async () => {
-    const internal_code = await nextInternalCode(db);
+    const internal_code = await nextInternalCode(db, input.sku_prefix);
     const articleId = newUUID();
 
     const article: Article = {

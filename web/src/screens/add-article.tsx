@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { ScanLine } from 'lucide-react';
+import { BarcodeScanner } from '../components/barcode-scanner';
 import { ScreenLayout } from '../components/screen-layout';
 import { STORE_TYPES } from '../config/store-types';
 import { db } from '../db/db';
@@ -78,8 +80,14 @@ export function AddArticleScreen(): JSX.Element {
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const previewedCode = useLive<string>(() => nextInternalCode(db), [], 'SH-0001');
+  const skuPrefix = storeCfg.sku_prefix;
+  const previewedCode = useLive<string>(
+    () => nextInternalCode(db, skuPrefix),
+    [skuPrefix],
+    `${skuPrefix}-0001`,
+  );
 
   function patch(patch: Partial<FormState>): void {
     setForm((s) => ({ ...s, ...patch }));
@@ -147,6 +155,7 @@ export function AddArticleScreen(): JSX.Element {
       sale_price_tnd: sale,
       notes: form.notes.trim() === '' ? null : form.notes.trim(),
       sizes,
+      sku_prefix: skuPrefix,
     });
     setSubmitting(false);
     if (addAnother) {
@@ -180,8 +189,28 @@ export function AddArticleScreen(): JSX.Element {
         <h3 className="font-display justify-self-center text-sm font-semibold tracking-tight">
           {t('title')}
         </h3>
-        <span aria-hidden className="justify-self-end" />
+        <button
+          type="button"
+          data-testid="add-scan"
+          onClick={() => setScannerOpen(true)}
+          className="text-accent justify-self-end inline-flex items-center gap-1 text-xs font-medium"
+        >
+          <ScanLine aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+          {t('scan_button')}
+        </button>
       </header>
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onDetected={(value) => {
+          setScannerOpen(false);
+          // Drop the scanned code into the Notes field. For grocery shops
+          // this becomes "exp. <expiry> · <UPC>"-style; for others it's
+          // just a SKU note that survives in the article record.
+          patch({ notes: form.notes ? `${form.notes} · ${value}` : value });
+        }}
+      />
 
       <label
         data-testid="photo-cta"

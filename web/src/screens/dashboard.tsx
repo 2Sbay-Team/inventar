@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
+import { InventoryOverview } from '../components/inventory-overview';
 import { ScreenLayout } from '../components/screen-layout';
 import { STORE_TYPES } from '../config/store-types';
 import { useProfile } from '../hooks/use-profile';
@@ -134,6 +135,8 @@ export function DashboardScreen(): JSX.Element {
         data-testid="dashboard-screen"
         className="flex flex-1 flex-col gap-4 px-5 py-4 overflow-y-auto"
       >
+        <InventoryOverview />
+
         <div
           data-testid="period-selector"
           className="border-hair flex rounded-xl border bg-white p-1"

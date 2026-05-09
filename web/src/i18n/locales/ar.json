@@ -75,6 +75,8 @@
   },
   "article": {
     "copy_sku": "نسخ الرمز",
+    "show_qr": "عرض رمز QR",
+    "qr_hint": "اطبعه والصقه على الرف. امسحه بأي كاميرا هاتف لفتح هذا المنتج فوراً.",
     "price_cost": "التكلفة",
     "price_sale": "البيع",
     "in_stock_total": "{{n}} في المخزون",
@@ -136,7 +138,13 @@
     "field_notes": "ملاحظات",
     "field_notes_placeholder": "أي شيء آخر تريد تذكره",
     "field_expiry_label": "تاريخ الانتهاء / ملاحظات",
-    "field_expiry_placeholder": "مثلاً انتهاء 2026-08-15"
+    "field_expiry_placeholder": "مثلاً انتهاء 2026-08-15",
+    "scan_button": "مسح",
+    "scan_title": "مسح باركود أو QR",
+    "scan_hint": "وجّه نحو باركود أو رمز QR",
+    "scan_unsupported_title": "الماسح غير مدعوم هنا",
+    "scan_unsupported_body": "استخدم Chrome على Android أو Edge أو Safari للماسح المدمج. يمكنك دائماً كتابة الرمز يدوياً في الملاحظات.",
+    "scan_error_title": "الكاميرا غير متاحة"
   },
   "color": {
     "white": "أبيض",
@@ -192,7 +200,15 @@
     "top_sellers": "الأكثر مبيعاً",
     "activity": "النشاط",
     "add_expense": "إضافة مصروف",
-    "empty": "لا نشاط في هذه الفترة"
+    "empty": "لا نشاط في هذه الفترة",
+    "inventory_title": "نظرة عامة على المخزون",
+    "inv_units_pairs": "أزواج في المخزون",
+    "inv_units_items": "وحدات في المخزون",
+    "inv_value_cost": "قيمة المخزون (تكلفة)",
+    "inv_article_count": "منتجات",
+    "inv_low_stock": "مخزون منخفض / نافد",
+    "inv_by_category": "المخزون حسب الفئة",
+    "inv_low_stock_list_title": "بحاجة إلى إعادة تخزين"
   },
   "expense": {
     "title": "إضافة مصروف",
