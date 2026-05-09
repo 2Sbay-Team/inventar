@@ -67,6 +67,7 @@
     "in_stock_with_size": "En stock · {{n}} en taille {{size}}",
     "size_out_with_neighbours": "{{size}} épuisé · {{neighbours}} en stock",
     "summary": "{{pairs}} paires · {{sizes}} tailles",
+    "summary_units": "{{n}} en stock",
     "empty_first": "Ajoutez votre premier article",
     "empty_first_cta": "Ajouter un article",
     "nothing_found": "Aucun résultat pour « {{query}} ». Essayez moins de mots ou des mots différents.",

@@ -42,6 +42,11 @@ export function StockBadge({ result }: StockBadgeProps): JSX.Element {
     );
   }
 
+  // A sizeless article (kiosk / grocery) has exactly one placeholder
+  // variant with an empty / null size. Showing "1 sizes" alongside it is
+  // wrong vocabulary — switch to a simple "N in stock" string.
+  const sizeless = result.sizeStock.length <= 1 && result.sizeStock.every((s) => !s.size);
+
   return (
     <span
       data-testid="stock-badge"
@@ -50,7 +55,9 @@ export function StockBadge({ result }: StockBadgeProps): JSX.Element {
         result.totalQty > 0 ? 'bg-ok-soft text-ok' : 'bg-paper-deep text-ink-3'
       }`}
     >
-      {t('summary', { pairs: fmt(result.totalQty), sizes: fmt(inStockSizes.length) })}
+      {sizeless
+        ? t('summary_units', { n: fmt(result.totalQty) })
+        : t('summary', { pairs: fmt(result.totalQty), sizes: fmt(inStockSizes.length) })}
     </span>
   );
 }

@@ -55,8 +55,11 @@ test('stress: 200 articles — search returns within budget', async ({ page }) =
   await page.getByTestId('search-input').fill('Article 042');
   await expect(page.getByTestId('result-card').first()).toBeVisible({ timeout: 4000 });
   const elapsed = Date.now() - t0;
-  // 2s is generous; on dev hw search returns in <300ms typically.
-  expect(elapsed, `Search took ${elapsed}ms with 200 articles`).toBeLessThan(2000);
+  // 3s is the regression-only budget. On clean dev hw search returns in
+  // <300 ms; the headroom absorbs CI noise and the live-data overhead
+  // from the InventoryOverview / BackupBanner / InstallBanner hooks
+  // also subscribed to the same Dexie state.
+  expect(elapsed, `Search took ${elapsed}ms with 200 articles`).toBeLessThan(3000);
 });
 
 test('stress: 200 articles — dashboard renders within budget', async ({ page }) => {

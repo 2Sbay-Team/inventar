@@ -67,6 +67,7 @@
     "in_stock_with_size": "In stock · {{n}} in size {{size}}",
     "size_out_with_neighbours": "{{size}} out · {{neighbours}} in stock",
     "summary": "{{pairs}} pairs · {{sizes}} sizes",
+    "summary_units": "{{n}} in stock",
     "empty_first": "Add your first article",
     "empty_first_cta": "Add an article",
     "nothing_found": "Nothing found for \"{{query}}\". Try fewer words or different words.",

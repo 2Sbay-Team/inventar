@@ -67,6 +67,7 @@
     "in_stock_with_size": "متوفر · {{n}} في المقاس {{size}}",
     "size_out_with_neighbours": "{{size}} نفد · {{neighbours}} متوفر",
     "summary": "{{pairs}} زوج · {{sizes}} مقاس",
+    "summary_units": "{{n}} متوفّر",
     "empty_first": "أضف أول منتج لك",
     "empty_first_cta": "إضافة منتج",
     "nothing_found": "لا نتائج لـ «{{query}}». جرّب كلمات أقل أو مختلفة.",

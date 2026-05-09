@@ -63,10 +63,15 @@ export function ActivityFeed({ movements, variantsById }: ActivityFeedProps): JS
               >
                 {deltaText}
               </span>
-              <span dir="ltr" className="font-mono">
-                {variant?.size ?? '?'}
-              </span>{' '}
-              · {t(`mtype_${m.type}`)}
+              {variant?.size ? (
+                <>
+                  <span dir="ltr" className="font-mono">
+                    {variant.size}
+                  </span>
+                  {' · '}
+                </>
+              ) : null}
+              {t(`mtype_${m.type}`)}
             </span>
             <span className="text-ink-4 font-mono text-[10px]" dir="ltr">
               {shortTime(m.created_at, locale)}
