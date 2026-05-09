@@ -190,8 +190,8 @@ describe('articles repo — read / update / archive', () => {
     expect(after.name).toBe('Black running shoe');
     // Colours are derived from variants in v0.3 — the legacy `colors`
     // cache reflects whatever variants exist, not anything passed to
-    // updateArticle. The seed input has white + gray.
-    expect(after.colors.sort()).toEqual(['gray', 'white']);
+    // updateArticle. baseInput seeds a single 'white' colour.
+    expect(after.colors).toEqual(['white']);
     expect(after.search_blob).toContain('black running');
     expect(after.search_blob).not.toContain('white running');
     expect(after.updated_at).toBe('2026-05-08T00:00:00.000Z');

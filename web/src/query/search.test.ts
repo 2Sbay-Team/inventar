@@ -70,7 +70,13 @@ describe('searchArticles — trilingual normalisation (SPEC §1.4 / §2.2)', () 
     const white = ids.find((a) => a.name === 'White running shoe')!;
     // Drain size 40 to zero so the same query "white 40" goes to tier 2.
     const v40 = await db.variants.where('[article_id+size]').equals([white.id, '40']).first();
-    await recordMovement(db, { variant_id: v40!.id, delta: -1, type: 'sale', note: null });
+    await recordMovement(db, {
+      variant_id: v40!.id,
+      delta: -1,
+      type: 'sale',
+      note: null,
+      location: 'back',
+    });
 
     const inStock = await searchArticles('white 42', {}, db);
     expect(inStock[0]?.matchedSize).toBe('42');
