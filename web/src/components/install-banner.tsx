@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, Smartphone } from 'lucide-react';
 import { db } from '../db/db';
@@ -24,6 +25,23 @@ export function InstallBanner(): JSX.Element | null {
     [],
     null,
   );
+
+  // Auto-trigger the install prompt when the user arrived from the portfolio
+  // with ?install=1 in the URL — saves them an extra tap on Android/desktop.
+  // iOS users still see the manual instructions card (no programmatic install).
+  // We strip the query param after handling so a refresh doesn't re-fire.
+  const autoTriggered = useRef(false);
+  useEffect(() => {
+    if (autoTriggered.current) return;
+    if (installState.kind !== 'installable') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('install') !== '1') return;
+    autoTriggered.current = true;
+    void installState.install();
+    params.delete('install');
+    const next = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+    window.history.replaceState({}, '', next);
+  }, [installState]);
 
   if (installState.kind === 'installed' || installState.kind === 'unsupported') return null;
   if (dismissedRecently(dismissedAt)) return null;
