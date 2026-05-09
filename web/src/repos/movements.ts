@@ -17,6 +17,11 @@ export interface RecordMovementInput {
   delta: number;
   type: MovementType;
   note?: string | null;
+  // Optional per-unit price override in minor units. Only meaningful for
+  // sale movements where the customer paid a discounted / promotional
+  // price. Null = use the article's catalogue sale_price_tnd at read
+  // time. Validated as a non-negative integer when provided.
+  unit_price_tnd?: number | null;
 }
 
 export async function recordMovement(
@@ -29,12 +34,20 @@ export async function recordMovement(
   if (input.delta === 0) {
     throw new Error('Movement.delta must be non-zero');
   }
+  if (input.unit_price_tnd != null) {
+    if (!Number.isInteger(input.unit_price_tnd) || input.unit_price_tnd < 0) {
+      throw new Error(
+        `Movement.unit_price_tnd must be a non-negative integer, got ${input.unit_price_tnd}`,
+      );
+    }
+  }
   const m: Movement = {
     id: newUUID(),
     variant_id: input.variant_id,
     delta: input.delta,
     type: input.type,
     note: input.note ?? null,
+    unit_price_tnd: input.unit_price_tnd ?? null,
     created_at: nowISO(),
     deleted_at: null,
   };

@@ -315,6 +315,24 @@ export function AddArticleScreen(): JSX.Element {
                 </button>
               ))}
             </div>
+            {/* Free-text color input — for cases the curated chip list
+                doesn't cover (e.g., "olive", "burgundy", a brand-specific
+                shade). Anything typed here lands in form.color verbatim
+                and gets stored on the article. The chips above unselect
+                visually but the typed value wins. */}
+            <input
+              data-testid="color-custom"
+              type="text"
+              value={
+                CANONICAL_COLOURS.includes(form.color as (typeof CANONICAL_COLOURS)[number])
+                  ? ''
+                  : form.color
+              }
+              onChange={(e) => patch({ color: e.target.value })}
+              placeholder={tColor('custom_placeholder')}
+              maxLength={30}
+              className="border-hair mt-2 w-full rounded-xl border bg-white px-3 py-2 text-xs"
+            />
           </Field>
 
           <Field label={t('field_brand')}>

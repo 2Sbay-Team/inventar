@@ -108,7 +108,10 @@
     "reason_return": "Return",
     "reason_adjustment": "Adjustment",
     "reason_purchase": "Restock",
-    "note_placeholder": "Optional note"
+    "note_placeholder": "Optional note",
+    "discount_label": "Sale price ({{currency}})",
+    "discount_placeholder": "Use article price",
+    "discount_hint": "Leave empty to use the article's normal price. Set a special amount only if this customer paid a different price."
   },
   "add": {
     "title": "Add article",
@@ -149,12 +152,22 @@
   "color": {
     "white": "white",
     "black": "black",
+    "gray": "gray",
     "brown": "brown",
-    "blue": "blue",
-    "red": "red",
     "beige": "beige",
+    "red": "red",
+    "orange": "orange",
+    "yellow": "yellow",
+    "green": "green",
+    "blue": "blue",
+    "navy": "navy",
+    "purple": "purple",
+    "pink": "pink",
+    "gold": "gold",
+    "silver": "silver",
     "multi": "multi",
-    "custom": "custom"
+    "custom": "custom",
+    "custom_placeholder": "Or type your own color"
   },
   "category": {
     "sport": "sport",

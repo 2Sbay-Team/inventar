@@ -12,10 +12,19 @@
 export const CANONICAL_COLOURS = [
   'white',
   'black',
+  'gray',
   'brown',
-  'blue',
-  'red',
   'beige',
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'navy',
+  'purple',
+  'pink',
+  'gold',
+  'silver',
   'multi',
 ] as const;
 export type CanonicalColour = (typeof CANONICAL_COLOURS)[number];
@@ -25,10 +34,19 @@ export type CanonicalColour = (typeof CANONICAL_COLOURS)[number];
 const ALIASES: Record<CanonicalColour, readonly string[]> = {
   white: ['white', 'blanc', 'blanche', 'أبيض', 'بيضاء'],
   black: ['black', 'noir', 'noire', 'أسود', 'سوداء'],
+  gray: ['gray', 'grey', 'gris', 'grise', 'رمادي', 'رمادية'],
   brown: ['brown', 'marron', 'brun', 'بني', 'بنية'],
-  blue: ['blue', 'bleu', 'bleue', 'أزرق', 'زرقاء'],
-  red: ['red', 'rouge', 'أحمر', 'حمراء'],
   beige: ['beige', 'بيج'],
+  red: ['red', 'rouge', 'أحمر', 'حمراء'],
+  orange: ['orange', 'برتقالي', 'برتقالية'],
+  yellow: ['yellow', 'jaune', 'أصفر', 'صفراء'],
+  green: ['green', 'vert', 'verte', 'أخضر', 'خضراء'],
+  blue: ['blue', 'bleu', 'bleue', 'أزرق', 'زرقاء'],
+  navy: ['navy', 'marine', 'كحلي'],
+  purple: ['purple', 'violet', 'violette', 'بنفسجي', 'بنفسجية'],
+  pink: ['pink', 'rose', 'وردي', 'وردية'],
+  gold: ['gold', 'doré', 'doree', 'ذهبي', 'ذهبية'],
+  silver: ['silver', 'argenté', 'argente', 'فضي', 'فضية'],
   multi: ['multi', 'multicolor', 'multicolore', 'متعدد'],
 };
 

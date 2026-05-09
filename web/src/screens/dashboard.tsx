@@ -62,8 +62,13 @@ async function computeMetrics(period: Period): Promise<PeriodMetrics> {
       if (!article) continue;
       if (m.type === 'sale') {
         const sold = Math.abs(m.delta);
-        revenue += sold * article.sale_price_tnd;
-        grossProfit += sold * (article.sale_price_tnd - article.cost_price_tnd);
+        // Honor per-movement price override if the cashier set one
+        // (discount, promo). Falls back to the article's catalogue
+        // price for the vast majority of sales where no override
+        // was set.
+        const unitPrice = m.unit_price_tnd ?? article.sale_price_tnd;
+        revenue += sold * unitPrice;
+        grossProfit += sold * (unitPrice - article.cost_price_tnd);
         pairsSold += sold;
       } else if (m.type === 'purchase' && m.delta > 0) {
         purchases += m.delta * article.cost_price_tnd;

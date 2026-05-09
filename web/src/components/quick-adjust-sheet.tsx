@@ -2,8 +2,10 @@ import * as Dialog from '@radix-ui/react-dialog';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { formatNumber } from '../i18n/format-number';
+import { parseCurrency } from '../i18n/parse-currency';
 import { db } from '../db/db';
 import { recordMovement } from '../repos/movements';
 import { type MovementType, type UUID } from '../types';
@@ -45,9 +47,13 @@ export function QuickAdjustSheet({
   const { t } = useTranslation('adjust');
   const { t: tCommon } = useTranslation('common');
   const { locale } = useLocale();
+  const currency = useCurrency();
   const [step, setStep] = useState(1);
   const [reason, setReason] = useState<MovementType>(defaultReason);
   const [note, setNote] = useState('');
+  // Optional per-sale price override. Empty string = use the article's
+  // catalogue price. Validated on confirm via parseCurrency.
+  const [discountInput, setDiscountInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -55,6 +61,7 @@ export function QuickAdjustSheet({
       setStep(1);
       setReason(defaultReason);
       setNote('');
+      setDiscountInput('');
     }
   }, [open, defaultReason]);
 
@@ -64,11 +71,21 @@ export function QuickAdjustSheet({
     if (!target) return;
     setSubmitting(true);
     const sign = REASONS.find((r) => r.key === reason)?.sign ?? -1;
+    // Discount only applies to sales. Parse the typed value via the
+    // shared parseCurrency so it follows the same locale rules as Add
+    // Article — comma vs dot decimals, NBSP grouping, etc. Empty / bad
+    // input falls back to null = no override.
+    let unitPriceOverride: number | null = null;
+    if (reason === 'sale' && discountInput.trim() !== '') {
+      const parsed = parseCurrency(discountInput, locale, currency);
+      if (parsed !== null && parsed >= 0) unitPriceOverride = parsed;
+    }
     await recordMovement(db, {
       variant_id: target.variantId,
       delta: sign * step,
       type: reason,
       note: note.trim() === '' ? null : note.trim(),
+      unit_price_tnd: unitPriceOverride,
     });
     setSubmitting(false);
     onClose();
@@ -136,6 +153,28 @@ export function QuickAdjustSheet({
               </RadioGroup.Item>
             ))}
           </RadioGroup.Root>
+
+          {reason === 'sale' ? (
+            <div className="mt-4">
+              <label
+                htmlFor="adjust-discount"
+                className="text-ink-2 mb-1 block text-xs font-medium"
+              >
+                {t('discount_label', { currency })}
+              </label>
+              <input
+                id="adjust-discount"
+                data-testid="adjust-discount"
+                type="text"
+                inputMode="decimal"
+                value={discountInput}
+                onChange={(e) => setDiscountInput(e.target.value)}
+                placeholder={t('discount_placeholder')}
+                className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-end font-mono text-sm"
+              />
+              <p className="text-ink-3 mt-1 text-[10.5px] leading-snug">{t('discount_hint')}</p>
+            </div>
+          ) : null}
 
           <input
             data-testid="adjust-note"

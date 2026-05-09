@@ -12,7 +12,14 @@ function mkVariant(o: Partial<Variant> & Pick<Variant, 'id' | 'article_id' | 'si
 function mkMovement(
   o: Partial<Movement> & Pick<Movement, 'id' | 'variant_id' | 'delta'>,
 ): Movement {
-  return { type: 'purchase', note: null, created_at: NOW, deleted_at: null, ...o };
+  return {
+    type: 'purchase',
+    note: null,
+    unit_price_tnd: null,
+    created_at: NOW,
+    deleted_at: null,
+    ...o,
+  };
 }
 
 describe('quantityFor', () => {

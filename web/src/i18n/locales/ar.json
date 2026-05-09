@@ -108,7 +108,10 @@
     "reason_return": "إرجاع",
     "reason_adjustment": "تعديل",
     "reason_purchase": "إعادة تخزين",
-    "note_placeholder": "ملاحظة (اختياري)"
+    "note_placeholder": "ملاحظة (اختياري)",
+    "discount_label": "سعر البيع ({{currency}})",
+    "discount_placeholder": "سعر المنتج",
+    "discount_hint": "اتركه فارغاً لاستخدام السعر العادي للمنتج. حدّد مبلغاً فقط إذا دفع هذا الزبون سعراً مختلفاً."
   },
   "add": {
     "title": "إضافة منتج",
@@ -149,12 +152,22 @@
   "color": {
     "white": "أبيض",
     "black": "أسود",
+    "gray": "رمادي",
     "brown": "بني",
-    "blue": "أزرق",
-    "red": "أحمر",
     "beige": "بيج",
+    "red": "أحمر",
+    "orange": "برتقالي",
+    "yellow": "أصفر",
+    "green": "أخضر",
+    "blue": "أزرق",
+    "navy": "كحلي",
+    "purple": "بنفسجي",
+    "pink": "وردي",
+    "gold": "ذهبي",
+    "silver": "فضي",
     "multi": "متعدد",
-    "custom": "مخصص"
+    "custom": "مخصص",
+    "custom_placeholder": "أو اكتب لوناً خاصاً"
   },
   "category": {
     "sport": "رياضي",

@@ -108,7 +108,10 @@
     "reason_return": "Retour",
     "reason_adjustment": "Ajustement",
     "reason_purchase": "Réappro",
-    "note_placeholder": "Note (facultatif)"
+    "note_placeholder": "Note (facultatif)",
+    "discount_label": "Prix de vente ({{currency}})",
+    "discount_placeholder": "Prix de l'article",
+    "discount_hint": "Laissez vide pour utiliser le prix normal de l'article. Indiquez un montant uniquement si ce client a payé un prix différent."
   },
   "add": {
     "title": "Ajouter un article",
@@ -149,12 +152,22 @@
   "color": {
     "white": "blanc",
     "black": "noir",
+    "gray": "gris",
     "brown": "marron",
-    "blue": "bleu",
-    "red": "rouge",
     "beige": "beige",
+    "red": "rouge",
+    "orange": "orange",
+    "yellow": "jaune",
+    "green": "vert",
+    "blue": "bleu",
+    "navy": "marine",
+    "purple": "violet",
+    "pink": "rose",
+    "gold": "doré",
+    "silver": "argenté",
     "multi": "multi",
-    "custom": "personnalisé"
+    "custom": "personnalisé",
+    "custom_placeholder": "Ou tapez votre propre couleur"
   },
   "category": {
     "sport": "sport",

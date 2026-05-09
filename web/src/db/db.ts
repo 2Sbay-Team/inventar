@@ -89,6 +89,28 @@ export class InventarDB extends Dexie {
             if (!('store_type' in p)) p.store_type = 'shoes';
           });
       });
+    // v5: Add unit_price_tnd to Movement, defaulting to null on existing
+    // rows. null means "use the article's current sale_price_tnd at read
+    // time" — preserves prior revenue calculations exactly.
+    this.version(5)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, *colors, category, archived_at, deleted_at, updated_at, search_blob',
+        variants: 'id, article_id, [article_id+size], deleted_at',
+        movements: 'id, variant_id, type, created_at, [variant_id+created_at], deleted_at',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('movements')
+          .toCollection()
+          .modify((m: { unit_price_tnd?: number | null }) => {
+            if (!('unit_price_tnd' in m)) m.unit_price_tnd = null;
+          });
+      });
   }
 }
 

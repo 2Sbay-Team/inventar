@@ -87,6 +87,13 @@ export interface Movement {
   delta: number;
   type: MovementType;
   note: string | null;
+  // Per-unit price override in minor units. Null means "use the
+  // article's current sale_price_tnd" (the default for the vast
+  // majority of sales). Set per-movement when a customer gets a
+  // discount or pays a special price for THIS sale only — does NOT
+  // change the article's catalogue price. Revenue computations should
+  // read `unit_price_tnd ?? article.sale_price_tnd`.
+  unit_price_tnd: number | null;
   created_at: ISODate;
   deleted_at: ISODate | null;
 }

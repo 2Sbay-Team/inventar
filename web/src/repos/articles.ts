@@ -91,6 +91,7 @@ export async function createArticle(
           delta: initial_qty,
           type: 'purchase',
           note: null,
+          unit_price_tnd: null,
           created_at: ts,
           deleted_at: null,
         };
