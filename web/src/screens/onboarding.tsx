@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { Boxes, Check } from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
 import { db } from '../db/db';
 import { DEFAULT_CURRENCY, upsertProfile } from '../repos/profile';
@@ -10,10 +11,19 @@ import { useLocale } from '../hooks/use-locale';
 import { ensurePersistence } from '../pwa/persistence';
 import { type CurrencyCode, type Locale } from '../types';
 
-const LANGUAGE_OPTIONS: ReadonlyArray<{ code: Locale; label: string }> = [
-  { code: 'fr', label: 'Français' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'en', label: 'English' },
+interface LanguageOption {
+  code: Locale;
+  label: string;
+  // English name shown as a small subtitle so a user who doesn't read the
+  // native script can still recognise their language.
+  subtitle: string;
+  flag: string;
+}
+
+const LANGUAGE_OPTIONS: ReadonlyArray<LanguageOption> = [
+  { code: 'fr', label: 'Français', subtitle: 'French', flag: '🇫🇷' },
+  { code: 'ar', label: 'العربية', subtitle: 'Arabic', flag: '🇹🇳' },
+  { code: 'en', label: 'English', subtitle: 'English', flag: '🇬🇧' },
 ];
 
 // SPEC §2.1 onboarding: language → shop name → "got it" backup card → land
@@ -58,19 +68,42 @@ export function OnboardingScreen(): JSX.Element {
       >
         {step === 'language' ? (
           <section data-testid="step-language" className="space-y-6">
-            <h1 className="font-display text-3xl font-medium tracking-tight">
-              {t('onboarding:pick_language')}
-            </h1>
+            <div className="flex flex-col items-center text-center">
+              <div className="bg-accent-soft text-accent mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
+                <Boxes aria-hidden className="h-7 w-7" strokeWidth={2} />
+              </div>
+              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
+                {t('onboarding:welcome_title')}
+              </h1>
+              <p className="text-ink-2 mt-3 max-w-md text-[15px] leading-relaxed">
+                {t('onboarding:welcome_subtitle')}
+              </p>
+            </div>
+
             <div className="space-y-3">
-              {LANGUAGE_OPTIONS.map(({ code, label }) => (
+              <p className="text-ink-3 text-center text-xs uppercase tracking-widest">
+                {t('onboarding:language_hint')}
+              </p>
+              {LANGUAGE_OPTIONS.map(({ code, label, subtitle, flag }) => (
                 <button
                   key={code}
                   type="button"
                   data-testid={`lang-${code}`}
                   onClick={() => pickLanguage(code)}
-                  className="border-hair w-full rounded-xl border bg-white p-4 text-start text-lg font-medium"
+                  className="border-hair hover:border-accent hover:bg-accent-soft/40 group flex w-full items-center gap-4 rounded-2xl border bg-white p-4 text-start transition-colors"
                 >
-                  {label}
+                  <span aria-hidden className="text-2xl leading-none">
+                    {flag}
+                  </span>
+                  <span className="flex flex-1 flex-col">
+                    <span className="text-ink text-lg font-medium leading-tight">{label}</span>
+                    <span className="text-ink-3 text-xs">{subtitle}</span>
+                  </span>
+                  <Check
+                    aria-hidden
+                    className="text-accent h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
+                    strokeWidth={2.5}
+                  />
                 </button>
               ))}
             </div>
@@ -78,27 +111,35 @@ export function OnboardingScreen(): JSX.Element {
         ) : null}
 
         {step === 'name' ? (
-          <section data-testid="step-name" className="space-y-5">
-            <label
-              htmlFor="onb-shop-name"
-              className="font-display block text-2xl font-medium tracking-tight"
-            >
-              {t('onboarding:shop_name_label')}
-            </label>
-            <input
-              id="onb-shop-name"
-              data-testid="shop-name-input"
-              type="text"
-              value={shopName}
-              onChange={(e) => setShopName(e.target.value)}
-              placeholder={t('onboarding:shop_name_placeholder')}
-              maxLength={50}
-              className="border-hair w-full rounded-xl border bg-white px-4 py-3 text-base"
-            />
-            <p className="text-ink-3 text-xs">{t('onboarding:shop_name_min')}</p>
+          <section data-testid="step-name" className="space-y-6">
+            <div className="text-center">
+              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
+                {t('onboarding:setup_title')}
+              </h1>
+              <p className="text-ink-2 mt-3 text-[15px] leading-relaxed">
+                {t('onboarding:setup_subtitle')}
+              </p>
+            </div>
 
-            <div>
-              <label htmlFor="onb-currency" className="text-ink-2 mb-1 block text-sm font-medium">
+            <div className="space-y-2">
+              <label htmlFor="onb-shop-name" className="text-ink-2 block text-sm font-medium">
+                {t('onboarding:shop_name_label')}
+              </label>
+              <input
+                id="onb-shop-name"
+                data-testid="shop-name-input"
+                type="text"
+                value={shopName}
+                onChange={(e) => setShopName(e.target.value)}
+                placeholder={t('onboarding:shop_name_placeholder')}
+                maxLength={50}
+                className="border-hair focus:border-accent w-full rounded-xl border bg-white px-4 py-3 text-base outline-none"
+              />
+              <p className="text-ink-3 text-xs">{t('onboarding:shop_name_min')}</p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="onb-currency" className="text-ink-2 block text-sm font-medium">
                 {t('settings:currency')}
               </label>
               <select
@@ -106,7 +147,7 @@ export function OnboardingScreen(): JSX.Element {
                 data-testid="onb-currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="border-hair w-full rounded-xl border bg-white px-4 py-3 text-base"
+                className="border-hair focus:border-accent w-full rounded-xl border bg-white px-4 py-3 text-base outline-none"
               >
                 {currencies.map((code) => (
                   <option key={code} value={code}>
@@ -114,7 +155,7 @@ export function OnboardingScreen(): JSX.Element {
                   </option>
                 ))}
               </select>
-              <p className="text-ink-3 mt-1 text-xs">{t('onboarding:pick_currency_hint')}</p>
+              <p className="text-ink-3 text-xs">{t('onboarding:pick_currency_hint')}</p>
             </div>
 
             <button
@@ -122,7 +163,7 @@ export function OnboardingScreen(): JSX.Element {
               data-testid="continue"
               disabled={shopName.trim().length < 2 || submitting}
               onClick={submitName}
-              className="bg-ink w-full rounded-xl py-3 text-white disabled:opacity-50"
+              className="bg-accent w-full rounded-xl py-3 font-medium text-white disabled:opacity-50"
             >
               {t('common:continue')}
             </button>
@@ -130,17 +171,22 @@ export function OnboardingScreen(): JSX.Element {
         ) : null}
 
         {step === 'backup_card' ? (
-          <section data-testid="step-backup-card" className="space-y-5">
-            <h2 className="font-display text-xl font-semibold tracking-tight">
+          <section data-testid="step-backup-card" className="space-y-5 text-center">
+            <div className="bg-accent-soft text-accent mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
+              <Boxes aria-hidden className="h-7 w-7" strokeWidth={2} />
+            </div>
+            <h2 className="font-display text-ink text-2xl font-semibold tracking-tight">
               {t('onboarding:backup_card_title')}
             </h2>
-            <p className="text-ink-2 text-sm leading-relaxed">{t('onboarding:backup_card_body')}</p>
+            <p className="text-ink-2 text-[15px] leading-relaxed">
+              {t('onboarding:backup_card_body')}
+            </p>
             <button
               type="button"
               data-testid="got-it"
               disabled={submitting}
               onClick={() => void confirmBackupCard()}
-              className="bg-ink w-full rounded-xl py-3 text-white disabled:opacity-50"
+              className="bg-accent w-full rounded-xl py-3 font-medium text-white disabled:opacity-50"
             >
               {t('common:got_it')}
             </button>

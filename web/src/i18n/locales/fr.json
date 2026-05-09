@@ -23,7 +23,7 @@
     "offline": "Hors ligne",
     "tnd": "TND",
     "dash": "—",
-    "powered_by": "Propulsé par hoodhood.ai"
+    "powered_by": "Plus de projets sur hoodhood.ai"
   },
   "nav": {
     "search": "Recherche",
@@ -36,7 +36,12 @@
     "articles_items": "{{articles}} articles · {{items}} articles en stock"
   },
   "onboarding": {
+    "welcome_title": "Bienvenue dans Inventar",
+    "welcome_subtitle": "Suivez le stock, les ventes et les dépenses de votre boutique sur votre téléphone — fonctionne hors ligne, vos données restent sur votre appareil.",
+    "language_hint": "Pour commencer, choisissez votre langue de travail.",
     "pick_language": "Choisissez votre langue",
+    "setup_title": "Configurez votre boutique",
+    "setup_subtitle": "Deux informations pour commencer. Vous pourrez tout modifier plus tard dans Réglages.",
     "pick_currency": "Choisissez votre devise",
     "pick_currency_hint": "Vous pourrez changer plus tard dans Réglages.",
     "shop_name_label": "Nom de la boutique",

@@ -23,7 +23,7 @@
     "offline": "بدون إنترنت",
     "tnd": "TND",
     "dash": "—",
-    "powered_by": "مدعوم من hoodhood.ai"
+    "powered_by": "المزيد من المشاريع على hoodhood.ai"
   },
   "nav": {
     "search": "بحث",
@@ -36,7 +36,12 @@
     "articles_items": "{{articles}} منتج · {{items}} قطعة"
   },
   "onboarding": {
+    "welcome_title": "مرحباً بك في Inventar",
+    "welcome_subtitle": "تتبّع المخزون والمبيعات والمصاريف على هاتفك — يعمل بدون إنترنت، وبياناتك تبقى على جهازك.",
+    "language_hint": "للبدء، اختر اللغة التي ستعمل بها.",
     "pick_language": "اختر لغتك",
+    "setup_title": "إعداد متجرك",
+    "setup_subtitle": "معلومتان فقط للبدء. يمكنك تغيير كل شيء لاحقاً في الإعدادات.",
     "pick_currency": "اختر عملتك",
     "pick_currency_hint": "يمكنك تغييرها لاحقاً في الإعدادات.",
     "shop_name_label": "اسم المتجر",
