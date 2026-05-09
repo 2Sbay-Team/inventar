@@ -15,7 +15,7 @@ import {
 } from '../utils/auto-backup';
 import { getMeta, META_KEYS } from '../repos/meta';
 import { db, resetDatabase } from '../db/db';
-import { upsertProfile, markBackedUp } from '../repos/profile';
+import { getProfile, upsertProfile, markBackedUp } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
 import { exportBackupBlob, backupFilename } from '../backup/export';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
@@ -46,6 +46,7 @@ export function SettingsScreen(): JSX.Element {
   const [resetText, setResetText] = useState('');
   const [shopNameDraft, setShopNameDraft] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
   const [pendingStoreType, setPendingStoreType] = useState<StoreType | null>(null);
   const currencies = useMemo(() => listSupportedCurrencies(), []);
@@ -100,6 +101,15 @@ export function SettingsScreen(): JSX.Element {
     try {
       await importBackup({ data: importData, mode }, db);
       setImportData(null);
+      // Honor the locale stored in the imported profile so the UI doesn't
+      // stay in the previous language until the user reloads. 'replace'
+      // overwrites profile entirely; 'merge' picks the row with the
+      // greater updated_at — either way, getProfile() now returns the
+      // post-import singleton, which is the locale we should switch to.
+      const restored = await getProfile(db);
+      if (restored?.locale && restored.locale !== locale) {
+        await setLocale(restored.locale);
+      }
     } catch (e) {
       if (e instanceof BackupIntegrityError) setImportError(t('import_invalid'));
       else if (e instanceof BackupParseError) setImportError(t('import_invalid'));
@@ -126,11 +136,22 @@ export function SettingsScreen(): JSX.Element {
   async function handleLogoFile(file: File): Promise<void> {
     if (!profile) return;
     setLogoBusy(true);
+    setLogoError(null);
     try {
       // Lazy-load the photo compressor (browser-image-compression is ~54 KB).
       // Keeps the initial Settings chunk small so the screen mounts fast.
-      const { compressPhoto } = await import('../utils/compress-photo');
-      const compressed = await compressPhoto(file);
+      const { compressPhoto, PhotoTooLargeError } = await import('../utils/compress-photo');
+      let compressed;
+      try {
+        compressed = await compressPhoto(file);
+      } catch (err) {
+        if (err instanceof PhotoTooLargeError) {
+          setLogoError(t('logo_too_large'));
+        } else {
+          setLogoError(t('logo_failed'));
+        }
+        return;
+      }
       const stored = await storePhoto(db, {
         blob: compressed.blob,
         width: compressed.width,
@@ -268,6 +289,15 @@ export function SettingsScreen(): JSX.Element {
               }}
             />
           </div>
+          {logoError ? (
+            <p
+              data-testid="shop-logo-error"
+              role="alert"
+              className="text-bad bg-bad/5 border-bad/20 mt-2 rounded-xl border px-3 py-2 text-xs"
+            >
+              {logoError}
+            </p>
+          ) : null}
 
           <label htmlFor="settings-shop-name" className="text-ink-3 mt-4 mb-1 block text-xs">
             {t('shop_name')}

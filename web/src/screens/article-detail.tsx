@@ -39,6 +39,7 @@ export function ArticleDetailScreen(): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const variantsById = useMemo(() => {
@@ -104,10 +105,21 @@ export function ArticleDetailScreen(): JSX.Element {
 
   async function handleNewPhoto(file: File): Promise<void> {
     setPhotoBusy(true);
+    setPhotoError(null);
     try {
       const previousPhotoId = article.photo_id;
-      const { compressPhoto } = await import('../utils/compress-photo');
-      const compressed = await compressPhoto(file);
+      const { compressPhoto, PhotoTooLargeError } = await import('../utils/compress-photo');
+      let compressed;
+      try {
+        compressed = await compressPhoto(file);
+      } catch (err) {
+        if (err instanceof PhotoTooLargeError) {
+          setPhotoError(t('photo_too_large'));
+        } else {
+          setPhotoError(t('photo_failed'));
+        }
+        return;
+      }
       const stored = await storePhoto(db, {
         blob: compressed.blob,
         width: compressed.width,
@@ -230,6 +242,16 @@ export function ArticleDetailScreen(): JSX.Element {
           }}
         />
       </div>
+
+      {photoError ? (
+        <div
+          data-testid="hero-photo-error"
+          role="alert"
+          className="text-bad bg-bad/5 border-bad/20 mx-4 mt-2 rounded-xl border px-3 py-2 text-xs"
+        >
+          {photoError}
+        </div>
+      ) : null}
 
       <section className="px-5 pb-3 pt-3">
         <h3 className="font-display text-lg font-medium tracking-tight">{article.name}</h3>

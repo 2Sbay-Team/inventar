@@ -66,6 +66,7 @@ export function OnboardingScreen(): JSX.Element {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -87,11 +88,22 @@ export function OnboardingScreen(): JSX.Element {
 
   async function handleLogoFile(file: File): Promise<void> {
     setLogoBusy(true);
+    setLogoError(null);
     try {
       // Lazy-load the compressor (browser-image-compression is ~54 KB) so
       // it only ships when a user actually picks a logo.
-      const { compressPhoto } = await import('../utils/compress-photo');
-      const compressed = await compressPhoto(file);
+      const { compressPhoto, PhotoTooLargeError } = await import('../utils/compress-photo');
+      let compressed;
+      try {
+        compressed = await compressPhoto(file);
+      } catch (err) {
+        if (err instanceof PhotoTooLargeError) {
+          setLogoError(t('onboarding:logo_too_large'));
+        } else {
+          setLogoError(t('onboarding:logo_failed'));
+        }
+        return;
+      }
       const compressedFile = new File([compressed.blob], 'logo.jpg', { type: compressed.mime });
       const url = URL.createObjectURL(compressedFile);
       if (logoPreview) URL.revokeObjectURL(logoPreview);
@@ -446,6 +458,15 @@ export function OnboardingScreen(): JSX.Element {
                   if (f) void handleLogoFile(f);
                 }}
               />
+              {logoError ? (
+                <p
+                  data-testid="onb-logo-error"
+                  role="alert"
+                  className="text-bad bg-bad/5 border-bad/20 rounded-xl border px-3 py-2 text-xs"
+                >
+                  {logoError}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
