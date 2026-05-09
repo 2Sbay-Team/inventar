@@ -15,16 +15,13 @@ import { type CurrencyCode, type Locale } from '../types';
 interface LanguageOption {
   code: Locale;
   label: string;
-  // English name shown as a small subtitle so a user who doesn't read the
-  // native script can still recognise their language.
-  subtitle: string;
   flag: string;
 }
 
 const LANGUAGE_OPTIONS: ReadonlyArray<LanguageOption> = [
-  { code: 'fr', label: 'Français', subtitle: 'French', flag: '🇫🇷' },
-  { code: 'ar', label: 'العربية', subtitle: 'Arabic', flag: '🇹🇳' },
-  { code: 'en', label: 'English', subtitle: 'English', flag: '🇬🇧' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'ar', label: 'العربية', flag: '🇹🇳' },
+  { code: 'en', label: 'English', flag: '🇬🇧' },
 ];
 
 // SPEC §2.1 onboarding: language → shop name → "got it" backup card → land
@@ -145,7 +142,7 @@ export function OnboardingScreen(): JSX.Element {
               <p className="text-ink-3 text-center text-xs uppercase tracking-widest">
                 {t('onboarding:language_hint')}
               </p>
-              {LANGUAGE_OPTIONS.map(({ code, label, subtitle, flag }) => (
+              {LANGUAGE_OPTIONS.map(({ code, label, flag }) => (
                 <button
                   key={code}
                   type="button"
@@ -158,7 +155,7 @@ export function OnboardingScreen(): JSX.Element {
                   </span>
                   <span className="flex flex-1 flex-col">
                     <span className="text-ink text-lg font-medium leading-tight">{label}</span>
-                    <span className="text-ink-3 text-xs">{subtitle}</span>
+                    <span className="text-ink-3 text-xs">{t(`onboarding:lang_name_${code}`)}</span>
                   </span>
                   <Check
                     aria-hidden
@@ -174,6 +171,14 @@ export function OnboardingScreen(): JSX.Element {
         {step === 'name' ? (
           <section data-testid="step-name" className="space-y-6">
             <div className="text-center">
+              <button
+                type="button"
+                data-testid="back-to-language"
+                onClick={() => setStep('language')}
+                className="text-ink-3 hover:text-accent mb-2 text-xs font-medium transition-colors"
+              >
+                {t('onboarding:change_language')}
+              </button>
               <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
                 {t('onboarding:setup_title')}
               </h1>
