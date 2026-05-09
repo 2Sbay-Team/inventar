@@ -219,6 +219,7 @@
     "auto_backup_status_error": "Couldn't save — check the folder permission",
     "auto_backup_status_never": "Waiting for the first change",
     "archive_bin": "Archive bin",
+    "help": "Quick guide",
     "storage": "Storage",
     "storage_usage": "{{megabytes}} MB used",
     "storage_refresh": "Refresh persistence",
@@ -256,5 +257,32 @@
   },
   "update": {
     "toast": "Updated to v{{version}}"
+  },
+  "help": {
+    "title": "Quick guide",
+    "subtitle": "Everything you need to know — in one minute.",
+    "intro_title": "What is Inventar?",
+    "intro_body": "A simple stock and sales tracker for your shop. Works on your phone or tablet without internet. Your data stays only on this device.",
+    "article_title": "Add your first article",
+    "article_body": "Tap the + Add tab at the bottom. Take a photo, type the name and sizes, set the cost and sale price, then Save.",
+    "sale_title": "Record a sale",
+    "sale_body": "Find the article in Search, tap a size cell, choose Sell, and confirm. Stock for that size goes down, the sale shows up in the dashboard.",
+    "restock_title": "Add new stock",
+    "restock_body": "Same as a sale — open the article, tap a size, but choose Restock. Stock goes up.",
+    "expense_title": "Track expenses",
+    "expense_body": "Open the Dashboard tab and tap + Add expense. Pick a category (rent, transport, etc.), type the amount, save.",
+    "search_title": "Find an article fast",
+    "search_body": "Type any part of the name, brand, or even color in your own language at the top of the Search tab. Recent searches stay there for quick re-use.",
+    "backup_title": "Back up your data",
+    "backup_body": "Settings → Backup & sync → Export data. The file lands in your Downloads folder; share it to WhatsApp, Drive, or email so it lives somewhere safe.",
+    "auto_backup_title": "Auto-backup (Chrome / Edge)",
+    "auto_backup_body": "Settings → Backup & sync → Auto-backup. Pick a folder once. The app silently saves a backup file there every time you change something. Pair the folder with Drive or Dropbox for cloud-like safety.",
+    "multi_device_title": "Use on multiple devices",
+    "multi_device_body": "Each phone or tablet has its own private inventory. To copy data: Export on one device, send the file to the other, then Import on the second device.",
+    "profile_title": "Change name, logo, currency",
+    "profile_body": "Settings → Shop profile. Rename the shop, upload or change the logo, switch currency. The currency change does not convert existing prices — only how new ones are read.",
+    "install_title": "Install as a real app",
+    "install_body": "On Android Chrome or desktop Chrome / Edge: Settings → Install as app, or use the browser menu (⋮ → Install app). On iPhone / iPad: tap Share → Add to Home Screen. The app gets its own icon and runs full-screen.",
+    "footer_note": "Lost or stuck? Tap Settings → Reset everything to start over. Your shop's data lives only on this device — back it up first."
   }
 }

@@ -474,6 +474,13 @@ export function SettingsScreen(): JSX.Element {
           ) : null}
         </section>
 
+        <section data-testid="section-help" className="border-hair rounded-2xl border bg-white p-4">
+          <Link to="/help" data-testid="help-link" className="flex items-center justify-between">
+            <h3 className="font-display text-base font-medium">{t('help')}</h3>
+            <ChevronRight aria-hidden className="text-ink-3 h-5 w-5" strokeWidth={2} />
+          </Link>
+        </section>
+
         <section
           data-testid="section-archive"
           className="border-hair rounded-2xl border bg-white p-4"

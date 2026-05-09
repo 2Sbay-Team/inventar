@@ -219,6 +219,7 @@
     "auto_backup_status_error": "Échec — vérifiez l'accès au dossier",
     "auto_backup_status_never": "En attente du premier changement",
     "archive_bin": "Corbeille d'archives",
+    "help": "Guide rapide",
     "storage": "Stockage",
     "storage_usage": "{{megabytes}} Mo utilisés",
     "storage_refresh": "Rafraîchir la persistance",
@@ -256,5 +257,32 @@
   },
   "update": {
     "toast": "Mis à jour vers v{{version}}"
+  },
+  "help": {
+    "title": "Guide rapide",
+    "subtitle": "Tout ce qu'il faut savoir — en une minute.",
+    "intro_title": "Qu'est-ce que Inventar ?",
+    "intro_body": "Un suivi simple du stock et des ventes pour votre boutique. Fonctionne sur téléphone ou tablette sans internet. Vos données restent uniquement sur cet appareil.",
+    "article_title": "Ajouter votre premier article",
+    "article_body": "Appuyez sur l'onglet + Ajouter en bas. Prenez une photo, tapez le nom et les tailles, fixez le prix d'achat et de vente, puis Enregistrer.",
+    "sale_title": "Enregistrer une vente",
+    "sale_body": "Cherchez l'article, appuyez sur une taille, choisissez Vendre, puis confirmez. Le stock pour cette taille diminue, la vente apparaît dans le tableau de bord.",
+    "restock_title": "Ajouter du stock",
+    "restock_body": "Comme une vente — ouvrez l'article, appuyez sur une taille, mais choisissez Réapprovisionner. Le stock augmente.",
+    "expense_title": "Suivre les dépenses",
+    "expense_body": "Ouvrez l'onglet Tableau et appuyez sur + Ajouter une dépense. Choisissez une catégorie (loyer, transport, etc.), tapez le montant, enregistrez.",
+    "search_title": "Trouver un article rapidement",
+    "search_body": "Tapez n'importe quelle partie du nom, de la marque ou même de la couleur dans votre langue, en haut de l'onglet Recherche. Les recherches récentes restent là pour réutilisation.",
+    "backup_title": "Sauvegarder vos données",
+    "backup_body": "Réglages → Sauvegarde & synchronisation → Exporter les données. Le fichier arrive dans votre dossier Téléchargements ; partagez-le sur WhatsApp, Drive ou e-mail pour qu'il soit en sécurité.",
+    "auto_backup_title": "Sauvegarde auto (Chrome / Edge)",
+    "auto_backup_body": "Réglages → Sauvegarde & synchronisation → Sauvegarde automatique. Choisissez un dossier une fois. L'app y enregistre silencieusement un fichier à chaque modification. Associez le dossier à Drive ou Dropbox pour une sécurité type cloud.",
+    "multi_device_title": "Utiliser sur plusieurs appareils",
+    "multi_device_body": "Chaque téléphone ou tablette a son propre inventaire privé. Pour copier les données : Exporter sur un appareil, envoyer le fichier à l'autre, puis Importer sur le second.",
+    "profile_title": "Changer nom, logo, devise",
+    "profile_body": "Réglages → Profil de la boutique. Renommer la boutique, télécharger ou changer le logo, changer la devise. Le changement de devise ne convertit pas les prix existants — seul l'affichage change.",
+    "install_title": "Installer comme une vraie app",
+    "install_body": "Sur Chrome Android ou Chrome / Edge bureau : Réglages → Installer en tant qu'app, ou via le menu navigateur (⋮ → Installer l'app). Sur iPhone / iPad : appuyez sur Partager → Sur l'écran d'accueil. L'app obtient sa propre icône et s'ouvre en plein écran.",
+    "footer_note": "Perdu ou bloqué ? Réglages → Tout réinitialiser pour repartir à zéro. Les données de votre boutique vivent uniquement sur cet appareil — sauvegardez d'abord."
   }
 }
