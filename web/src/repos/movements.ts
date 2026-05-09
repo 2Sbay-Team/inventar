@@ -1,5 +1,5 @@
 import { type InventarDB } from '../db/db';
-import { type Movement, type MovementType, type UUID } from '../types';
+import { type Location, type Movement, type MovementType, type UUID } from '../types';
 import { nowISO } from '../utils/now';
 import { newUUID } from '../utils/uuid';
 
@@ -11,6 +11,22 @@ import { newUUID } from '../utils/uuid';
 // SPEC §6 enforces `delta` is a non-zero integer. We assert it here so the
 // invariant cannot leak past the repo boundary even if a UI bug allows a
 // zero stepper through.
+//
+// ADR-012 (v0.3): every movement carries a location dimension. Sale /
+// purchase / return / adjustment / damage record where the stock change
+// happened (`location: 'floor' | 'back'`); transfer movements record an
+// internal move between locations via `transfer_from` / `transfer_to`.
+// Validation is strict — invalid combinations throw — so a UI bug cannot
+// produce a row whose meaning depends on which field a downstream reader
+// happens to look at first.
+
+const LOCATIONED_TYPES: ReadonlyArray<MovementType> = [
+  'sale',
+  'purchase',
+  'return',
+  'adjustment',
+  'damage',
+];
 
 export interface RecordMovementInput {
   variant_id: UUID;
@@ -22,12 +38,22 @@ export interface RecordMovementInput {
   // price. Null = use the article's catalogue sale_price_tnd at read
   // time. Validated as a non-negative integer when provided.
   unit_price_tnd?: number | null;
+  // Required for sale / purchase / return / adjustment / damage. Must
+  // be omitted (or null) for transfer.
+  location?: Location | null;
+  // Required for transfer (must differ from each other). Must be omitted
+  // (or null) for every other type.
+  transfer_from?: Location | null;
+  transfer_to?: Location | null;
 }
 
-export async function recordMovement(
-  db: InventarDB,
-  input: RecordMovementInput,
-): Promise<Movement> {
+function assertLocation(value: unknown): asserts value is Location {
+  if (value !== 'floor' && value !== 'back') {
+    throw new Error(`Movement.location must be 'floor' or 'back', got ${String(value)}`);
+  }
+}
+
+function validate(input: RecordMovementInput): void {
   if (!Number.isInteger(input.delta)) {
     throw new Error(`Movement.delta must be an integer, got ${input.delta}`);
   }
@@ -41,6 +67,45 @@ export async function recordMovement(
       );
     }
   }
+
+  if (input.type === 'transfer') {
+    if (input.location != null) {
+      throw new Error("Movement.location must be null for type='transfer'");
+    }
+    if (input.transfer_from == null || input.transfer_to == null) {
+      throw new Error("Movement.transfer_from and transfer_to are required for type='transfer'");
+    }
+    assertLocation(input.transfer_from);
+    assertLocation(input.transfer_to);
+    if (input.transfer_from === input.transfer_to) {
+      throw new Error('Movement.transfer_from must differ from transfer_to');
+    }
+    if (input.delta < 0) {
+      throw new Error(
+        "Movement.delta for type='transfer' must be a positive integer (the absolute count moved)",
+      );
+    }
+    return;
+  }
+
+  // Locationed types: sale / purchase / return / adjustment / damage.
+  if (!LOCATIONED_TYPES.includes(input.type)) {
+    throw new Error(`Unknown Movement.type: ${input.type}`);
+  }
+  if (input.location == null) {
+    throw new Error(`Movement.location is required for type='${input.type}'`);
+  }
+  assertLocation(input.location);
+  if (input.transfer_from != null || input.transfer_to != null) {
+    throw new Error(`Movement.transfer_from / transfer_to must be null for type='${input.type}'`);
+  }
+}
+
+export async function recordMovement(
+  db: InventarDB,
+  input: RecordMovementInput,
+): Promise<Movement> {
+  validate(input);
   const m: Movement = {
     id: newUUID(),
     variant_id: input.variant_id,
@@ -48,6 +113,9 @@ export async function recordMovement(
     type: input.type,
     note: input.note ?? null,
     unit_price_tnd: input.unit_price_tnd ?? null,
+    location: input.type === 'transfer' ? null : (input.location as Location),
+    transfer_from: input.type === 'transfer' ? (input.transfer_from as Location) : null,
+    transfer_to: input.type === 'transfer' ? (input.transfer_to as Location) : null,
     created_at: nowISO(),
     deleted_at: null,
   };
@@ -60,6 +128,23 @@ export async function revertMovement(db: InventarDB, id: UUID): Promise<void> {
   const ts = nowISO();
   const updated = await db.movements.update(id, { deleted_at: ts });
   if (updated === 0) throw new Error(`No movement with id ${id}`);
+}
+
+// Reattach a flagged-for-review movement to a different variant id. Used
+// by /migrations/review when the user picks the correct colour. Clears
+// the `(migrated v5→v6 …)` marker from the note so the banner predicate
+// stops matching the row.
+export async function reassignMovementVariant(
+  db: InventarDB,
+  movementId: UUID,
+  newVariantId: UUID,
+  cleanedNote: string | null,
+): Promise<void> {
+  const updated = await db.movements.update(movementId, {
+    variant_id: newVariantId,
+    note: cleanedNote,
+  });
+  if (updated === 0) throw new Error(`No movement with id ${movementId}`);
 }
 
 export interface ListMovementsForVariantOptions {

@@ -1,5 +1,13 @@
 import Dexie, { type Table } from 'dexie';
 import type { Article, Expense, MetaRow, Movement, Photo, ShopProfile, Variant } from '../types';
+import { META_KEYS } from '../repos/meta';
+import {
+  migrateRowsV5ToV6,
+  type V5Article,
+  type V5Movement,
+  type V5ShopProfile,
+  type V5Variant,
+} from './migrate-v5-to-v6';
 
 export const DB_NAME = 'inventar';
 
@@ -110,6 +118,76 @@ export class InventarDB extends Dexie {
           .modify((m: { unit_price_tnd?: number | null }) => {
             if (!('unit_price_tnd' in m)) m.unit_price_tnd = null;
           });
+      });
+    // v6: ADR-011 / ADR-012. Three structural changes:
+    //   1. Drop the *colors multi-entry index from articles. The colours[]
+    //      cache stays as a denormalised field for legacy reads through
+    //      the v0.3 transition, but indexed colour lookup moves to
+    //      Variant.color via the new [article_id+color+size] compound.
+    //   2. Variants gain `color` and `photo_id`. Existing variants fan
+    //      out — one new variant per (article.colors[] × old variant).
+    //      Legacy variant rows get tombstoned (deleted_at set) so old
+    //      backups re-imported still find them by id.
+    //   3. Movements gain `location`, `transfer_from`, `transfer_to`.
+    //      Every existing movement is remapped to a new variant id; on
+    //      ambiguity (article had ≥2 colours), we attribute to the
+    //      alphabetically-first colour and append a marker note so the
+    //      review screen lists it.
+    this.version(6)
+      .stores({
+        profile: 'id',
+        articles: 'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+      })
+      .upgrade(async (tx) => {
+        // Read every legacy row up front. The catalogue is small (MVP cap
+        // ~500 articles per SPEC §5) so reading into memory is cheap and
+        // lets us run the pure transformation kernel without juggling
+        // partial state inside the upgrade callback.
+        const profileRow = (await tx.table('profile').get('singleton')) as
+          | V5ShopProfile
+          | undefined;
+        const articles = (await tx.table('articles').toArray()) as V5Article[];
+        const variants = (await tx.table('variants').toArray()) as V5Variant[];
+        const movements = (await tx.table('movements').toArray()) as V5Movement[];
+
+        const { rows, report } = migrateRowsV5ToV6({
+          profile: profileRow ?? null,
+          articles,
+          variants,
+          movements,
+        });
+
+        // Replace variants and movements wholesale. Articles get an
+        // in-place patch so we don't lose any field that the migration
+        // didn't touch (the kernel only rewrites `colors`).
+        await tx.table('variants').clear();
+        if (rows.variants.length > 0) {
+          await tx.table('variants').bulkAdd(rows.variants);
+        }
+        await tx.table('movements').clear();
+        if (rows.movements.length > 0) {
+          await tx.table('movements').bulkAdd(rows.movements);
+        }
+        for (const a of rows.articles) {
+          await tx.table('articles').put(a);
+        }
+
+        await tx.table('meta').put({
+          key: META_KEYS.migration_v6_completed_at,
+          value: new Date().toISOString(),
+        });
+        // Stash the report for the migration-review screen / banner so
+        // the UI doesn't have to recompute it from scratch.
+        await tx.table('meta').put({
+          key: 'migration_v6_report',
+          value: report,
+        });
       });
   }
 }

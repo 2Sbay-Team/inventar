@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v5)', () => {
+describe('InventarDB schema (v6)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,8 +15,8 @@ describe('InventarDB schema (v5)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 5', () => {
-    expect(db.verno).toBe(5);
+  it('opens at version 6', () => {
+    expect(db.verno).toBe(6);
   });
 
   it('has the seven tables from DATA_MODEL §3', () => {
@@ -32,47 +32,53 @@ describe('InventarDB schema (v5)', () => {
     ]);
   });
 
-  it('articles: primKey id + the seven indexes from DATA_MODEL §3', () => {
+  it('articles: primKey id + the v6 indexes (no more multi-entry *colors)', () => {
     const t = db.table('articles');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
     expect(indexNames).toEqual([
       'archived_at',
       'category',
-      'colors',
       'deleted_at',
       'internal_code',
       'search_blob',
       'updated_at',
     ]);
-    const colors = t.schema.indexes.find((i) => i.name === 'colors');
-    expect(colors?.multi).toBe(true);
+    // Multi-entry colour index from v1–v5 must be gone — colour lives on
+    // Variant after ADR-011, so any survivor here is a migration bug.
+    expect(indexNames.includes('colors')).toBe(false);
   });
 
-  it('variants: primKey id + compound [article_id+size]', () => {
+  it('variants: primKey id + compound [article_id+size] AND [article_id+color+size]', () => {
     const t = db.table('variants');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
-    expect(indexNames).toEqual(['[article_id+size]', 'article_id', 'deleted_at']);
-    const compound = t.schema.indexes.find((i) => i.name === '[article_id+size]');
-    expect(compound?.compound).toBe(true);
-    expect(compound?.keyPath).toEqual(['article_id', 'size']);
+    expect(indexNames).toEqual([
+      '[article_id+color+size]',
+      '[article_id+size]',
+      'article_id',
+      'deleted_at',
+    ]);
+    const tri = t.schema.indexes.find((i) => i.name === '[article_id+color+size]');
+    expect(tri?.compound).toBe(true);
+    expect(tri?.keyPath).toEqual(['article_id', 'color', 'size']);
   });
 
-  it('movements: primKey id + compound [variant_id+created_at]', () => {
+  it('movements: primKey id + per-location compound for the activity feed', () => {
     const t = db.table('movements');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
     expect(indexNames).toEqual([
       '[variant_id+created_at]',
+      '[variant_id+location+created_at]',
       'created_at',
       'deleted_at',
       'type',
       'variant_id',
     ]);
-    const compound = t.schema.indexes.find((i) => i.name === '[variant_id+created_at]');
-    expect(compound?.compound).toBe(true);
-    expect(compound?.keyPath).toEqual(['variant_id', 'created_at']);
+    const triple = t.schema.indexes.find((i) => i.name === '[variant_id+location+created_at]');
+    expect(triple?.compound).toBe(true);
+    expect(triple?.keyPath).toEqual(['variant_id', 'location', 'created_at']);
   });
 
   it('expenses: primKey id + 3 indexes', () => {
@@ -101,7 +107,7 @@ describe('InventarDB schema (v5)', () => {
   });
 });
 
-describe('InventarDB CRUD smoke (v1)', () => {
+describe('InventarDB CRUD smoke (v6)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -136,36 +142,50 @@ describe('InventarDB CRUD smoke (v1)', () => {
     expect(read?.store_type).toBe('shoes');
   });
 
-  it('queries variants by [article_id+size] compound index', async () => {
+  it('queries variants by [article_id+color+size] compound index', async () => {
     const articleId = 'a-1';
     await db.variants.bulkAdd([
       {
-        id: 'v-39',
+        id: 'v-bk-39',
         article_id: articleId,
+        color: 'black',
         size: '39',
+        photo_id: null,
         hidden: false,
         updated_at: NOW,
         deleted_at: null,
       },
       {
-        id: 'v-40',
+        id: 'v-bk-40',
         article_id: articleId,
+        color: 'black',
         size: '40',
+        photo_id: null,
         hidden: false,
         updated_at: NOW,
         deleted_at: null,
       },
       {
-        id: 'v-41',
+        id: 'v-yl-40',
         article_id: articleId,
-        size: '41',
+        color: 'yellow',
+        size: '40',
+        photo_id: null,
         hidden: false,
         updated_at: NOW,
         deleted_at: null,
       },
     ]);
-    const v40 = await db.variants.where('[article_id+size]').equals([articleId, '40']).first();
-    expect(v40?.id).toBe('v-40');
+    const blackForty = await db.variants
+      .where('[article_id+color+size]')
+      .equals([articleId, 'black', '40'])
+      .first();
+    expect(blackForty?.id).toBe('v-bk-40');
+    const yellowForty = await db.variants
+      .where('[article_id+color+size]')
+      .equals([articleId, 'yellow', '40'])
+      .first();
+    expect(yellowForty?.id).toBe('v-yl-40');
   });
 
   it('queries movements by [variant_id+created_at] for the activity feed', async () => {
@@ -177,6 +197,9 @@ describe('InventarDB CRUD smoke (v1)', () => {
       type: 'purchase',
       note: null,
       unit_price_tnd: null,
+      location: 'back',
+      transfer_from: null,
+      transfer_to: null,
       created_at: t,
       deleted_at: null,
     });
@@ -190,45 +213,6 @@ describe('InventarDB CRUD smoke (v1)', () => {
       .between([variantId, '2026-05-02T00:00:00.000Z'], [variantId, '￿'])
       .toArray();
     expect(recent.map((m) => m.id).sort()).toEqual(['m-2', 'm-3']);
-  });
-
-  it('uses *colors multi-entry index for color filter', async () => {
-    await db.articles.bulkAdd([
-      {
-        id: 'a-1',
-        internal_code: 'SH-0001',
-        name: 'White running',
-        photo_id: null,
-        category: 'sport',
-        colors: ['white', 'gray'],
-        brand: null,
-        cost_price_tnd: 30000,
-        sale_price_tnd: 60000,
-        notes: null,
-        search_blob: 'white running gray sport sh-0001',
-        updated_at: NOW,
-        archived_at: null,
-        deleted_at: null,
-      },
-      {
-        id: 'a-2',
-        internal_code: 'SH-0002',
-        name: 'Black dress',
-        photo_id: null,
-        category: 'dress',
-        colors: ['black'],
-        brand: null,
-        cost_price_tnd: 40000,
-        sale_price_tnd: 80000,
-        notes: null,
-        search_blob: 'black dress sh-0002',
-        updated_at: NOW,
-        archived_at: null,
-        deleted_at: null,
-      },
-    ]);
-    const whites = await db.articles.where('colors').equals('white').toArray();
-    expect(whites.map((a) => a.id)).toEqual(['a-1']);
   });
 
   it('persists a Photo Blob round-trip', async () => {
@@ -252,13 +236,20 @@ describe('InventarDB CRUD smoke (v1)', () => {
   });
 });
 
-describe('Variant type structural invariants (ADR-002)', () => {
+describe('Variant type structural invariants (ADR-002 + ADR-011)', () => {
   it('Variant has no quantity field — checked at compile time', () => {
-    // If a future commit adds `quantity` to Variant, the line below will
-    // stop typechecking, and `npm run typecheck` will fail.
     type HasQuantity = 'quantity' extends keyof Variant ? true : false;
     type _NoQuantityOnVariant = HasQuantity extends false ? 'ok' : never;
     const sentinel: _NoQuantityOnVariant = 'ok';
     expect(sentinel).toBe('ok');
+  });
+
+  it('Variant carries color and photo_id — ADR-011 / ADR-013', () => {
+    type HasColor = 'color' extends keyof Variant ? true : false;
+    type HasPhoto = 'photo_id' extends keyof Variant ? true : false;
+    const c: HasColor = true;
+    const p: HasPhoto = true;
+    expect(c).toBe(true);
+    expect(p).toBe(true);
   });
 });

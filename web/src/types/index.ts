@@ -20,7 +20,13 @@ export type Category = string;
 // and which dashboard widgets are most relevant.
 export type StoreType = 'shoes' | 'clothes' | 'kiosk' | 'grocery';
 
-export type MovementType = 'sale' | 'purchase' | 'adjustment' | 'return';
+// ADR-012 (v0.3): Movements carry a location for stock kept on the shop
+// floor vs in the back room. Transfers move stock between the two.
+export type Location = 'floor' | 'back';
+
+// ADR-012 extends the v1 set with 'transfer' (between locations within a
+// variant) and 'damage' (write-off without revenue impact).
+export type MovementType = 'sale' | 'purchase' | 'adjustment' | 'return' | 'transfer' | 'damage';
 
 export type ExpenseCategory =
   | 'supplier_transport'
@@ -56,8 +62,15 @@ export interface Article {
   id: UUID;
   internal_code: string;
   name: string;
+  // The article-level photo. Per ADR-013 the same row also doubles as the
+  // fallback when a colour-specific Variant.photo_id is null.
   photo_id: UUID | null;
   category: Category;
+  // DEPRECATED v0.3: kept as a denormalised cache of unique Variant.color
+  // values across the article so legacy reads (article-detail's subtitle
+  // line, the search-blob composer prior to its rewrite) keep working
+  // through the colour-on-Variant transition. Removed in commit 7 once
+  // every reader has migrated to the variants list.
   colors: string[];
   brand: string | null;
   cost_price_tnd: number;
@@ -72,10 +85,18 @@ export interface Article {
 export interface Variant {
   id: UUID;
   article_id: UUID;
-  // Size label (e.g. "42", "XL"). Null for sizeless store types
-  // (kiosk / grocery) — those articles get one default variant where
-  // size is just a placeholder. See config/store-types.ts.
+  // Colour label — required for store_types where has_colors=true (shoes,
+  // clothes), null for store_types where has_colors=false (kiosk, grocery).
+  // Stored lowercase. ADR-011 moved this off Article so per-(colour, size)
+  // stock counts are unambiguous.
+  color: string | null;
+  // Size label (e.g. "42", "XL"). Null for sizeless store types.
   size: string | null;
+  // Per-colour photo. Null = fall back to Article.photo_id at render time.
+  // The Add flow's "first colour" Variant.photo_id is also written to
+  // Article.photo_id so single-colour and sizeless verticals carry one
+  // photo through both pointers without duplication. ADR-013.
+  photo_id: UUID | null;
   hidden: boolean;
   updated_at: ISODate;
   deleted_at: ISODate | null;
@@ -94,6 +115,16 @@ export interface Movement {
   // change the article's catalogue price. Revenue computations should
   // read `unit_price_tnd ?? article.sale_price_tnd`.
   unit_price_tnd: number | null;
+  // ADR-012: location dimension. Set for sale / purchase / return /
+  // adjustment / damage movements. Null for transfers — those use
+  // transfer_from / transfer_to instead.
+  location: Location | null;
+  // ADR-012: transfer endpoints. Both null for non-transfer types.
+  // For type='transfer', delta is the absolute count moved (positive
+  // integer); the per-location quantity computation deducts from
+  // transfer_from and adds to transfer_to.
+  transfer_from: Location | null;
+  transfer_to: Location | null;
   created_at: ISODate;
   deleted_at: ISODate | null;
 }

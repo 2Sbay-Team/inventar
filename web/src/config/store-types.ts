@@ -8,10 +8,16 @@ import { type StoreType } from '../types';
 // type later without breaking historical articles.
 
 export interface StoreTypeConfig {
-  // True for stores where one article = one stock unit (kiosk, grocery).
-  // False for stores where each article has multiple sized variants
-  // (shoes, clothes).
+  // True for stores where each article has multiple sized variants
+  // (shoes, clothes). False for stores where one article = one stock
+  // unit (kiosk, grocery).
   has_sizes: boolean;
+  // True for stores where each article has multiple colour variants
+  // (shoes, clothes). False for stores where colour is meaningless
+  // (kiosk, grocery). v0.3 ADR-011: drives whether Add Article shows
+  // per-colour blocks and whether Article Detail renders the colour
+  // × size matrix.
+  has_colors: boolean;
   // Suggested category list shown in the Add Article picker.
   categories: readonly string[];
   // Single emoji shown in the onboarding card. Pure visual hint; no
@@ -30,6 +36,7 @@ export interface StoreTypeConfig {
 export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
   shoes: {
     has_sizes: true,
+    has_colors: true,
     categories: ['sport', 'dress', 'casual', 'kids', 'women', 'men'],
     flag: '👟',
     label_key: 'shoes_label',
@@ -38,6 +45,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
   },
   clothes: {
     has_sizes: true,
+    has_colors: true,
     categories: ['shirts', 'pants', 'dresses', 'kids', 'women', 'men', 'accessories'],
     flag: '👕',
     label_key: 'clothes_label',
@@ -46,6 +54,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
   },
   kiosk: {
     has_sizes: false,
+    has_colors: false,
     categories: ['drinks', 'snacks', 'tobacco', 'magazines', 'phone_credit', 'other'],
     flag: '🏪',
     label_key: 'kiosk_label',
@@ -54,6 +63,7 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
   },
   grocery: {
     has_sizes: false,
+    has_colors: false,
     categories: ['produce', 'dairy', 'dry_goods', 'frozen', 'beverages', 'other'],
     flag: '🛒',
     label_key: 'grocery_label',

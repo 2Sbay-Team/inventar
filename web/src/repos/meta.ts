@@ -28,4 +28,12 @@ export const META_KEYS = {
   auto_backup_handle: 'auto_backup_handle',
   auto_backup_folder_name: 'auto_backup_folder_name',
   auto_backup_at: 'auto_backup_at',
+  // v0.3 (ADR-011): set after the v5→v6 upgrade callback completes.
+  // The migration-review screen and home banner read this to decide
+  // whether to surface the "some movements need verification" prompt.
+  migration_v6_completed_at: 'migration_v6_completed_at',
+  // ISO timestamp through which the migration banner is suppressed.
+  // Re-shows after the timestamp passes; only set when the user taps
+  // "Hide for now" with markers still outstanding.
+  migration_banner_hidden_until: 'migration_banner_hidden_until',
 } as const;

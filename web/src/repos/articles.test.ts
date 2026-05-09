@@ -13,11 +13,14 @@ import { storePhoto } from './photos';
 
 const NOW = '2026-05-07T00:00:00.000Z';
 
+// Single-colour shape mirrors how add-article.tsx and most e2e callers
+// invoke createArticle. The multi-colour cartesian behaviour gets its own
+// test below.
 const baseInput = {
   name: 'White running shoe',
   photo_id: null,
   category: 'sport' as const,
-  colors: ['white', 'gray'],
+  colors: ['white'],
   brand: 'Nike',
   cost_price_tnd: 30000,
   sale_price_tnd: 60000,
@@ -61,16 +64,59 @@ describe('articles repo — createArticle', () => {
     expect(movements.map((m) => m.delta).sort()).toEqual([1, 2]);
   });
 
-  it('lowercases colors before storing (search consistency with DATA_MODEL §5)', async () => {
+  it('lowercases colours before storing (search consistency with DATA_MODEL §5)', async () => {
     const { article } = await createArticle(db, { ...baseInput, colors: ['White', 'GRAY'] });
-    expect(article.colors).toEqual(['white', 'gray']);
+    expect(article.colors.sort()).toEqual(['gray', 'white']);
+  });
+
+  it('legacy multi-colour input fans out into a cartesian (colour × size) variant grid', async () => {
+    const { variants, movements } = await createArticle(db, {
+      ...baseInput,
+      colors: ['white', 'gray'],
+      sizes: [
+        { size: '40', initial_qty: 2 },
+        { size: '41', initial_qty: 1 },
+      ],
+    });
+    // 2 colours × 2 sizes = 4 variants.
+    expect(variants.length).toBe(4);
+    const pairs = variants.map((v) => `${v.color}/${v.size}`).sort();
+    expect(pairs).toEqual(['gray/40', 'gray/41', 'white/40', 'white/41']);
+    // One initial purchase per non-zero seed quantity per variant; all
+    // are booked to `back` so the floor stays empty until the merchant
+    // moves stock out.
+    expect(movements.length).toBe(4);
+    expect(movements.every((m) => m.location === 'back')).toBe(true);
+    expect(movements.map((m) => m.delta).sort()).toEqual([1, 1, 2, 2]);
+  });
+
+  it('post-v0.3 callers can pass an explicit variants[] for a known colour×size grid', async () => {
+    const { variants, movements } = await createArticle(db, {
+      name: 'Air Max',
+      photo_id: null,
+      category: 'sport',
+      brand: 'Nike',
+      cost_price_tnd: 30000,
+      sale_price_tnd: 60000,
+      notes: null,
+      variants: [
+        { color: 'black', size: '40', floor_qty: 5, back_qty: 35 },
+        { color: 'yellow', size: '40', floor_qty: 2, back_qty: 8 },
+        { color: 'white', size: '23', floor_qty: 0, back_qty: 30 },
+      ],
+    });
+    expect(variants.length).toBe(3);
+    // 5 of the 6 floor/back qty cells are non-zero → 5 seed movements.
+    expect(movements.length).toBe(5);
+    expect(movements.filter((m) => m.location === 'floor').length).toBe(2);
+    expect(movements.filter((m) => m.location === 'back').length).toBe(3);
   });
 
   it('computes search_blob through the canonical pipeline', async () => {
     const { article } = await createArticle(db, baseInput);
     expect(article.search_blob).toContain('white running');
     expect(article.search_blob).toContain('sh-0001');
-    expect(article.search_blob).toContain('gray');
+    expect(article.search_blob).toContain('white');
     expect(article.search_blob).toContain('nike');
     expect(article.search_blob).toContain('sport');
     expect(article.search_blob).toBe(article.search_blob.toLowerCase());
@@ -140,10 +186,12 @@ describe('articles repo — read / update / archive', () => {
     vi.setSystemTime(new Date('2026-05-08T00:00:00.000Z'));
     const after = await updateArticle(db, article.id, {
       name: 'Black running shoe',
-      colors: ['Black'],
     });
     expect(after.name).toBe('Black running shoe');
-    expect(after.colors).toEqual(['black']);
+    // Colours are derived from variants in v0.3 — the legacy `colors`
+    // cache reflects whatever variants exist, not anything passed to
+    // updateArticle. The seed input has white + gray.
+    expect(after.colors.sort()).toEqual(['gray', 'white']);
     expect(after.search_blob).toContain('black running');
     expect(after.search_blob).not.toContain('white running');
     expect(after.updated_at).toBe('2026-05-08T00:00:00.000Z');

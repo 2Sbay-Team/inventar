@@ -1,12 +1,16 @@
 import { db as appDB, type InventarDB } from '../db/db';
 import { nowISO } from '../utils/now';
 import { blobToBase64 } from './base64';
-import { FORMAT_V1, type BackupV1, type ExportRowsV1, type PhotoExport } from './format-v1';
+import { FORMAT_V2, type BackupV2, type ExportRowsV2, type PhotoExportV2 } from './format-v2';
 import { integrityHash } from './integrity';
 
 // SPEC §3 / DATA_MODEL §8: collect every row from every table into a single
 // JSON document. Photos serialise their Blob payload to base64. The file is
 // signed with an integrity hash so import can detect corruption.
+//
+// v0.3: emits inventar-export-v2 only. v1-era apps importing this file
+// raise BackupFormatTooNewError on parse (see backup/import.ts). Reading
+// older v1 files is still supported via the legacy reader path.
 
 export interface ExportOptions {
   appVersion: string;
@@ -16,7 +20,7 @@ export interface ExportOptions {
 export async function buildBackup(
   db: InventarDB = appDB,
   options: ExportOptions,
-): Promise<BackupV1> {
+): Promise<BackupV2> {
   // We don't strip soft-deleted rows: a backup is a faithful snapshot of
   // the device. Restore is round-trip lossless (TESTING.md §2.6).
   const [profile, articles, variants, movements, expenses, photoRows] = await Promise.all([
@@ -28,14 +32,14 @@ export async function buildBackup(
     db.photos.toArray(),
   ]);
 
-  const photos: PhotoExport[] = await Promise.all(
+  const photos: PhotoExportV2[] = await Promise.all(
     photoRows.map(async ({ blob, ...rest }) => ({
       ...rest,
       blob_b64: await blobToBase64(blob),
     })),
   );
 
-  const rows: ExportRowsV1 = {
+  const rows: ExportRowsV2 = {
     profile,
     articles,
     variants,
@@ -47,7 +51,7 @@ export async function buildBackup(
   const integrity_sha256 = await integrityHash(rows);
 
   return {
-    format: FORMAT_V1,
+    format: FORMAT_V2,
     exported_at: options.exportedAt ?? nowISO(),
     app_version: options.appVersion,
     rows,
@@ -68,7 +72,7 @@ export function backupFilename(now: Date = new Date()): string {
 export async function exportBackupBlob(
   db: InventarDB = appDB,
   options: ExportOptions,
-): Promise<{ blob: Blob; backup: BackupV1 }> {
+): Promise<{ blob: Blob; backup: BackupV2 }> {
   const backup = await buildBackup(db, options);
   const json = JSON.stringify(backup, null, 2);
   return {

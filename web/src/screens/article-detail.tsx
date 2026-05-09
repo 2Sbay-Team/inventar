@@ -52,6 +52,11 @@ export function ArticleDetailScreen(): JSX.Element {
       m.set(cell.variant_id, {
         id: cell.variant_id,
         article_id: detail.article.id,
+        // Synthetic stub passed to ActivityFeed — the feed only renders
+        // size, so colour/photo are filled with the v6 defaults the schema
+        // requires.
+        color: cell.color ?? null,
+        photo_id: null,
         size: cell.size,
         hidden: cell.hidden,
         updated_at: '',

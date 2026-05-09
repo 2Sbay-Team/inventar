@@ -5,29 +5,57 @@ import { nowISO } from '../utils/now';
 import { newUUID } from '../utils/uuid';
 import { nextInternalCode } from './internal-code';
 
-// SPEC §2.5 Add Article: photo → name → sizes → quantities → prices → save.
-// One Article + one Variant per size + one initial purchase Movement per
-// non-zero starting qty are created in a single Dexie transaction so we
-// either land all of them or none of them; a partial save would leave the
-// catalogue with a sizeless article or a variant with no audit trail.
+// SPEC §2.5 / ADR-011 / ADR-012: Add Article persists one Article + one
+// Variant per (colour, size) + one initial purchase Movement per non-zero
+// starting qty per location. Everything happens in a single Dexie
+// transaction so we either land all of them or none of them.
+//
+// Two input shapes are accepted while the v0.3 transition is in flight:
+//
+//   * `variants[]` — the canonical post-v0.3 shape, one entry per
+//     (colour, size) cell, with floor_qty + back_qty kept distinct.
+//   * `colors[]` + `sizes[]` — the legacy v1 shape, used by the seed
+//     surface and the not-yet-rewritten Add Article screen. Translated
+//     in-line into the canonical shape: cartesian product of colours ×
+//     sizes, all initial stock booked to `back` (matches the v5→v6
+//     migration's default).
+//
+// `Article.colors` is kept as a denormalised cache during the transition
+// so legacy reads keep working. It's recomputed from the produced
+// variants on every create / update.
 
-export interface CreateArticleInput {
+export interface CreateVariantSpec {
+  color: string | null;
+  size: string | null;
+  floor_qty: number;
+  back_qty: number;
+  photo_id?: UUID | null;
+}
+
+interface CreateArticleInputCommon {
   name: string;
   photo_id: UUID | null;
   category: Category;
-  colors: string[];
   brand: string | null;
   cost_price_tnd: number;
   sale_price_tnd: number;
   notes: string | null;
-  // Each size with its initial quantity. Quantity 0 still creates the
-  // variant (so the size grid lists it), but skips the seed movement.
-  sizes: Array<{ size: string; initial_qty: number }>;
   // Optional: SKU prefix for the auto-allocated internal_code. Defaults
-  // to 'SH' if omitted. Callers that know the active store_type should
-  // pass STORE_TYPES[store_type].sku_prefix.
+  // to 'SH' if omitted.
   sku_prefix?: string;
 }
+
+export interface CreateArticleInputV2 extends CreateArticleInputCommon {
+  variants: CreateVariantSpec[];
+}
+
+export interface CreateArticleInputLegacy extends CreateArticleInputCommon {
+  // DEPRECATED v0.3 — translated to `variants` in-line.
+  colors: string[];
+  sizes: Array<{ size: string; initial_qty: number }>;
+}
+
+export type CreateArticleInput = CreateArticleInputV2 | CreateArticleInputLegacy;
 
 export interface CreateArticleResult {
   article: Article;
@@ -35,13 +63,63 @@ export interface CreateArticleResult {
   movements: Movement[];
 }
 
+function isV2(input: CreateArticleInput): input is CreateArticleInputV2 {
+  return Array.isArray((input as CreateArticleInputV2).variants);
+}
+
+function legacyToV2(input: CreateArticleInputLegacy): CreateVariantSpec[] {
+  // Empty colour list → single colourless dimension. The active store_type
+  // determines whether that colourlessness is "actually has no colours"
+  // (kiosk/grocery) or "just wasn't entered yet" (legacy shoes/clothes).
+  // We don't have store_type here; the migration kernel handles the
+  // legacy-shoe-with-empty-colours case at upgrade time. For new articles
+  // entering through this legacy shim, an empty colours[] from the UI is
+  // taken at face value: produce colourless variants.
+  const colors: Array<string | null> =
+    input.colors.length > 0 ? input.colors.map((c) => c.toLowerCase()) : [null];
+  const sizes: Array<{ size: string | null; initial_qty: number }> =
+    input.sizes.length > 0
+      ? input.sizes.map((s) => ({
+          size: s.size === '' ? null : s.size,
+          initial_qty: s.initial_qty,
+        }))
+      : [{ size: null, initial_qty: 0 }];
+  const out: CreateVariantSpec[] = [];
+  for (const color of colors) {
+    for (const s of sizes) {
+      out.push({
+        color,
+        size: s.size,
+        floor_qty: 0,
+        back_qty: s.initial_qty,
+        photo_id: null,
+      });
+    }
+  }
+  return out;
+}
+
+function uniqueVariantColors(variants: CreateVariantSpec[]): string[] {
+  const set = new Set<string>();
+  for (const v of variants) {
+    if (v.color === null) continue;
+    set.add(v.color);
+  }
+  return Array.from(set);
+}
+
 export async function createArticle(
   db: InventarDB,
   input: CreateArticleInput,
 ): Promise<CreateArticleResult> {
-  for (const s of input.sizes) {
-    if (!Number.isInteger(s.initial_qty) || s.initial_qty < 0) {
-      throw new Error(`initial_qty must be a non-negative integer, got ${s.initial_qty}`);
+  const variantSpecs = isV2(input) ? input.variants : legacyToV2(input);
+
+  for (const v of variantSpecs) {
+    if (!Number.isInteger(v.floor_qty) || v.floor_qty < 0) {
+      throw new Error(`floor_qty must be a non-negative integer, got ${v.floor_qty}`);
+    }
+    if (!Number.isInteger(v.back_qty) || v.back_qty < 0) {
+      throw new Error(`back_qty must be a non-negative integer, got ${v.back_qty}`);
     }
   }
 
@@ -56,7 +134,7 @@ export async function createArticle(
       name: input.name,
       photo_id: input.photo_id,
       category: input.category,
-      colors: input.colors.map((c) => c.toLowerCase()),
+      colors: uniqueVariantColors(variantSpecs),
       brand: input.brand,
       cost_price_tnd: input.cost_price_tnd,
       sale_price_tnd: input.sale_price_tnd,
@@ -66,17 +144,19 @@ export async function createArticle(
       archived_at: null,
       deleted_at: null,
     };
-    article.search_blob = computeSearchBlob(article);
+    article.search_blob = computeSearchBlob(article, variantSpecs);
     await db.articles.add(article);
 
     const variants: Variant[] = [];
     const movements: Movement[] = [];
 
-    for (const { size, initial_qty } of input.sizes) {
+    for (const spec of variantSpecs) {
       const variant: Variant = {
         id: newUUID(),
         article_id: articleId,
-        size: size.trim(),
+        color: spec.color === null ? null : spec.color.toLowerCase(),
+        size: spec.size === null ? null : spec.size.trim(),
+        photo_id: spec.photo_id ?? null,
         hidden: false,
         updated_at: ts,
         deleted_at: null,
@@ -84,14 +164,21 @@ export async function createArticle(
       await db.variants.add(variant);
       variants.push(variant);
 
-      if (initial_qty > 0) {
+      for (const [location, qty] of [
+        ['floor', spec.floor_qty] as const,
+        ['back', spec.back_qty] as const,
+      ]) {
+        if (qty <= 0) continue;
         const m: Movement = {
           id: newUUID(),
           variant_id: variant.id,
-          delta: initial_qty,
+          delta: qty,
           type: 'purchase',
           note: null,
           unit_price_tnd: null,
+          location,
+          transfer_from: null,
+          transfer_to: null,
           created_at: ts,
           deleted_at: null,
         };
@@ -116,43 +203,78 @@ export async function getArticle(db: InventarDB, id: UUID): Promise<Article | un
 export type UpdateArticleInput = Partial<
   Pick<
     Article,
-    | 'name'
-    | 'photo_id'
-    | 'category'
-    | 'colors'
-    | 'brand'
-    | 'cost_price_tnd'
-    | 'sale_price_tnd'
-    | 'notes'
+    'name' | 'photo_id' | 'category' | 'brand' | 'cost_price_tnd' | 'sale_price_tnd' | 'notes'
   >
 >;
 
 // Edits a subset of indexed/searchable fields. We always recompute
 // `search_blob` (DATA_MODEL §5: deterministic on every create/update) and
-// bump `updated_at` so import-merge picks the newer revision. Lifecycle
-// fields (archived_at, deleted_at, internal_code, id) are deliberately NOT
-// patchable through this function — see archiveArticle / hardDeleteArticle.
+// bump `updated_at` so import-merge picks the newer revision.
 export async function updateArticle(
   db: InventarDB,
   id: UUID,
   patch: UpdateArticleInput,
 ): Promise<Article> {
   const ts = nowISO();
-  return db.transaction('rw', db.articles, async () => {
+  return db.transaction('rw', [db.articles, db.variants], async () => {
     const existing = await db.articles.get(id);
     if (!existing) throw new Error(`No article with id ${id}`);
     if (existing.deleted_at !== null) {
       throw new Error(`Article ${id} is deleted`);
     }
+    const variants = await db.variants
+      .where('article_id')
+      .equals(id)
+      .filter((v) => v.deleted_at === null)
+      .toArray();
+    const colors = uniqueVariantColors(
+      variants.map((v) => ({
+        color: v.color,
+        size: v.size,
+        floor_qty: 0,
+        back_qty: 0,
+      })),
+    );
     const merged: Article = {
       ...existing,
       ...patch,
-      colors: (patch.colors ?? existing.colors).map((c) => c.toLowerCase()),
+      colors,
       updated_at: ts,
     };
-    merged.search_blob = computeSearchBlob(merged);
+    merged.search_blob = computeSearchBlob(merged, variants);
     await db.articles.put(merged);
     return merged;
+  });
+}
+
+// Recomputes `Article.colors` (the denormalised cache) and `search_blob`
+// from the current variants. Called after any write that adds, removes,
+// or renames a variant on an article — keeps the article-level fields in
+// sync without forcing every caller to remember to do it.
+export async function refreshArticleDenormalisedFields(
+  db: InventarDB,
+  articleId: UUID,
+): Promise<void> {
+  const ts = nowISO();
+  await db.transaction('rw', [db.articles, db.variants], async () => {
+    const a = await db.articles.get(articleId);
+    if (!a) return;
+    const variants = await db.variants
+      .where('article_id')
+      .equals(articleId)
+      .filter((v) => v.deleted_at === null)
+      .toArray();
+    const colors = uniqueVariantColors(
+      variants.map((v) => ({
+        color: v.color,
+        size: v.size,
+        floor_qty: 0,
+        back_qty: 0,
+      })),
+    );
+    const next: Article = { ...a, colors, updated_at: ts };
+    next.search_blob = computeSearchBlob(next, variants);
+    await db.articles.put(next);
   });
 }
 
@@ -210,10 +332,6 @@ export async function listArticles(
 ): Promise<Article[]> {
   const sort = opts.sort ?? 'recent';
 
-  // `recent` rides the indexed `updated_at` cursor; `name` has no index
-  // in the v1 schema (see DATA_MODEL §3) so we pull and sort in memory.
-  // At MVP scale (≤ 500 articles per SPEC §5) the in-memory cost is
-  // negligible.
   let rows: Article[] =
     sort === 'recent'
       ? await db.articles.orderBy('updated_at').reverse().toArray()
