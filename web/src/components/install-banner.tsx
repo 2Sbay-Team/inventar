@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, Smartphone } from 'lucide-react';
+import { Check, Download, Smartphone } from 'lucide-react';
 import { db } from '../db/db';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLive } from '../hooks/use-live';
@@ -26,25 +26,83 @@ export function InstallBanner(): JSX.Element | null {
     null,
   );
 
-  // Auto-trigger the install prompt when the user arrived from the portfolio
-  // with ?install=1 in the URL — saves them an extra tap on Android/desktop.
-  // iOS users still see the manual instructions card (no programmatic install).
-  // We strip the query param after handling so a refresh doesn't re-fire.
+  // Track whether the user explicitly arrived to install (via ?install=1
+  // from the hoodhood.ai portfolio link). When set, we always show some
+  // feedback — never silently render nothing — and we ignore the
+  // dismissed-recently guard.
+  const [arrivedToInstall, setArrivedToInstall] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('install') === '1') setArrivedToInstall(true);
+  }, []);
+
+  // Auto-trigger the install prompt when the user arrived with ?install=1
+  // and the device supports programmatic install. Strip the query param so
+  // a refresh doesn't re-fire. Other states get visible feedback below.
   const autoTriggered = useRef(false);
   useEffect(() => {
     if (autoTriggered.current) return;
+    if (!arrivedToInstall) return;
     if (installState.kind !== 'installable') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('install') !== '1') return;
     autoTriggered.current = true;
     void installState.install();
+    const params = new URLSearchParams(window.location.search);
     params.delete('install');
     const next = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
     window.history.replaceState({}, '', next);
-  }, [installState]);
+  }, [installState, arrivedToInstall]);
 
-  if (installState.kind === 'installed' || installState.kind === 'unsupported') return null;
-  if (dismissedRecently(dismissedAt)) return null;
+  // Already-installed feedback: only shown if user explicitly came from the
+  // install link. Otherwise no banner — installed users don't need a nag.
+  if (installState.kind === 'installed') {
+    if (!arrivedToInstall) return null;
+    return (
+      <aside
+        data-testid="install-banner-installed"
+        className="bg-ok-soft border-ok/30 mx-4 mt-2 flex items-center gap-3 rounded-2xl border px-3 py-2.5"
+      >
+        <Check aria-hidden className="text-ok h-5 w-5 flex-shrink-0" strokeWidth={2.5} />
+        <p className="text-ink flex-1 text-[13px] font-medium leading-tight">
+          {t('install_already')}
+        </p>
+        <button
+          type="button"
+          onClick={() => setArrivedToInstall(false)}
+          className="text-ink-3 px-1 text-xs"
+          aria-label="dismiss"
+        >
+          ×
+        </button>
+      </aside>
+    );
+  }
+
+  // Unsupported browser feedback: same logic — only nag if user explicitly
+  // tried to install.
+  if (installState.kind === 'unsupported') {
+    if (!arrivedToInstall) return null;
+    return (
+      <aside
+        data-testid="install-banner-unsupported"
+        className="bg-warn-soft border-warn/30 mx-4 mt-2 flex items-center gap-3 rounded-2xl border px-3 py-2.5"
+      >
+        <Smartphone aria-hidden className="text-warn h-5 w-5 flex-shrink-0" strokeWidth={2} />
+        <p className="text-ink flex-1 text-[13px] leading-tight">{t('install_unsupported')}</p>
+        <button
+          type="button"
+          onClick={() => setArrivedToInstall(false)}
+          className="text-ink-3 px-1 text-xs"
+          aria-label="dismiss"
+        >
+          ×
+        </button>
+      </aside>
+    );
+  }
+
+  // Installable / iOS path: respect the 30-day dismissal UNLESS the user
+  // explicitly arrived to install — in that case always show.
+  if (!arrivedToInstall && dismissedRecently(dismissedAt)) return null;
 
   function dismiss(): void {
     void setMeta(db, META_KEYS.install_banner_dismissed_at, nowISO());

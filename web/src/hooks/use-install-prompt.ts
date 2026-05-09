@@ -15,6 +15,31 @@ export type InstallState =
   | { kind: 'installable'; install: () => Promise<'accepted' | 'dismissed'> }
   | { kind: 'installed' };
 
+// Module-level cache so we don't lose `beforeinstallprompt` events that
+// fire before any React component has mounted. The browser only fires
+// this event once per page load — if we miss it, the install prompt is
+// gone for that session. Hooks read from this cache at mount time.
+let cachedEvent: BeforeInstallPromptEvent | null = null;
+let cachedInstalled = false;
+const subscribers = new Set<() => void>();
+
+function notify(): void {
+  for (const cb of subscribers) cb();
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    cachedEvent = e as BeforeInstallPromptEvent;
+    notify();
+  });
+  window.addEventListener('appinstalled', () => {
+    cachedInstalled = true;
+    cachedEvent = null;
+    notify();
+  });
+}
+
 function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia('(display-mode: standalone)').matches) return true;
@@ -28,37 +53,39 @@ function isIOS(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
+function compute(): InstallState {
+  if (cachedInstalled || isStandalone()) return { kind: 'installed' };
+  if (cachedEvent) {
+    const evt = cachedEvent;
+    return {
+      kind: 'installable',
+      install: async () => {
+        await evt.prompt();
+        const choice = await evt.userChoice;
+        if (choice.outcome === 'accepted') {
+          cachedInstalled = true;
+          cachedEvent = null;
+          notify();
+        }
+        return choice.outcome;
+      },
+    };
+  }
+  if (isIOS()) return { kind: 'ios-instructions' };
+  return { kind: 'unsupported' };
+}
+
 export function useInstallPrompt(): InstallState {
-  const [state, setState] = useState<InstallState>(() => {
-    if (isStandalone()) return { kind: 'installed' };
-    if (isIOS()) return { kind: 'ios-instructions' };
-    return { kind: 'unsupported' };
-  });
+  const [state, setState] = useState<InstallState>(compute);
 
   useEffect(() => {
-    function onBeforeInstall(e: Event): void {
-      const evt = e as BeforeInstallPromptEvent;
-      e.preventDefault();
-      setState({
-        kind: 'installable',
-        install: async () => {
-          await evt.prompt();
-          const choice = await evt.userChoice;
-          if (choice.outcome === 'accepted') {
-            setState({ kind: 'installed' });
-          }
-          return choice.outcome;
-        },
-      });
-    }
-    function onInstalled(): void {
-      setState({ kind: 'installed' });
-    }
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
+    const update = (): void => setState(compute());
+    subscribers.add(update);
+    // Re-check on mount in case the event fired between module-load and now
+    // OR the user installed via a different mechanism in another tab.
+    update();
     return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
+      subscribers.delete(update);
     };
   }, []);
 
