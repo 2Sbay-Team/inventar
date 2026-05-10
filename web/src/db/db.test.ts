@@ -261,7 +261,10 @@ describe('InventarDB CRUD smoke (v6)', () => {
     const read = await db.photos.get('p-1');
     expect(read?.bytes).toBe(blob.size);
     expect(read?.mime).toBe('image/jpeg');
-    const buf = new Uint8Array(await read!.blob.arrayBuffer());
+    // v0.5.2.2: photo.blob is now `Blob | Uint8Array`. Round-trip via
+    // photoToBlob to handle both shapes.
+    const stored = read!.blob;
+    const buf = stored instanceof Blob ? new Uint8Array(await stored.arrayBuffer()) : stored;
     expect(Array.from(buf)).toEqual(Array.from(bytes));
   });
 });

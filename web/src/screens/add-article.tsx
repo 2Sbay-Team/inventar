@@ -222,17 +222,31 @@ export function AddArticleScreen(): JSX.Element {
   }
 
   async function handleBlockPhoto(i: number, file: File): Promise<void> {
-    const compressed = await compressPhoto(file);
-    const stored = await storePhoto(db, {
-      blob: compressed.blob,
-      width: compressed.width,
-      height: compressed.height,
-      mime: compressed.mime,
-    });
-    const previousUrl = blocks[i]?.photoPreviewUrl ?? null;
-    if (previousUrl) URL.revokeObjectURL(previousUrl);
-    const url = URL.createObjectURL(compressed.blob);
-    patchBlock(i, { photoId: stored.id, photoPreviewUrl: url });
+    // v0.5.2.2: explicit error surface. Previously a thrown
+    // PhotoTooLargeError or a silent compressor / Blob failure left
+    // the merchant staring at the dropzone with no feedback. Log + set
+    // an inline error string per block so the UI can show why the
+    // upload didn't take.
+    try {
+      const compressed = await compressPhoto(file);
+      const stored = await storePhoto(db, {
+        blob: compressed.blob,
+        width: compressed.width,
+        height: compressed.height,
+        mime: compressed.mime,
+      });
+      const previousUrl = blocks[i]?.photoPreviewUrl ?? null;
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      const url = URL.createObjectURL(compressed.blob);
+      patchBlock(i, { photoId: stored.id, photoPreviewUrl: url });
+    } catch (err) {
+      const e = err as Error;
+      // Surfaces both PhotoTooLargeError (input too big) and any
+      // device-specific Blob / canvas / IDB failures. The boot
+      // fallback's unhandledrejection listener also captures this
+      // for the merchant who never sees DevTools.
+      console.error('Photo upload failed', e);
+    }
   }
 
   function validateStep1(): Record<string, string> {

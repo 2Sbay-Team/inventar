@@ -336,7 +336,15 @@ export interface Expense {
 
 export interface Photo {
   id: UUID;
-  blob: Blob;
+  // v0.5.2.2: storage type widened from `Blob` to `Blob | Uint8Array`.
+  // Webkit / iOS Safari rejects Blobs returned by canvas.toBlob() /
+  // browser-image-compression with "Error preparing Blob/File data to
+  // be stored in object store". The storage layer now writes
+  // Uint8Array (bytes) and reconstructs a Blob on read via the
+  // photoToBlob() helper. Legacy rows written as Blob still read
+  // back correctly — readers must use photoToBlob() or check both
+  // shapes.
+  blob: Blob | Uint8Array;
   width: number;
   height: number;
   bytes: number;

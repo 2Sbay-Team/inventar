@@ -1,5 +1,6 @@
 import { db as appDB, type InventarDB } from '../db/db';
 import { nowISO } from '../utils/now';
+import { photoToBlob } from '../repos/photos';
 import { blobToBase64 } from './base64';
 import { FORMAT_V2, type BackupV2, type ExportRowsV2, type PhotoExportV2 } from './format-v2';
 import { integrityHash } from './integrity';
@@ -33,10 +34,15 @@ export async function buildBackup(
   ]);
 
   const photos: PhotoExportV2[] = await Promise.all(
-    photoRows.map(async ({ blob, ...rest }) => ({
-      ...rest,
-      blob_b64: await blobToBase64(blob),
-    })),
+    photoRows.map(async (row) => {
+      const { blob: _blob, ...rest } = row;
+      return {
+        ...rest,
+        // v0.5.2.2: photo.blob may be Uint8Array (Webkit-safe storage
+        // shape) or Blob (legacy rows). photoToBlob normalises.
+        blob_b64: await blobToBase64(photoToBlob(row)),
+      };
+    }),
   );
 
   const rows: ExportRowsV2 = {

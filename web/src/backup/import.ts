@@ -9,7 +9,6 @@ import {
 import { migrateRowsV8ToV9 } from '../db/migrate-v8-to-v9';
 import { setMeta } from '../repos/meta';
 import type { Article, Movement, Photo, ShopProfile } from '../types';
-import { base64ToBlob } from './base64';
 import { FORMAT_V1, type BackupV1, type PhotoExport } from './format-v1';
 import { FORMAT_V2, type BackupV2, type ExportRowsV2, type PhotoExportV2 } from './format-v2';
 import { integrityHash } from './integrity';
@@ -125,7 +124,16 @@ export async function verifyIntegrity(parsed: ParsedBackup): Promise<boolean> {
 
 function rehydratePhoto(row: PhotoExport | PhotoExportV2): Photo {
   const { blob_b64, ...rest } = row;
-  return { ...rest, blob: base64ToBlob(blob_b64, rest.mime) };
+  // v0.5.2.2: store as Uint8Array (not Blob) so the IDB write path is
+  // identical to storePhoto's. Webkit refuses certain Blob shapes;
+  // raw bytes always round-trip cleanly.
+  const binary =
+    typeof atob === 'function'
+      ? atob(blob_b64)
+      : Buffer.from(blob_b64, 'base64').toString('binary');
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return { ...rest, blob: bytes };
 }
 
 // Translates a parsed v1 backup into the same row shape applyRows

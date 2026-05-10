@@ -142,8 +142,14 @@ describe('backup round-trip (v2)', () => {
     expect(await db.expenses.count()).toBe(before.expenses);
 
     const photo = await db.photos.toArray();
-    expect(photo[0]?.blob.type).toBe('image/jpeg');
-    expect(photo[0]?.blob.size).toBe(6);
+    // v0.5.2.2: storage shape is now `Blob | Uint8Array`. Imports
+    // round-trip through base64 so the imported row is a fresh Blob,
+    // but be defensive in case future migrations change the path.
+    const stored = photo[0]?.blob;
+    const sizeBytes = stored instanceof Blob ? stored.size : (stored?.byteLength ?? -1);
+    const mimeStr = stored instanceof Blob ? stored.type : (photo[0]?.mime ?? '');
+    expect(mimeStr).toBe('image/jpeg');
+    expect(sizeBytes).toBe(6);
 
     expect(await quantityFor(db, v40.id)).toBe(qtyBefore.v40);
     expect(await quantityFor(db, v41.id)).toBe(qtyBefore.v41);

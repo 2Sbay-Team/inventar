@@ -42,6 +42,11 @@ export function PhotoPicker({
   layout = 'compact',
 }: PhotoPickerProps): JSX.Element {
   const { t } = useTranslation('common');
+  // v0.5.2.1: inputs use `sr-only` (visually hidden but in the layout)
+  // instead of `hidden` (display: none). Webkit's setInputFiles in tests
+  // — and some real iOS Safari edge cases — silently no-op on
+  // display:none inputs because the browser treats them as detached.
+  // sr-only keeps the input addressable while invisible to users.
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -88,7 +93,7 @@ export function PhotoPicker({
         type="file"
         accept="image/*"
         capture="environment"
-        className="hidden"
+        style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
         onChange={handleChange}
       />
       <input
@@ -96,7 +101,7 @@ export function PhotoPicker({
         data-testid={`${testIdBase}-input`}
         type="file"
         accept="image/*"
-        className="hidden"
+        style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
         onChange={handleChange}
       />
     </>

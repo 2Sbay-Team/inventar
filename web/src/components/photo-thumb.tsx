@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ImageIcon } from 'lucide-react';
 import { db } from '../db/db';
-import { getPhoto } from '../repos/photos';
+import { getPhoto, photoToBlob } from '../repos/photos';
 import { type UUID } from '../types';
 
 interface PhotoThumbProps {
@@ -32,7 +32,7 @@ export function PhotoThumb({
       const photo = await getPhoto(db, photoId);
       if (!photo) return;
       if (revoked) return;
-      createdUrl = URL.createObjectURL(photo.blob);
+      createdUrl = URL.createObjectURL(photoToBlob(photo));
       setUrl(createdUrl);
     })();
     return () => {
