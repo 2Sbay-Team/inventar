@@ -97,3 +97,51 @@ describe('formatCurrency — other currencies', () => {
     expect(formatCurrency(100, 'en', 'SAR')).toMatch(/1\.00/);
   });
 });
+
+// v0.5.1: belt-and-suspenders — guarantee the merchant always sees a
+// currency marker, even when a stripped-down ICU build (some Android
+// WebViews on Honor / Huawei) drops the symbol from its formatter
+// output. The reproducer below stubs Intl.NumberFormat to emit a
+// digits-only string and asserts the suffix-fallback fires.
+describe('formatCurrency — currency marker guarantee', () => {
+  it('TND output always contains either "TND" or "DT"', () => {
+    for (const locale of ['en', 'fr', 'ar'] as const) {
+      const out = formatCurrency(1000, locale, 'TND');
+      // ar locale converts ASCII to Eastern digits but leaves "DT" / "TND" alone.
+      expect(out).toMatch(/(TND|DT|د\.ت)/);
+    }
+  });
+
+  it('USD output always contains "$" or "USD"', () => {
+    for (const locale of ['en', 'fr', 'ar'] as const) {
+      const out = formatCurrency(100, locale, 'USD');
+      expect(out).toMatch(/(\$|USD)/);
+    }
+  });
+
+  it('falls back to plain decimal + suffixed code when Intl misbehaves', () => {
+    const original = Intl.NumberFormat;
+    let calls = 0;
+    // Stub style:'currency' to throw (mimics a broken ICU pair) but
+    // leave style:'decimal' working (this is what the catch path
+    // attempts second).
+    (Intl as unknown as { NumberFormat: typeof Intl.NumberFormat }).NumberFormat = function (
+      this: unknown,
+      locales?: string,
+      options?: Intl.NumberFormatOptions,
+    ): Intl.NumberFormat {
+      calls += 1;
+      if (options?.style === 'currency') throw new Error('mock: currency style unsupported');
+      return new original(locales, options);
+    } as unknown as typeof Intl.NumberFormat;
+    try {
+      const out = formatCurrency(1000, 'en', 'TND');
+      // Decimal fallback emits "1.000"; ensureCurrencyVisible appends " TND".
+      expect(out).toMatch(/1\.000/);
+      expect(out).toContain('TND');
+      expect(calls).toBeGreaterThanOrEqual(1);
+    } finally {
+      (Intl as unknown as { NumberFormat: typeof Intl.NumberFormat }).NumberFormat = original;
+    }
+  });
+});

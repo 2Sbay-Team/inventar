@@ -24,7 +24,9 @@
     "offline": "Offline",
     "tnd": "TND",
     "dash": "—",
-    "powered_by": "Built by hoodhood.ai"
+    "powered_by": "Built by hoodhood.ai",
+    "photo_take": "Take photo",
+    "photo_gallery": "From gallery"
   },
   "nav": {
     "search": "Search",

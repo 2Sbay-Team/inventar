@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Keyboard, Plus, ScanLine, X } from 'lucide-react';
 
+import { PhotoPicker } from '../components/photo-picker';
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
 import { useProfile } from '../hooks/use-profile';
@@ -547,7 +548,6 @@ function UnknownArticleSheet(props: {
   const { t: tCategory } = useTranslation('category');
   const { locale } = useLocale();
   const currency = useCurrency();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const storeType = profile?.store_type ?? 'shop';
   const storeCfg = STORE_TYPES[storeType];
@@ -759,33 +759,18 @@ function UnknownArticleSheet(props: {
           </div>
 
           <p className="text-ink-2 mt-3 text-sm font-medium">{t('field_photo')}</p>
-          <button
-            type="button"
-            data-testid="receive-unknown-photo-pick"
-            onClick={() => fileInputRef.current?.click()}
-            className="border-hair mt-1 inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs"
-          >
-            {photoId ? t('field_photo_change') : t('field_photo_pick')}
-          </button>
           {photoPreview ? (
             <img
               data-testid="receive-unknown-photo-preview"
               src={photoPreview}
               alt=""
-              className="border-hair mt-2 h-20 w-20 rounded-xl border object-cover"
+              className="border-hair mb-2 mt-1 h-20 w-20 rounded-xl border object-cover"
             />
           ) : null}
-          <input
-            ref={fileInputRef}
-            data-testid="receive-unknown-photo-input"
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handlePhoto(f);
-            }}
-          />
+          {/* v0.5.1: explicit Camera + Gallery buttons (PhotoPicker).
+              Gallery input keeps the receive-unknown-photo-input testid
+              so existing tests keep working. */}
+          <PhotoPicker testIdBase="receive-unknown-photo" onFile={(f) => void handlePhoto(f)} />
 
           <label
             htmlFor="receive-unknown-qty"

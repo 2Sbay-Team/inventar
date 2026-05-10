@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, ScanLine, Trash2 } from 'lucide-react';
 import { BarcodeScanner } from '../components/barcode-scanner';
+import { PhotoPicker } from '../components/photo-picker';
 import { ScreenLayout } from '../components/screen-layout';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
@@ -782,7 +783,6 @@ interface BlockEditorProps {
 
 function BlockEditor(props: BlockEditorProps): JSX.Element {
   const { t } = useTranslation('add');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     index,
     block,
@@ -817,9 +817,8 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
         </div>
       ) : null}
 
-      <label
+      <div
         data-testid={`block-${index}-photo-cta`}
-        htmlFor={`block-${index}-photo-input`}
         className={`aspect-[16/11] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-ink-2 ${
           block.photoId ? 'border-ok bg-ok-soft/30' : 'border-ink-4/40 bg-paper-deep/40'
         }`}
@@ -834,18 +833,15 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
         ) : (
           <span className="font-display text-[13px] font-medium text-ink">{t('photo_cta')}</span>
         )}
-      </label>
-      <input
-        ref={fileInputRef}
-        id={`block-${index}-photo-input`}
-        data-testid={`block-${index}-photo-input`}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleBlockPhoto(index, file);
-        }}
+      </div>
+      {/* v0.5.1: explicit Camera + Gallery buttons. Some Androids
+          only show the camera in their default file picker — this
+          guarantees the merchant has a one-tap path to the gallery.
+          PhotoPicker exposes the gallery input under the original
+          `block-${index}-photo-input` testid so existing tests work. */}
+      <PhotoPicker
+        testIdBase={`block-${index}-photo`}
+        onFile={(file) => void handleBlockPhoto(index, file)}
       />
 
       {hasColors ? (

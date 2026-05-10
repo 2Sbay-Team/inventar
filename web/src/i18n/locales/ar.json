@@ -24,7 +24,9 @@
     "offline": "بدون إنترنت",
     "tnd": "TND",
     "dash": "—",
-    "powered_by": "تم تصميمه بواسطة hoodhood.ai"
+    "powered_by": "تم تصميمه بواسطة hoodhood.ai",
+    "photo_take": "التقاط صورة",
+    "photo_gallery": "من المعرض"
   },
   "nav": {
     "search": "بحث",
