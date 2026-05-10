@@ -16,10 +16,11 @@ import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
 import { recordMovement } from '../repos/movements';
 import { pickFifoLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
+import { createInvoice } from '../repos/invoices';
 import { newUUID } from '../utils/uuid';
 import { classifyScan } from '../utils/scan-classify';
 import { formatCurrency } from '../i18n/format-currency';
-import { type Article, type Locale, type UUID } from '../types';
+import { type Article, type InvoiceLine, type Locale, type UUID } from '../types';
 
 // v0.5 ADR-018 + ADR-019: scan-driven checkout. Mirror of /receive's
 // camera shape, but instead of one-scan-one-write the merchant builds a
@@ -82,6 +83,16 @@ export function SellScreen(): JSX.Element {
   const [cartOpen, setCartOpen] = useState(false);
   const [manual, setManual] = useState<ManualState>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // v0.5.2.4 ADR-024: optional invoice block. When invoiceEnabled is
+  // true, commitSale also calls createInvoice() in the same flow and
+  // redirects to the invoice view. Customer fields and vat override
+  // are local-only — we don't persist any draft until the invoice is
+  // actually issued (no half-state in IDB).
+  const [invoiceEnabled, setInvoiceEnabled] = useState(false);
+  const [invoiceCustomerName, setInvoiceCustomerName] = useState('');
+  const [invoiceCustomerAddress, setInvoiceCustomerAddress] = useState('');
+  const [invoiceCustomerFiscalId, setInvoiceCustomerFiscalId] = useState('');
+  const [invoiceVatOverride, setInvoiceVatOverride] = useState<string>('');
   // v0.5.1: when a scan resolves to a sized-vertical article, the
   // toast turns into a tappable Link to /article/:id so the merchant
   // can use Quick Adjust on the right (colour, size) cell. Null when
@@ -272,7 +283,38 @@ export function SellScreen(): JSX.Element {
           unit_price_tnd: row.unit_price_tnd,
         });
       }
-      navigate('/', { replace: true });
+      // v0.5.2.4 ADR-024: optional invoice generation. Only runs when
+      // the merchant ticked the invoice block in the cart drawer. The
+      // VAT rate falls back through merchant override → profile default
+      // → 0%. Customer fields are stored verbatim (or null when blank).
+      if (invoiceEnabled) {
+        const lines: InvoiceLine[] = cart.map((row) => ({
+          description: row.article_name,
+          reference: row.internal_code,
+          qty: row.qty,
+          unit_price_minor: row.unit_price_tnd,
+        }));
+        const overridePct = invoiceVatOverride.trim() === '' ? null : Number(invoiceVatOverride);
+        const vatPct =
+          overridePct != null && Number.isFinite(overridePct) && overridePct >= 0
+            ? Math.round(overridePct)
+            : (profile?.default_vat_pct ?? 0);
+        const inv = await createInvoice(db, {
+          transaction_id: sessionIdRef.current,
+          customer_name: invoiceCustomerName.trim() === '' ? null : invoiceCustomerName.trim(),
+          customer_address:
+            invoiceCustomerAddress.trim() === '' ? null : invoiceCustomerAddress.trim(),
+          customer_fiscal_id:
+            invoiceCustomerFiscalId.trim() === '' ? null : invoiceCustomerFiscalId.trim(),
+          lines,
+          currency,
+          vat_pct: vatPct,
+          notes: null,
+        });
+        navigate(`/invoice/${inv.id}`, { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -421,6 +463,17 @@ export function SellScreen(): JSX.Element {
           onRemove={(id) => removeRow(id)}
           onContinue={() => setCartOpen(false)}
           onDone={() => void commitSale()}
+          invoiceEnabled={invoiceEnabled}
+          onToggleInvoice={() => setInvoiceEnabled((v) => !v)}
+          invoiceCustomerName={invoiceCustomerName}
+          onChangeInvoiceCustomerName={setInvoiceCustomerName}
+          invoiceCustomerAddress={invoiceCustomerAddress}
+          onChangeInvoiceCustomerAddress={setInvoiceCustomerAddress}
+          invoiceCustomerFiscalId={invoiceCustomerFiscalId}
+          onChangeInvoiceCustomerFiscalId={setInvoiceCustomerFiscalId}
+          invoiceVatOverride={invoiceVatOverride}
+          onChangeInvoiceVatOverride={setInvoiceVatOverride}
+          invoiceDefaultVatPct={profile?.default_vat_pct ?? null}
           tCommon={tCommon}
           t={t}
         />
@@ -572,6 +625,20 @@ function CartDrawer(props: {
   onRemove: (variantId: UUID) => void;
   onContinue: () => void;
   onDone: () => void;
+  // v0.5.2.4 ADR-024 — invoice block. invoiceEnabled toggles the
+  // collapsible; the four customer fields and the VAT override are
+  // local state on SellScreen because we don't persist any draft.
+  invoiceEnabled: boolean;
+  onToggleInvoice: () => void;
+  invoiceCustomerName: string;
+  onChangeInvoiceCustomerName: (v: string) => void;
+  invoiceCustomerAddress: string;
+  onChangeInvoiceCustomerAddress: (v: string) => void;
+  invoiceCustomerFiscalId: string;
+  onChangeInvoiceCustomerFiscalId: (v: string) => void;
+  invoiceVatOverride: string;
+  onChangeInvoiceVatOverride: (v: string) => void;
+  invoiceDefaultVatPct: number | null;
   tCommon: (k: string) => string;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
@@ -587,6 +654,17 @@ function CartDrawer(props: {
     onRemove,
     onContinue,
     onDone,
+    invoiceEnabled,
+    onToggleInvoice,
+    invoiceCustomerName,
+    onChangeInvoiceCustomerName,
+    invoiceCustomerAddress,
+    onChangeInvoiceCustomerAddress,
+    invoiceCustomerFiscalId,
+    onChangeInvoiceCustomerFiscalId,
+    invoiceVatOverride,
+    onChangeInvoiceVatOverride,
+    invoiceDefaultVatPct,
     tCommon,
     t,
   } = props;
@@ -670,6 +748,84 @@ function CartDrawer(props: {
                 {formatCurrency(total, locale, currency)}
               </span>
             </div>
+          ) : null}
+          {rows.length > 0 ? (
+            <section
+              data-testid="sell-invoice-block"
+              className="border-hair mt-3 rounded-xl border bg-white p-3"
+            >
+              <button
+                type="button"
+                data-testid="sell-invoice-toggle"
+                onClick={onToggleInvoice}
+                aria-pressed={invoiceEnabled}
+                className="flex w-full items-center gap-2 text-sm font-medium"
+              >
+                <span
+                  aria-hidden
+                  className={`flex h-4 w-4 items-center justify-center rounded border-2 ${
+                    invoiceEnabled ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
+                  }`}
+                >
+                  {invoiceEnabled ? '✓' : ''}
+                </span>
+                {t('invoice_toggle')}
+              </button>
+              {invoiceEnabled ? (
+                <div data-testid="sell-invoice-fields" className="mt-3 space-y-2">
+                  <input
+                    type="text"
+                    data-testid="sell-invoice-customer-name"
+                    value={invoiceCustomerName}
+                    onChange={(e) => onChangeInvoiceCustomerName(e.target.value)}
+                    placeholder={t('invoice_customer_name')}
+                    maxLength={120}
+                    className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                  <textarea
+                    data-testid="sell-invoice-customer-address"
+                    value={invoiceCustomerAddress}
+                    onChange={(e) => onChangeInvoiceCustomerAddress(e.target.value)}
+                    placeholder={t('invoice_customer_address')}
+                    rows={2}
+                    maxLength={300}
+                    className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="text"
+                    data-testid="sell-invoice-customer-fiscal-id"
+                    value={invoiceCustomerFiscalId}
+                    onChange={(e) => onChangeInvoiceCustomerFiscalId(e.target.value)}
+                    placeholder={t('invoice_customer_fiscal_id')}
+                    maxLength={40}
+                    dir="ltr"
+                    className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="sell-invoice-vat" className="text-ink-3 text-xs">
+                      {t('invoice_vat_label')}
+                    </label>
+                    <input
+                      id="sell-invoice-vat"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={50}
+                      step={1}
+                      data-testid="sell-invoice-vat"
+                      value={invoiceVatOverride}
+                      onChange={(e) => onChangeInvoiceVatOverride(e.target.value)}
+                      placeholder={
+                        invoiceDefaultVatPct != null ? String(invoiceDefaultVatPct) : '0'
+                      }
+                      dir="ltr"
+                      className="border-hair w-20 rounded-lg border px-3 py-2 text-sm"
+                    />
+                    <span className="text-ink-3 text-xs">%</span>
+                  </div>
+                </div>
+              ) : null}
+            </section>
           ) : null}
           <div className="mt-4 flex gap-2">
             <button

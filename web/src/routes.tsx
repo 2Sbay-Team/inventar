@@ -30,6 +30,9 @@ const ArticleDetailScreen = lazy(() =>
 const ArticleLabelScreen = lazy(() =>
   import('./screens/article-label').then((m) => ({ default: m.ArticleLabelScreen })),
 );
+const InvoiceViewScreen = lazy(() =>
+  import('./screens/invoice-view').then((m) => ({ default: m.InvoiceViewScreen })),
+);
 const HelpScreen = lazy(() => import('./screens/help').then((m) => ({ default: m.HelpScreen })));
 const StockReportScreen = lazy(() =>
   import('./screens/stock-report').then((m) => ({ default: m.StockReportScreen })),
@@ -138,6 +141,20 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <ArticleLabelScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    // v0.5.2.4 ADR-024 — printable Facture view. /sell lands here
+    // when the merchant ticked "Generate invoice" in the cart drawer.
+    // Browse to past invoices later via Settings → Past invoices
+    // (added in commit 3).
+    path: '/invoice/:id',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <InvoiceViewScreen />
         </OnboardingGate>
       </Lazy>
     ),

@@ -454,7 +454,12 @@
     "cart_empty": "No items yet — scan to add.",
     "cart_total": "Total",
     "cart_remove": "Remove",
-    "continue_scanning": "Continue scanning"
+    "continue_scanning": "Continue scanning",
+    "invoice_toggle": "Generate invoice (Facture)",
+    "invoice_customer_name": "Customer name (optional)",
+    "invoice_customer_address": "Customer address (optional)",
+    "invoice_customer_fiscal_id": "Customer fiscal ID (optional)",
+    "invoice_vat_label": "VAT %"
   },
   "receive": {
     "title": "Receive stock",
@@ -647,5 +652,21 @@
     "print": "Print",
     "done": "Done",
     "not_found": "Article not found."
+  },
+  "invoice": {
+    "title": "Invoice",
+    "done": "Done",
+    "issuer": "From",
+    "customer": "Bill to",
+    "customer_walkin": "Walk-in customer",
+    "fiscal_id_label": "Tax ID",
+    "col_description": "Description",
+    "col_qty": "Qty",
+    "col_unit_price": "Unit price",
+    "col_line_total": "Total",
+    "subtotal": "Subtotal",
+    "vat": "VAT",
+    "total": "Total",
+    "not_found": "Invoice not found."
   }
 }

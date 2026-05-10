@@ -454,7 +454,12 @@
     "cart_empty": "لا منتجات بعد — امسح للإضافة.",
     "cart_total": "المجموع",
     "cart_remove": "إزالة",
-    "continue_scanning": "متابعة المسح"
+    "continue_scanning": "متابعة المسح",
+    "invoice_toggle": "إصدار فاتورة",
+    "invoice_customer_name": "اسم الزبون (اختياري)",
+    "invoice_customer_address": "عنوان الزبون (اختياري)",
+    "invoice_customer_fiscal_id": "المعرّف الجبائي للزبون (اختياري)",
+    "invoice_vat_label": "نسبة الرسم %"
   },
   "receive": {
     "title": "استلام البضاعة",
@@ -645,5 +650,21 @@
     "print": "طباعة",
     "done": "إنهاء",
     "not_found": "المنتج غير موجود."
+  },
+  "invoice": {
+    "title": "فاتورة",
+    "done": "إنهاء",
+    "issuer": "المُصدِر",
+    "customer": "الزبون",
+    "customer_walkin": "زبون عابر",
+    "fiscal_id_label": "المعرّف الجبائي",
+    "col_description": "الوصف",
+    "col_qty": "الكمية",
+    "col_unit_price": "سعر الوحدة",
+    "col_line_total": "المجموع",
+    "subtotal": "المجموع الفرعي",
+    "vat": "رسم القيمة المضافة",
+    "total": "المجموع الكلي",
+    "not_found": "الفاتورة غير موجودة."
   }
 }

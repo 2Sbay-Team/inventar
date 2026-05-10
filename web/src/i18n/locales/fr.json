@@ -454,7 +454,12 @@
     "cart_empty": "Aucun article — scannez pour ajouter.",
     "cart_total": "Total",
     "cart_remove": "Retirer",
-    "continue_scanning": "Continuer le scan"
+    "continue_scanning": "Continuer le scan",
+    "invoice_toggle": "Générer une facture",
+    "invoice_customer_name": "Nom du client (optionnel)",
+    "invoice_customer_address": "Adresse du client (optionnel)",
+    "invoice_customer_fiscal_id": "Matricule fiscal du client (optionnel)",
+    "invoice_vat_label": "TVA %"
   },
   "receive": {
     "title": "Réception stock",
@@ -645,5 +650,21 @@
     "print": "Imprimer",
     "done": "Terminer",
     "not_found": "Article introuvable."
+  },
+  "invoice": {
+    "title": "Facture",
+    "done": "Terminer",
+    "issuer": "Émetteur",
+    "customer": "Client",
+    "customer_walkin": "Client de passage",
+    "fiscal_id_label": "Matricule fiscal",
+    "col_description": "Désignation",
+    "col_qty": "Qté",
+    "col_unit_price": "P.U.",
+    "col_line_total": "Total",
+    "subtotal": "Sous-total",
+    "vat": "TVA",
+    "total": "Total TTC",
+    "not_found": "Facture introuvable."
   }
 }
