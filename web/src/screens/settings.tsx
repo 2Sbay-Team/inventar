@@ -153,11 +153,10 @@ export function SettingsScreen(): JSX.Element {
   const [logoError, setLogoError] = useState<string | null>(null);
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
   const [pendingStoreType, setPendingStoreType] = useState<StoreType | null>(null);
-  // v0.5 ADR-017: shop sub-types editor. Draft is null until the user
-  // toggles something — falling back to profile.shop_subtypes for render.
-  // After Save, draft clears so the chips reflect the saved state again.
-  const [subtypesDraft, setSubtypesDraft] = useState<ShopSubtype[] | null>(null);
-  const [subtypesSavedAt, setSubtypesSavedAt] = useState<number | null>(null);
+  // v0.5.1: shop sub-types editor saves immediately on toggle (no
+  // draft state, no Save button) — matches the expiry-threshold and
+  // EAN-strict toggles. The trade-off is one IDB write per chip tap;
+  // at 8 chips that's bounded and fine.
   const currencies = useMemo(() => listSupportedCurrencies(), []);
   const installState = useInstallPrompt();
   const autoBackupSupported = useMemo(() => isAutoBackupSupported(), []);
@@ -323,24 +322,21 @@ export function SettingsScreen(): JSX.Element {
     setPendingStoreType(null);
   }
 
-  function toggleSubtype(st: ShopSubtype): void {
-    const current = subtypesDraft ?? profile?.shop_subtypes ?? [];
-    const next = current.includes(st) ? current.filter((s) => s !== st) : [...current, st];
-    setSubtypesDraft(next);
-    setSubtypesSavedAt(null);
-  }
-
-  async function saveSubtypes(): Promise<void> {
+  // v0.5.1: immediate save on toggle (no draft / no Save button).
+  // Validation: the merchant can't end up with zero sub-types — the
+  // last selected chip can't be deselected. Onboarding enforces ≥1
+  // at creation; Settings preserves that invariant.
+  async function toggleSubtype(st: ShopSubtype): Promise<void> {
     if (!profile) return;
-    const next = subtypesDraft ?? profile.shop_subtypes;
-    if (next.length === 0) return;
+    const current = profile.shop_subtypes;
+    const wouldRemove = current.includes(st);
+    if (wouldRemove && current.length === 1) return;
+    const next = wouldRemove ? current.filter((s) => s !== st) : [...current, st];
     await upsertProfile(db, {
       name: profile.name,
       locale: profile.locale,
       shop_subtypes: next,
     });
-    setSubtypesDraft(null);
-    setSubtypesSavedAt(Date.now());
   }
 
   return (
@@ -541,16 +537,18 @@ export function SettingsScreen(): JSX.Element {
             <div data-testid="settings-subtypes" className="space-y-2">
               {SHOP_SUBTYPE_ORDER.map((st) => {
                 const cfg = SHOP_SUBTYPE_CONFIG[st];
-                const current = subtypesDraft ?? profile.shop_subtypes;
-                const active = current.includes(st);
+                const active = profile.shop_subtypes.includes(st);
+                const isLastSelected = active && profile.shop_subtypes.length === 1;
                 return (
                   <button
                     key={st}
                     type="button"
                     data-testid={`settings-subtype-${st}`}
-                    onClick={() => toggleSubtype(st)}
+                    onClick={() => void toggleSubtype(st)}
+                    disabled={isLastSelected}
                     aria-pressed={active}
-                    className={`active:scale-[0.99] flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-all duration-200 ${
+                    title={isLastSelected ? t('shop_subtypes_min_one') : undefined}
+                    className={`active:scale-[0.99] flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-80 ${
                       active
                         ? 'border-accent bg-accent-soft/40'
                         : 'border-hair bg-white hover:border-accent/40'
@@ -576,34 +574,7 @@ export function SettingsScreen(): JSX.Element {
                 );
               })}
             </div>
-
-            {(subtypesDraft ?? profile.shop_subtypes).length === 0 ? (
-              <p
-                data-testid="settings-subtypes-min-one"
-                className="text-bad mt-2 text-xs"
-                role="alert"
-              >
-                {t('shop_subtypes_min_one')}
-              </p>
-            ) : null}
-
-            <button
-              type="button"
-              data-testid="settings-subtypes-save"
-              onClick={() => void saveSubtypes()}
-              disabled={
-                (subtypesDraft ?? profile.shop_subtypes).length === 0 || subtypesDraft === null
-              }
-              className="bg-ink mt-3 w-full rounded-xl py-2.5 text-sm text-white disabled:opacity-50"
-            >
-              {t('shop_subtypes_save')}
-            </button>
-
-            {subtypesSavedAt ? (
-              <p data-testid="settings-subtypes-saved" className="text-ok mt-2 text-center text-xs">
-                ✓ {t('shop_subtypes_saved')}
-              </p>
-            ) : null}
+            <p className="text-ink-3 mt-2 text-[11px]">{t('shop_subtypes_min_one')}</p>
           </section>
         ) : null}
 

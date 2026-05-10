@@ -169,3 +169,10 @@ export async function softDeleteLot(db: InventarDB, lotId: UUID): Promise<void> 
   const updated = await db.lots.update(lotId, { deleted_at: ts });
   if (updated === 0) throw new Error(`No lot with id ${lotId}`);
 }
+
+// Reverses softDeleteLot. Used by /expiry's "Undo" toast after the
+// merchant taps Mark-damaged by accident.
+export async function undeleteLot(db: InventarDB, lotId: UUID): Promise<void> {
+  const updated = await db.lots.update(lotId, { deleted_at: null });
+  if (updated === 0) throw new Error(`No lot with id ${lotId}`);
+}

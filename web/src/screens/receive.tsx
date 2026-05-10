@@ -19,7 +19,6 @@ import { createLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
 import { storePhoto } from '../repos/photos';
 import { compressPhoto } from '../utils/compress-photo';
-import { isPlausibleScannableCode } from '../utils/ean';
 import { newUUID } from '../utils/uuid';
 import { parseCurrency } from '../i18n/parse-currency';
 import { type Article, type Category, type UUID } from '../types';
@@ -192,6 +191,7 @@ export function ReceiveScreen(): JSX.Element {
             setSheet(null);
             ingestBarcode(value);
           }}
+          isBarcodeShaped={validate}
           tCommon={tCommon}
           t={t}
         />
@@ -233,10 +233,11 @@ function ManualEntrySheet(props: {
   open: boolean;
   onClose: () => void;
   onSubmit: (value: string) => void;
+  isBarcodeShaped: (input: string) => boolean;
   tCommon: (k: string) => string;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
-  const { open, onClose, onSubmit, tCommon, t } = props;
+  const { open, onClose, onSubmit, isBarcodeShaped, tCommon, t } = props;
   const [query, setQuery] = useState('');
   // Article-name search results so the merchant can disambiguate when
   // the input isn't a 12/13-digit code. Internal code lookup resolves
@@ -247,8 +248,11 @@ function ManualEntrySheet(props: {
   async function runSearch(): Promise<void> {
     const trimmed = query.trim();
     if (trimmed.length === 0) return;
-    if (isPlausibleScannableCode(trimmed)) {
+    if (isBarcodeShaped(trimmed)) {
       // Defer to the scan path — same handler as a real detection.
+      // The decision uses the active validator so strict mode treats
+      // a 12-digit UPC-A as free-text (and runs name search) instead
+      // of short-circuiting to a barcode that would fail dispatch.
       onSubmit(trimmed);
       return;
     }

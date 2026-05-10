@@ -404,6 +404,7 @@
     "scan_invalid": "Invalid barcode — must be 12 or 13 digits.",
     "scan_unknown": "Unknown barcode — receive it first or open Search.",
     "scan_sized_multi": "This article has multiple sizes — open it manually.",
+    "scan_open_arrow": "Open →",
     "scan_out_of_stock": "Out of stock for that item.",
     "scan_internal_error": "Something went wrong adding that item. Try again, or open it from Search.",
     "peek_count": "{{n}} in cart",
@@ -466,7 +467,9 @@
     "discount_title": "Discount {{name}}",
     "discount_current": "Current sale price: {{price}}",
     "discount_hint": "Lower the catalogue sale price for this article. The new price applies to every future scan / sale until you change it again.",
-    "discount_new_price": "New sale price ({{currency}})"
+    "discount_new_price": "New sale price ({{currency}})",
+    "damage_undo_msg": "Marked {{name}} as damaged.",
+    "damage_undo_action": "Undo"
   },
   "shop_subtypes": {
     "food_beverages_label": "Food & beverages",

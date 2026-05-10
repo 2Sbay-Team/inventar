@@ -180,23 +180,28 @@ test.describe('Settings — shop sub-types editor', () => {
       'false',
     );
 
-    // Save is disabled until the merchant actually changes something
-    // (draft === null path).
-    await expect(page.getByTestId('settings-subtypes-save')).toBeDisabled();
+    // v0.5.1: immediate-save semantics. No Save button — every chip
+    // tap writes upsertProfile inline. The "min one" invariant is
+    // protected by disabling the chip when it's the LAST selected
+    // sub-type (so the merchant can't end up with zero).
 
-    // Add a sub-type, drop another. Save enables.
+    // Add personal_care (now [food_beverages, personal_care]).
     await page.getByTestId('settings-subtype-personal_care').click();
-    await page.getByTestId('settings-subtype-food_beverages').click();
-    await expect(page.getByTestId('settings-subtypes-save')).toBeEnabled();
-
-    // Empty selection blocks save (the validation hint surfaces too).
-    // We re-add personal_care so we have ≥1 again.
     await expect(page.getByTestId('settings-subtype-personal_care')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    await page.getByTestId('settings-subtypes-save').click();
-    await expect(page.getByTestId('settings-subtypes-saved')).toBeVisible();
+
+    // Drop food_beverages (now [personal_care]).
+    await page.getByTestId('settings-subtype-food_beverages').click();
+    await expect(page.getByTestId('settings-subtype-food_beverages')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+
+    // personal_care is now the last selected — should be disabled to
+    // protect the ≥1 invariant.
+    await expect(page.getByTestId('settings-subtype-personal_care')).toBeDisabled();
 
     // Reload and confirm the new selection persisted.
     await page.reload();

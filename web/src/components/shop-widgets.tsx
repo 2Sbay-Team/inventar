@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Coins, PackageOpen, TriangleAlert } from 'lucide-react';
@@ -114,7 +114,30 @@ function TodayCloseWidget(): JSX.Element {
   const { t } = useTranslation('dashboard');
   const { locale } = useLocale();
   const currency = useCurrency();
-  const data = useLive<TodayClose>(computeTodayClose, [], {
+  // v0.5.1: refresh when the local day changes. computeTodayClose
+  // window-bounds on local midnight; without this, a tab left open
+  // overnight would keep showing yesterday's totals. We poll once a
+  // minute (cheap) and bump tick whenever the day-string changes.
+  // visibilitychange catches the "merchant brings the tab back to
+  // focus" path without waiting for the next minute tick.
+  const [tick, setTick] = useState(0);
+  const dayRef = useRef(new Date().toDateString());
+  useEffect(() => {
+    function maybeBump(): void {
+      const today = new Date().toDateString();
+      if (today !== dayRef.current) {
+        dayRef.current = today;
+        setTick((n) => n + 1);
+      }
+    }
+    const interval = window.setInterval(maybeBump, 60_000);
+    document.addEventListener('visibilitychange', maybeBump);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', maybeBump);
+    };
+  }, []);
+  const data = useLive<TodayClose>(computeTodayClose, [tick], {
     txnCount: 0,
     revenueMillimes: 0,
     topSellers: [],

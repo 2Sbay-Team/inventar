@@ -404,6 +404,7 @@
     "scan_invalid": "Code invalide — doit comporter 12 ou 13 chiffres.",
     "scan_unknown": "Code inconnu — réceptionnez-le d'abord ou ouvrez Recherche.",
     "scan_sized_multi": "Cet article a plusieurs tailles — ouvrez-le manuellement.",
+    "scan_open_arrow": "Ouvrir →",
     "scan_out_of_stock": "Rupture de stock pour cet article.",
     "scan_internal_error": "Une erreur est survenue. Réessayez ou ouvrez-le depuis Recherche.",
     "peek_count": "{{n}} au panier",
@@ -466,7 +467,9 @@
     "discount_title": "Remise sur {{name}}",
     "discount_current": "Prix de vente actuel : {{price}}",
     "discount_hint": "Baisse le prix de vente catalogue de cet article. Le nouveau prix s'applique à chaque scan / vente jusqu'à modification.",
-    "discount_new_price": "Nouveau prix de vente ({{currency}})"
+    "discount_new_price": "Nouveau prix de vente ({{currency}})",
+    "damage_undo_msg": "{{name}} marqué endommagé.",
+    "damage_undo_action": "Annuler"
   },
   "shop_subtypes": {
     "food_beverages_label": "Alimentation & boissons",

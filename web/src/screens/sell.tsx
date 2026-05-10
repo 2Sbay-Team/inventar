@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Keyboard, ShoppingCart, Trash2, X } from 'lucide-react';
@@ -16,7 +16,6 @@ import { findArticleByEAN } from '../repos/articles';
 import { recordMovement } from '../repos/movements';
 import { pickFifoLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
-import { isPlausibleScannableCode } from '../utils/ean';
 import { newUUID } from '../utils/uuid';
 import { formatCurrency } from '../i18n/format-currency';
 import { type Article, type Locale, type UUID } from '../types';
@@ -82,6 +81,11 @@ export function SellScreen(): JSX.Element {
   const [cartOpen, setCartOpen] = useState(false);
   const [manual, setManual] = useState<ManualState>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // v0.5.1: when a scan resolves to a sized-vertical article, the
+  // toast turns into a tappable Link to /article/:id so the merchant
+  // can use Quick Adjust on the right (colour, size) cell. Null when
+  // the current scanError isn't of that shape.
+  const [scanErrorArticleId, setScanErrorArticleId] = useState<UUID | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const validate = useEanValidator();
 
@@ -115,13 +119,15 @@ export function SellScreen(): JSX.Element {
 
   function processBarcode(value: string): void {
     // Hook already normalises whitespace before dispatching; the
-    // manual-entry path also pre-trims via runSearch's
-    // isPlausibleScannableCode check, so we can validate directly.
+    // manual-entry path also pre-trims via the active validator, so
+    // we can validate directly here.
     if (!validate(value)) {
       setScanError(t('scan_invalid'));
+      setScanErrorArticleId(null);
       return;
     }
     setScanError(null);
+    setScanErrorArticleId(null);
     void resolveAndAdd(value);
   }
 
@@ -155,6 +161,7 @@ export function SellScreen(): JSX.Element {
       .toArray();
     if (variants.length > 1) {
       setScanError(t('scan_sized_multi'));
+      setScanErrorArticleId(article.id);
       return;
     }
     const variant = variants[0];
@@ -317,13 +324,26 @@ export function SellScreen(): JSX.Element {
         )}
 
         {scanError ? (
-          <p
-            data-testid="sell-scan-error"
-            className="text-bad bg-bad/10 border-bad/30 absolute left-3 right-3 top-3 rounded-xl border px-3 py-2 text-center text-xs"
-            role="alert"
-          >
-            {scanError}
-          </p>
+          scanErrorArticleId ? (
+            <Link
+              data-testid="sell-scan-error"
+              data-testid-action="sell-scan-error-open"
+              to={`/article/${scanErrorArticleId}`}
+              role="alert"
+              className="text-bad bg-bad/10 border-bad/30 absolute left-3 right-3 top-3 inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-center text-xs"
+            >
+              <span>{scanError}</span>
+              <span className="text-bad font-medium">{t('scan_open_arrow')}</span>
+            </Link>
+          ) : (
+            <p
+              data-testid="sell-scan-error"
+              className="text-bad bg-bad/10 border-bad/30 absolute left-3 right-3 top-3 rounded-xl border px-3 py-2 text-center text-xs"
+              role="alert"
+            >
+              {scanError}
+            </p>
+          )
         ) : null}
 
         {/* Peek strip: small confirmation each time the cart changes */}
@@ -363,6 +383,7 @@ export function SellScreen(): JSX.Element {
             // still read true until the next render commits.
             processBarcode(value);
           }}
+          isBarcodeShaped={validate}
           tCommon={tCommon}
           t={t}
         />
@@ -395,10 +416,14 @@ function ManualEntrySheet(props: {
   open: boolean;
   onClose: () => void;
   onSubmit: (value: string) => void;
+  // v0.5.1: pass the active validator so strict mode treats a 12-digit
+  // UPC-A as free-text instead of short-circuiting to the scan path
+  // (which would then immediately reject it).
+  isBarcodeShaped: (input: string) => boolean;
   tCommon: (k: string) => string;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
-  const { open, onClose, onSubmit, tCommon, t } = props;
+  const { open, onClose, onSubmit, isBarcodeShaped, tCommon, t } = props;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Article[]>([]);
   const [searched, setSearched] = useState(false);
@@ -406,7 +431,7 @@ function ManualEntrySheet(props: {
   async function runSearch(): Promise<void> {
     const trimmed = query.trim();
     if (trimmed.length === 0) return;
-    if (isPlausibleScannableCode(trimmed)) {
+    if (isBarcodeShaped(trimmed)) {
       // Defer to the scan path for any plausible barcode.
       onSubmit(trimmed);
       return;

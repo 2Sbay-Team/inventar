@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowLeft, EyeOff, Tag, TriangleAlert, X, XOctagon } from 'lucide-react';
+import { ArrowLeft, EyeOff, Tag, TriangleAlert, Undo2, X, XOctagon } from 'lucide-react';
 
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
@@ -10,12 +10,24 @@ import { useCurrency } from '../hooks/use-currency';
 import { useLive } from '../hooks/use-live';
 import { useLocale } from '../hooks/use-locale';
 import { updateArticle } from '../repos/articles';
-import { lotsExpiringWithin, softDeleteLot } from '../repos/lots';
-import { recordMovement } from '../repos/movements';
+import { lotsExpiringWithin, softDeleteLot, undeleteLot } from '../repos/lots';
+import { recordMovement, revertMovement } from '../repos/movements';
 import { expirySnoozeKey, getMeta, META_KEYS, setMeta } from '../repos/meta';
 import { formatCurrency } from '../i18n/format-currency';
 import { parseCurrency } from '../i18n/parse-currency';
 import { type Article, type Locale, type Lot, type UUID, type Variant } from '../types';
+
+// Undo window for damage actions. Long enough for the merchant to
+// realise they tapped wrong, short enough that the toast doesn't
+// linger forever.
+const DAMAGE_UNDO_WINDOW_MS = 6000;
+
+interface PendingDamage {
+  lotId: UUID;
+  movementId: UUID | null; // null when remaining was 0 — no movement was written
+  articleName: string;
+  expiresAt: string;
+}
 
 const DEFAULT_THRESHOLD_DAYS = 7;
 const DEFAULT_SNOOZE_DAYS = 7;
@@ -106,6 +118,19 @@ export function ExpiryScreen(): JSX.Element {
   // just persists a new sale_price_tnd via updateArticle.
   const [discountTarget, setDiscountTarget] = useState<ExpiryRow | null>(null);
 
+  // v0.5.1: damage undo. Mark-damaged is destructive (writes a damage
+  // Movement + softDeleteLot) and the merchant has no other recovery
+  // path. We surface a 6-second toast with an Undo button that
+  // reverses both writes.
+  const [pendingDamage, setPendingDamage] = useState<PendingDamage | null>(null);
+  useEffect(() => {
+    if (!pendingDamage) return;
+    const handle = window.setTimeout(() => {
+      setPendingDamage(null);
+    }, DAMAGE_UNDO_WINDOW_MS);
+    return () => window.clearTimeout(handle);
+  }, [pendingDamage]);
+
   const rows = useLive<ExpiryRow[]>(() => loadRows(filter, now), [filter, now, refreshTick], []);
 
   const threshold = useLive<number>(
@@ -134,12 +159,14 @@ export function ExpiryScreen(): JSX.Element {
   // variant's other lots (if any) keep their FIFO position. We don't
   // mass-damage every lot of the variant — only the earliest one,
   // because the merchant likely confirmed the damage on a specific
-  // batch they're holding.
+  // batch they're holding. v0.5.1: capture the action so the
+  // 6-second Undo toast can reverse it.
   async function markDamaged(row: ExpiryRow): Promise<void> {
     setBusyVariantId(row.variant.id);
     try {
+      let damageMovementId: UUID | null = null;
       if (row.remaining > 0) {
-        await recordMovement(db, {
+        const m = await recordMovement(db, {
           variant_id: row.variant.id,
           delta: -row.remaining,
           type: 'damage',
@@ -149,10 +176,29 @@ export function ExpiryScreen(): JSX.Element {
           location: 'floor',
           note: `expiry: ${row.earliestLot.expires_at.slice(0, 10)}`,
         });
+        damageMovementId = m.id;
       }
       await softDeleteLot(db, row.earliestLot.id);
+      setPendingDamage({
+        lotId: row.earliestLot.id,
+        movementId: damageMovementId,
+        articleName: row.article.name,
+        expiresAt: row.earliestLot.expires_at,
+      });
     } finally {
       setBusyVariantId(null);
+      setRefreshTick((n) => n + 1);
+    }
+  }
+
+  async function undoDamage(): Promise<void> {
+    if (!pendingDamage) return;
+    const snap = pendingDamage;
+    setPendingDamage(null);
+    try {
+      if (snap.movementId) await revertMovement(db, snap.movementId);
+      await undeleteLot(db, snap.lotId);
+    } finally {
       setRefreshTick((n) => n + 1);
     }
   }
@@ -290,6 +336,27 @@ export function ExpiryScreen(): JSX.Element {
             ))}
           </ul>
         )}
+
+        {pendingDamage ? (
+          <div
+            data-testid="expiry-damage-undo"
+            className="bg-ink fixed bottom-5 left-3 right-3 z-50 inline-flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm text-white shadow-xl"
+            role="status"
+          >
+            <span className="truncate">
+              {t('damage_undo_msg', { name: pendingDamage.articleName })}
+            </span>
+            <button
+              type="button"
+              data-testid="expiry-damage-undo-btn"
+              onClick={() => void undoDamage()}
+              className="bg-accent inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium"
+            >
+              <Undo2 aria-hidden className="h-3.5 w-3.5" strokeWidth={2.25} />
+              {t('damage_undo_action')}
+            </button>
+          </div>
+        ) : null}
       </main>
     </ScreenLayout>
   );

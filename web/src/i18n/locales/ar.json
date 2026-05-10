@@ -404,6 +404,7 @@
     "scan_invalid": "رمز غير صالح — يجب أن يكون 12 أو 13 رقماً.",
     "scan_unknown": "رمز غير معروف — استلمه أولاً أو افتح البحث.",
     "scan_sized_multi": "هذا المنتج له مقاسات متعددة — افتحه يدوياً.",
+    "scan_open_arrow": "فتح ←",
     "scan_out_of_stock": "نفد المخزون لهذا الصنف.",
     "scan_internal_error": "حدث خطأ أثناء الإضافة. أعد المحاولة أو افتحه من البحث.",
     "peek_count": "{{n}} في السلة",
@@ -466,7 +467,9 @@
     "discount_title": "خصم على {{name}}",
     "discount_current": "سعر البيع الحالي: {{price}}",
     "discount_hint": "تخفيض سعر البيع الكتالوجي لهذا المنتج. السعر الجديد يُطبَّق على كل مسح / بيع حتى تغييره.",
-    "discount_new_price": "السعر الجديد ({{currency}})"
+    "discount_new_price": "السعر الجديد ({{currency}})",
+    "damage_undo_msg": "تم تعليم {{name}} كتالف.",
+    "damage_undo_action": "تراجع"
   },
   "shop_subtypes": {
     "food_beverages_label": "أطعمة ومشروبات",
