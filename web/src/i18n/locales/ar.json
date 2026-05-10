@@ -88,7 +88,8 @@
     "empty_first": "أضف أول منتج لك",
     "empty_first_cta": "إضافة منتج",
     "nothing_found": "لا نتائج لـ «{{query}}». جرّب كلمات أقل أو مختلفة.",
-    "add_as_new": "إضافة كمنتج جديد بهذا الاسم"
+    "add_as_new": "إضافة كمنتج جديد بهذا الاسم",
+    "low_left": "منخفض ({{n}} متبقٍ)"
   },
   "article": {
     "copy_sku": "نسخ الرمز",
@@ -158,6 +159,8 @@
     "warn_cost_exceeds_sale": "ستخسر المال على هذا — متابعة؟",
     "field_notes": "ملاحظات",
     "field_notes_placeholder": "أي شيء آخر تريد تذكره",
+    "field_min_stock": "إعادة الطلب عند هبوط المخزون عن",
+    "field_min_stock_placeholder": "مثال: 5",
     "field_expiry_label": "تاريخ الانتهاء / ملاحظات",
     "field_expiry_placeholder": "مثلاً انتهاء 2026-08-15",
     "scan_button": "مسح",

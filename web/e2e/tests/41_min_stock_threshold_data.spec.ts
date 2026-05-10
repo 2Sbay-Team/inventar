@@ -120,4 +120,54 @@ test.describe('v0.5 shop fields data path', () => {
     expect(found?.name).toBe('Barcoded Coke');
     expect(found?.barcode_ean).toBe('5449000000996');
   });
+
+  // v0.5 commit 7: low-stock badge UI surfaces in Search/List when an
+  // article has min_stock_threshold set AND total stock is below it.
+  // Update covers the round-trip: stock above threshold → no badge;
+  // sale brings stock below → badge appears; restock above → badge
+  // disappears. Vertical-agnostic — the badge is gated on the field
+  // value, not the store_type, so the shoes-default seed is enough.
+  test('low-stock badge appears in Search when stock < min_stock_threshold; clears when restocked', async ({
+    page,
+  }) => {
+    await page.evaluate(async () => {
+      await window.__inventarSeed!.seed({
+        shopName: 'Badge Shop',
+        locale: 'en',
+        reset: true,
+        articles: [
+          {
+            name: 'Low Threshold',
+            sizes: [{ size: '42', qty: 10 }],
+            min_stock_threshold: 5,
+          },
+        ],
+      });
+    });
+    await page.reload();
+
+    // 10 units > threshold 5 → no badge.
+    await page.getByTestId('search-input').fill('Low Threshold');
+    const card = page.getByTestId('result-card').first();
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId('low-stock-badge')).toHaveCount(0);
+
+    // Sell 7 → 3 < 5 → badge appears.
+    await page.evaluate(async () => {
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+      await window.__inventarSeed!.sellOne('Low Threshold', '42');
+    });
+    await page.reload();
+    await page.getByTestId('search-input').fill('Low Threshold');
+    const cardAfter = page.getByTestId('result-card').first();
+    await expect(cardAfter).toBeVisible();
+    const badge = cardAfter.getByTestId('low-stock-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toContainText('3');
+  });
 });

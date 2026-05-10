@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { formatCurrency } from '../i18n/format-currency';
+import { formatNumber } from '../i18n/format-number';
 import { type SearchResult } from '../query/search';
 import { PhotoThumb } from './photo-thumb';
 import { StockBadge } from './stock-badge';
@@ -13,12 +15,20 @@ interface ResultCardProps {
 }
 
 export function ResultCard({ result, featured }: ResultCardProps): JSX.Element {
+  const { t } = useTranslation('search');
   const { locale } = useLocale();
   const currency = useCurrency();
   const { article } = result;
   const subtitle = [article.internal_code, article.brand, article.category]
     .filter((s) => s !== null && s !== '')
     .join(' · ');
+
+  // v0.5 ADR-017: low-stock chip surfaces when the merchant set a
+  // reorder threshold and current total stock is below it. Vertical-
+  // agnostic — the field lives on Article so any article with a
+  // non-null threshold gets the chip when low.
+  const showLow =
+    article.min_stock_threshold != null && result.totalQty < article.min_stock_threshold;
 
   return (
     <Link
@@ -42,7 +52,17 @@ export function ResultCard({ result, featured }: ResultCardProps): JSX.Element {
         <span className="text-ink-4 font-mono text-[10.5px]" dir="ltr">
           {subtitle}
         </span>
-        <StockBadge result={result} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StockBadge result={result} />
+          {showLow ? (
+            <span
+              data-testid="low-stock-badge"
+              className="bg-warn-soft text-warn mt-1.5 inline-block self-start rounded px-2 py-0.5 font-mono text-[10.5px] font-medium"
+            >
+              {t('low_left', { n: formatNumber(result.totalQty, locale) })}
+            </span>
+          ) : null}
+        </div>
       </div>
     </Link>
   );

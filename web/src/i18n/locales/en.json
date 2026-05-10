@@ -88,7 +88,8 @@
     "empty_first": "Add your first article",
     "empty_first_cta": "Add an article",
     "nothing_found": "Nothing found for \"{{query}}\". Try fewer words or different words.",
-    "add_as_new": "Add as new article with this name"
+    "add_as_new": "Add as new article with this name",
+    "low_left": "Low ({{n}} left)"
   },
   "article": {
     "copy_sku": "Copy SKU",
@@ -158,6 +159,8 @@
     "warn_cost_exceeds_sale": "You'll lose money on this — continue?",
     "field_notes": "Notes",
     "field_notes_placeholder": "Anything else to remember",
+    "field_min_stock": "Reorder when stock drops below",
+    "field_min_stock_placeholder": "e.g. 5",
     "field_expiry_label": "Expiry / notes",
     "field_expiry_placeholder": "e.g. exp. 2026-08-15",
     "scan_button": "Scan",

@@ -88,7 +88,8 @@
     "empty_first": "Ajoutez votre premier article",
     "empty_first_cta": "Ajouter un article",
     "nothing_found": "Aucun résultat pour « {{query}} ». Essayez moins de mots ou des mots différents.",
-    "add_as_new": "Ajouter comme nouvel article"
+    "add_as_new": "Ajouter comme nouvel article",
+    "low_left": "Bas ({{n}} restants)"
   },
   "article": {
     "copy_sku": "Copier le code",
@@ -158,6 +159,8 @@
     "warn_cost_exceeds_sale": "Vous perdriez de l'argent — continuer ?",
     "field_notes": "Notes",
     "field_notes_placeholder": "Quelque chose d'autre à retenir",
+    "field_min_stock": "Réapprovisionner sous",
+    "field_min_stock_placeholder": "ex. 5",
     "field_expiry_label": "Péremption / notes",
     "field_expiry_placeholder": "ex. péremp. 2026-08-15",
     "scan_button": "Scanner",

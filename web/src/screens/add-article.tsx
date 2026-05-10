@@ -39,6 +39,20 @@ interface Basics {
   costInput: string;
   saleInput: string;
   notes: string;
+  // v0.5 ADR-017: optional reorder threshold. Surfaced only when the
+  // active vertical has has_expiry=true (shop). Stored as a string so
+  // empty / typing-in-progress states are unambiguous; parsed at save.
+  minStockInput: string;
+}
+
+// Parse the threshold input. Empty / non-numeric / <= 0 → null (no
+// threshold). Positive integer → that integer.
+function parseMinStock(input: string): number | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
 interface SizeRow {
@@ -127,6 +141,7 @@ export function AddArticleScreen(): JSX.Element {
     costInput: '',
     saleInput: '',
     notes: '',
+    minStockInput: '',
   }));
   const [blocks, setBlocks] = useState<ColorBlock[]>(() => [emptyBlock()]);
   const [duplicate, setDuplicate] = useState<Article | null>(null);
@@ -307,6 +322,10 @@ export function AddArticleScreen(): JSX.Element {
         notes,
         variants: variantSpecs,
         sku_prefix: skuPrefix,
+        // v0.5 ADR-017: only meaningful for shop; null for shoes /
+        // clothes (the input isn't surfaced there). createArticle
+        // accepts null and stores it verbatim.
+        min_stock_threshold: parseMinStock(basics.minStockInput),
       });
       navigate('/', { replace: true });
     } finally {
@@ -357,6 +376,7 @@ export function AddArticleScreen(): JSX.Element {
           locale={locale}
           currency={currency}
           onScan={() => setScannerOpen(true)}
+          showMinStock={storeCfg.has_expiry}
         />
       ) : (
         <Step2
@@ -415,6 +435,9 @@ interface Step1Props {
   locale: string;
   currency: string;
   onScan: () => void;
+  // v0.5 ADR-017: surface the min_stock_threshold input only for the
+  // shop vertical (drives the "Low (N left)" badge in Search/List).
+  showMinStock: boolean;
 }
 
 function Step1({
@@ -427,6 +450,7 @@ function Step1({
   locale: _locale,
   currency,
   onScan,
+  showMinStock,
 }: Step1Props): JSX.Element {
   const { t } = useTranslation('add');
   const { t: tCommon } = useTranslation('common');
@@ -538,6 +562,20 @@ function Step1({
             className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
           />
         </Field>
+        {showMinStock ? (
+          <Field label={t('field_min_stock')} hint={tCommon('optional')}>
+            <input
+              data-testid="field-min-stock"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={basics.minStockInput}
+              onChange={(e) => setBasics((b) => ({ ...b, minStockInput: e.target.value }))}
+              placeholder={t('field_min_stock_placeholder')}
+              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
+            />
+          </Field>
+        ) : null}
       </section>
     </div>
   );
