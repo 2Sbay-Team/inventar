@@ -425,6 +425,7 @@
     "scanner_unsupported_short": "Scanner not supported. Use Type instead to enter codes manually.",
     "scanner_error_short": "Camera unavailable",
     "scan_invalid": "Invalid barcode — must be 12 or 13 digits.",
+    "scan_not_found": "Article not found for that code.",
     "known_title": "Existing product",
     "current_stock": "Current stock: {{n}}",
     "field_qty": "Receive how many?",

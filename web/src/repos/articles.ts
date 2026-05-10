@@ -244,6 +244,23 @@ export async function findArticleByEAN(db: InventarDB, ean: string): Promise<Art
   return row;
 }
 
+// v0.5.1: secondary scan-resolution path. internal_code is the
+// short-SKU the merchant would print on a Code-128 / Code-39 label
+// when a product has no factory EAN. The catalogue index lets us
+// resolve the article in O(1). Lookup is exact (no fuzzy match) so
+// the worst case for a typo on a printed label is "not found", never
+// the wrong article.
+export async function findArticleByInternalCode(
+  db: InventarDB,
+  code: string,
+): Promise<Article | undefined> {
+  const trimmed = code.trim();
+  if (trimmed === '') return undefined;
+  const row = await db.articles.where('internal_code').equals(trimmed).first();
+  if (!row || row.deleted_at !== null) return undefined;
+  return row;
+}
+
 // Edits a subset of indexed/searchable fields. We always recompute
 // `search_blob` (DATA_MODEL §5: deterministic on every create/update) and
 // bump `updated_at` so import-merge picks the newer revision.

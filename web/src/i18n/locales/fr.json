@@ -425,6 +425,7 @@
     "scanner_unsupported_short": "Scanner non supporté. Utilisez « Saisir manuellement » pour entrer un code.",
     "scanner_error_short": "Caméra indisponible",
     "scan_invalid": "Code invalide — doit comporter 12 ou 13 chiffres.",
+    "scan_not_found": "Aucun article trouvé pour ce code.",
     "known_title": "Produit existant",
     "current_stock": "Stock actuel : {{n}}",
     "field_qty": "Combien recevez-vous ?",

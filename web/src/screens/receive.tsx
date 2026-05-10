@@ -13,13 +13,14 @@ import { useEanValidator } from '../hooks/use-ean-validator';
 import { useLocale } from '../hooks/use-locale';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
 import { STORE_TYPES } from '../config/store-types';
-import { createArticle, findArticleByEAN } from '../repos/articles';
+import { createArticle, findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
 import { recordMovement } from '../repos/movements';
 import { createLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
 import { storePhoto } from '../repos/photos';
 import { compressPhoto } from '../utils/compress-photo';
 import { newUUID } from '../utils/uuid';
+import { classifyScan } from '../utils/scan-classify';
 import { parseCurrency } from '../i18n/parse-currency';
 import { type Article, type Category, type UUID } from '../types';
 
@@ -63,20 +64,36 @@ export function ReceiveScreen(): JSX.Element {
   }, [sheet]);
 
   // Shared dispatcher: any path that produces a candidate barcode
-  // (camera, e2e event, manual entry) lands here. The active validator
-  // is loose (12 or 13 digits) by default; merchants can opt in to
-  // strict EAN-13 checksum validation in Settings.
+  // (camera, e2e event, manual entry) lands here. v0.5.1 widens the
+  // accepted shapes — Inventar's own /article/<uuid> QR and merchant-
+  // printed internal_code labels also resolve here. EAN inputs still
+  // pass through useEanValidator (loose 12/13 digits by default,
+  // strict checksum if Settings opts in).
   function ingestBarcode(value: string): void {
-    if (!validate(value)) {
+    const cls = classifyScan(value);
+    if (!cls) {
+      setScanError(t('scan_invalid'));
+      return;
+    }
+    if (cls.kind === 'ean' && !validate(cls.value)) {
       setScanError(t('scan_invalid'));
       return;
     }
     setScanError(null);
-    void resolveAndOpen(value);
+    void resolveAndOpen(cls);
   }
 
-  async function resolveAndOpen(ean: string): Promise<void> {
-    const existing = await findArticleByEAN(db, ean);
+  async function resolveAndOpen(cls: ReturnType<typeof classifyScan>): Promise<void> {
+    if (!cls) return;
+    let existing: Article | undefined;
+    if (cls.kind === 'article_url') {
+      const row = await db.articles.get(cls.articleId);
+      existing = row && row.deleted_at === null ? row : undefined;
+    } else if (cls.kind === 'ean') {
+      existing = await findArticleByEAN(db, cls.value);
+    } else {
+      existing = await findArticleByInternalCode(db, cls.value);
+    }
     if (existing) {
       const variant = await db.variants
         .where('article_id')
@@ -84,9 +101,19 @@ export function ReceiveScreen(): JSX.Element {
         .filter((v) => v.deleted_at === null)
         .first();
       const currentStock = variant ? await quantityFor(db, variant.id) : 0;
-      setSheet({ kind: 'known', article: existing, currentStock, ean });
+      // The "known" sheet was originally keyed by EAN; for QR / internal_code
+      // we still need a string slot so its mini-form has something to display
+      // in the EAN row. Fall back to the article's own barcode_ean (or '').
+      const eanForSheet = cls.kind === 'ean' ? cls.value : (existing.barcode_ean ?? '');
+      setSheet({ kind: 'known', article: existing, currentStock, ean: eanForSheet });
+    } else if (cls.kind === 'ean') {
+      // Only EAN scans can route to the "create new article" mini-form —
+      // we never auto-create from a QR / internal_code that misses the
+      // catalogue, since burning a real article slot on a typo'd internal
+      // code or a stale URL is irreversible.
+      setSheet({ kind: 'unknown', ean: cls.value });
     } else {
-      setSheet({ kind: 'unknown', ean });
+      setScanError(t('scan_not_found'));
     }
   }
 
@@ -273,21 +300,11 @@ function ManualEntrySheet(props: {
   }
 
   function pickResult(a: Article): void {
-    if (a.barcode_ean) {
-      onSubmit(a.barcode_ean);
-    } else {
-      // Article has no EAN — short-circuit by treating it as a "found"
-      // result. Reuse the same flow by injecting a synthetic event with
-      // the article's internal_code; the handler resolveAndOpen would
-      // not match it. So we just close and let the merchant tap again
-      // with the internal_code as the EAN-like input.
-      // For simplicity in this commit: when the merchant picks a result
-      // without an EAN, we still try to resolve via the EAN path. This
-      // means it'll miss findArticleByEAN and route to the unknown
-      // sheet — wrong shape. To do this right, we'd want a "resolve by
-      // article id" path.
-      onSubmit(a.internal_code);
-    }
+    // v0.5.1: ingestBarcode now classifies its input — an article with
+    // no EAN dispatches via internal_code and resolves through
+    // findArticleByInternalCode, opening the same "known" sheet. So
+    // both branches end up at the right place via one onSubmit call.
+    onSubmit(a.barcode_ean ?? a.internal_code);
   }
 
   return (

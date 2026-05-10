@@ -12,11 +12,12 @@ import { useEanValidator } from '../hooks/use-ean-validator';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { STORE_TYPES } from '../config/store-types';
-import { findArticleByEAN } from '../repos/articles';
+import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
 import { recordMovement } from '../repos/movements';
 import { pickFifoLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
 import { newUUID } from '../utils/uuid';
+import { classifyScan } from '../utils/scan-classify';
 import { formatCurrency } from '../i18n/format-currency';
 import { type Article, type Locale, type UUID } from '../types';
 
@@ -118,22 +119,30 @@ export function SellScreen(): JSX.Element {
   }
 
   function processBarcode(value: string): void {
-    // Hook already normalises whitespace before dispatching; the
-    // manual-entry path also pre-trims via the active validator, so
-    // we can validate directly here.
-    if (!validate(value)) {
+    // v0.5.1 widens the accepted shapes — Inventar QR / internal_code
+    // labels resolve here too. EAN inputs still pass through the active
+    // validator (loose 12/13 by default; strict checksum if Settings
+    // opts in). Other shapes route directly to catalogue lookup.
+    const cls = classifyScan(value);
+    if (!cls) {
+      setScanError(t('scan_invalid'));
+      setScanErrorArticleId(null);
+      return;
+    }
+    if (cls.kind === 'ean' && !validate(cls.value)) {
       setScanError(t('scan_invalid'));
       setScanErrorArticleId(null);
       return;
     }
     setScanError(null);
     setScanErrorArticleId(null);
-    void resolveAndAdd(value);
+    void resolveAndAdd(cls);
   }
 
-  async function resolveAndAdd(ean: string): Promise<void> {
+  async function resolveAndAdd(cls: ReturnType<typeof classifyScan>): Promise<void> {
+    if (!cls) return;
     try {
-      await resolveAndAddInner(ean);
+      await resolveAndAddInner(cls);
     } catch (e) {
       // Surface async failures (Dexie errors, promise rejections) so
       // the user sees something rather than a silent dead cart. Without
@@ -146,8 +155,18 @@ export function SellScreen(): JSX.Element {
     }
   }
 
-  async function resolveAndAddInner(ean: string): Promise<void> {
-    const article = await findArticleByEAN(db, ean);
+  async function resolveAndAddInner(
+    cls: NonNullable<ReturnType<typeof classifyScan>>,
+  ): Promise<void> {
+    let article: Article | undefined;
+    if (cls.kind === 'article_url') {
+      const row = await db.articles.get(cls.articleId);
+      article = row && row.deleted_at === null ? row : undefined;
+    } else if (cls.kind === 'ean') {
+      article = await findArticleByEAN(db, cls.value);
+    } else {
+      article = await findArticleByInternalCode(db, cls.value);
+    }
     if (!article) {
       setScanError(t('scan_unknown'));
       return;
