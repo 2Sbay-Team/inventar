@@ -5,6 +5,7 @@ import { Plus, ScanLine, Trash2 } from 'lucide-react';
 import { BarcodeScanner } from '../components/barcode-scanner';
 import { PhotoPicker } from '../components/photo-picker';
 import { ScreenLayout } from '../components/screen-layout';
+import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
 import { db } from '../db/db';
@@ -783,6 +784,10 @@ interface BlockEditorProps {
 
 function BlockEditor(props: BlockEditorProps): JSX.Element {
   const { t } = useTranslation('add');
+  // v0.5.2 ADR-022: merchant-customisable location labels for the
+  // floor/back Stepper inputs. Falls back to the locale + vertical
+  // defaults if the profile field is unset.
+  const labels = useLocationLabels();
   const {
     index,
     block,
@@ -905,13 +910,13 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
               />
               <Stepper
                 testId={`block-${index}-size-${j}-floor`}
-                label={t('floor_label')}
+                label={labels.floor}
                 value={row.floor}
                 onChange={(v) => patchBlockSize(index, j, { floor: v })}
               />
               <Stepper
                 testId={`block-${index}-size-${j}-back`}
-                label={t('back_label')}
+                label={labels.back}
                 value={row.back}
                 onChange={(v) => patchBlockSize(index, j, { back: v })}
               />
@@ -945,13 +950,13 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
         <div data-testid={`block-${index}-sizeless`} className="flex items-center gap-3">
           <Stepper
             testId={`block-${index}-floor`}
-            label={t('floor_label')}
+            label={labels.floor}
             value={block.sizes[0]?.floor ?? 0}
             onChange={(v) => patchBlockSize(index, 0, { floor: v })}
           />
           <Stepper
             testId={`block-${index}-back`}
-            label={t('back_label')}
+            label={labels.back}
             value={block.sizes[0]?.back ?? 0}
             onChange={(v) => patchBlockSize(index, 0, { back: v })}
           />

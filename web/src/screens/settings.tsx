@@ -6,6 +6,8 @@ import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
+import { useLocationLabels } from '../hooks/use-location-labels';
+import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
 import { useProfile } from '../hooks/use-profile';
 import { useLive } from '../hooks/use-live';
 import {
@@ -122,6 +124,96 @@ function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): 
             {t('expiry_threshold_unit', { n })}
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+// v0.5.2 ADR-022: stock-locations editor. Two-input form for the
+// merchant-customisable display labels. Immediate save (matches the
+// expiry-threshold + sub-types editor pattern). Clearing a field falls
+// back to the (vertical, locale) default at next render via the hook
+// — see useLocationLabels.
+function StockLocationsSection(): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  const profile = useProfile();
+  const labels = useLocationLabels();
+  const [floorDraft, setFloorDraft] = useState<string | null>(null);
+  const [backDraft, setBackDraft] = useState<string | null>(null);
+  if (!profile) return null;
+  // Resolved current values: the locked-in profile value if set,
+  // else the locale default (rendered to the merchant via the hook).
+  // Drafts override during editing.
+  const floorValue = floorDraft ?? labels.floor;
+  const backValue = backDraft ?? labels.back;
+  // Fallback target when the merchant clears a field: the locale +
+  // vertical default, NOT the currently-rendered label (which would be
+  // the merchant's own customised value, defeating the "clear to
+  // restore default" affordance).
+  const verticalForLabels: 'fashion' | 'shop' = profile.store_type === 'shop' ? 'shop' : 'fashion';
+  const localeDefaults = defaultLocationLabels(verticalForLabels, profile.locale);
+  async function commitFloor(value: string): Promise<void> {
+    if (!profile) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      location_floor_label: value.trim() === '' ? localeDefaults.floor : value.trim(),
+    });
+    setFloorDraft(null);
+  }
+  async function commitBack(value: string): Promise<void> {
+    if (!profile) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      location_back_label: value.trim() === '' ? localeDefaults.back : value.trim(),
+    });
+    setBackDraft(null);
+  }
+  return (
+    <section
+      data-testid="section-stock-locations"
+      className="border-hair rounded-2xl border bg-white p-4"
+    >
+      <h3 className="font-display text-base font-medium mb-1">{t('locations_title')}</h3>
+      <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('locations_hint')}</p>
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <label htmlFor="settings-location-floor" className="text-ink-2 block text-xs font-medium">
+            {t('location_floor_label')}
+          </label>
+          <input
+            id="settings-location-floor"
+            data-testid="settings-location-floor"
+            type="text"
+            value={floorValue}
+            onChange={(e) => setFloorDraft(e.target.value)}
+            onBlur={(e) => void commitFloor(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            maxLength={30}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="settings-location-back" className="text-ink-2 block text-xs font-medium">
+            {t('location_back_label')}
+          </label>
+          <input
+            id="settings-location-back"
+            data-testid="settings-location-back"
+            type="text"
+            value={backValue}
+            onChange={(e) => setBackDraft(e.target.value)}
+            onBlur={(e) => void commitBack(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            maxLength={30}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          />
+        </div>
       </div>
     </section>
   );
@@ -854,6 +946,8 @@ export function SettingsScreen(): JSX.Element {
             <ChevronRight aria-hidden className="text-ink-3 h-5 w-5" strokeWidth={2} />
           </Link>
         </section>
+
+        <StockLocationsSection />
 
         <MaintenanceSection />
 
