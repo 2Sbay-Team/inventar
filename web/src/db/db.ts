@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   Article,
   Expense,
+  Invoice,
   Lot,
   MetaRow,
   Movement,
@@ -36,6 +37,7 @@ export class InventarDB extends Dexie {
   photos!: Table<Photo, string>;
   meta!: Table<MetaRow, string>;
   lots!: Table<Lot, string>;
+  invoices!: Table<Invoice, string>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -358,6 +360,52 @@ export class InventarDB extends Dexie {
           key: META_KEYS.migration_v9_completed_at,
           value: new Date().toISOString(),
         });
+      });
+    // v10: ADR-024 — invoicing / Facture. Two additive changes:
+    //   1. ShopProfile gains four nullable fiscal fields (legal_name,
+    //      legal_address, fiscal_id, default_vat_pct). Backfilled to
+    //      null on existing rows; the Settings → Invoicing section is
+    //      where the merchant fills them in.
+    //   2. New `invoices` table for issued invoices. Indexed on
+    //      `number` (uniqueness check), `issued_at` (chronological
+    //      list), and `transaction_id` (back-link from /sell). Photos /
+    //      logos are NOT duplicated — invoice render reads
+    //      profile.logo_photo_id at print time.
+    //
+    // Idempotency: the `if ('legal_name' in p)` guard means a re-entry
+    // (Dexie history replay, manual reopen) leaves merchant-set
+    // values alone instead of clobbering them back to null.
+    this.version(10)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify(
+            (p: {
+              legal_name?: string | null;
+              legal_address?: string | null;
+              fiscal_id?: string | null;
+              default_vat_pct?: number | null;
+            }) => {
+              if (!('legal_name' in p)) p.legal_name = null;
+              if (!('legal_address' in p)) p.legal_address = null;
+              if (!('fiscal_id' in p)) p.fiscal_id = null;
+              if (!('default_vat_pct' in p)) p.default_vat_pct = null;
+            },
+          );
       });
   }
 }

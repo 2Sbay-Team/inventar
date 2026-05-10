@@ -219,6 +219,147 @@ function StockLocationsSection(): JSX.Element | null {
   );
 }
 
+// v0.5.2.4 ADR-024 — invoicing / Facture fiscal block. Four optional
+// fields that get baked into every issued invoice. All-or-nothing isn't
+// enforced: a merchant who only fills in the legal name still gets a
+// valid invoice (the missing fields just don't print). default_vat_pct
+// is stored as integer percent for simplicity (no fractional VAT in any
+// supported country yet); the per-invoice form lets the merchant
+// override on a per-invoice basis.
+function InvoicingSection(): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  const profile = useProfile();
+  const [legalNameDraft, setLegalNameDraft] = useState<string | null>(null);
+  const [legalAddressDraft, setLegalAddressDraft] = useState<string | null>(null);
+  const [fiscalIdDraft, setFiscalIdDraft] = useState<string | null>(null);
+  const [vatDraft, setVatDraft] = useState<string | null>(null);
+  if (!profile) return null;
+  const legalNameValue = legalNameDraft ?? profile.legal_name ?? '';
+  const legalAddressValue = legalAddressDraft ?? profile.legal_address ?? '';
+  const fiscalIdValue = fiscalIdDraft ?? profile.fiscal_id ?? '';
+  const vatValue =
+    vatDraft ?? (profile.default_vat_pct == null ? '' : String(profile.default_vat_pct));
+  async function commit(
+    patch:
+      | { legal_name: string | null }
+      | { legal_address: string | null }
+      | { fiscal_id: string | null }
+      | { default_vat_pct: number | null },
+  ): Promise<void> {
+    if (!profile) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      ...patch,
+    });
+  }
+  function trimToNullable(value: string): string | null {
+    return value.trim() === '' ? null : value.trim();
+  }
+  function parseVat(value: string): number | null {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    const n = Number(trimmed);
+    // Reject NaN, negatives, and absurdly-high values. No country has
+    // a VAT rate above 50% in practice.
+    if (!Number.isFinite(n) || n < 0 || n > 50) return null;
+    return Math.round(n);
+  }
+  return (
+    <section
+      data-testid="section-invoicing"
+      className="border-hair rounded-2xl border bg-white p-4"
+    >
+      <h3 className="font-display mb-1 text-base font-medium">{t('invoicing_title')}</h3>
+      <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('invoicing_hint')}</p>
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <label htmlFor="settings-legal-name" className="text-ink-2 block text-xs font-medium">
+            {t('invoicing_legal_name')}
+          </label>
+          <input
+            id="settings-legal-name"
+            data-testid="settings-legal-name"
+            type="text"
+            value={legalNameValue}
+            placeholder={profile.name}
+            onChange={(e) => setLegalNameDraft(e.target.value)}
+            onBlur={(e) => {
+              void commit({ legal_name: trimToNullable(e.target.value) });
+              setLegalNameDraft(null);
+            }}
+            maxLength={120}
+            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="settings-legal-address" className="text-ink-2 block text-xs font-medium">
+            {t('invoicing_legal_address')}
+          </label>
+          <textarea
+            id="settings-legal-address"
+            data-testid="settings-legal-address"
+            value={legalAddressValue}
+            placeholder={t('invoicing_address_placeholder')}
+            onChange={(e) => setLegalAddressDraft(e.target.value)}
+            onBlur={(e) => {
+              void commit({ legal_address: trimToNullable(e.target.value) });
+              setLegalAddressDraft(null);
+            }}
+            rows={3}
+            maxLength={300}
+            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="settings-fiscal-id" className="text-ink-2 block text-xs font-medium">
+            {t('invoicing_fiscal_id')}
+          </label>
+          <input
+            id="settings-fiscal-id"
+            data-testid="settings-fiscal-id"
+            type="text"
+            value={fiscalIdValue}
+            placeholder={t('invoicing_fiscal_id_placeholder')}
+            onChange={(e) => setFiscalIdDraft(e.target.value)}
+            onBlur={(e) => {
+              void commit({ fiscal_id: trimToNullable(e.target.value) });
+              setFiscalIdDraft(null);
+            }}
+            maxLength={40}
+            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+            dir="ltr"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="settings-default-vat" className="text-ink-2 block text-xs font-medium">
+            {t('invoicing_default_vat')}
+          </label>
+          <input
+            id="settings-default-vat"
+            data-testid="settings-default-vat"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={50}
+            step={1}
+            value={vatValue}
+            placeholder="19"
+            onChange={(e) => setVatDraft(e.target.value)}
+            onBlur={(e) => {
+              void commit({ default_vat_pct: parseVat(e.target.value) });
+              setVatDraft(null);
+            }}
+            className="border-hair focus-visible:ring-accent/40 w-32 rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+            dir="ltr"
+          />
+          <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // v0.5.1: SW kill-switch. The most likely cause of "the app won't open
 // on my phone" reports is a stale precached service worker that's
 // serving a broken old shell — workbox's clientsClaim/skipWaiting take
@@ -948,6 +1089,8 @@ export function SettingsScreen(): JSX.Element {
         </section>
 
         <StockLocationsSection />
+
+        <InvoicingSection />
 
         <MaintenanceSection />
 

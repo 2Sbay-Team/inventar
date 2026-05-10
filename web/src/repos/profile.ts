@@ -58,6 +58,15 @@ export interface UpsertProfileInput {
   // v0.5.2 ADR-023: global expiry warning threshold in days. Default
   // 7 at first-create; preserved across subsequent upserts when omitted.
   expiry_warning_days?: number;
+  // v0.5.2.4 ADR-024 — invoicing / Facture fiscal block. All four
+  // are nullable; passing `null` clears the field, omitting preserves
+  // the existing value, passing a string/number sets it. Default at
+  // first-create is null for every field — Settings → Invoicing is
+  // where the merchant fills them in.
+  legal_name?: string | null;
+  legal_address?: string | null;
+  fiscal_id?: string | null;
+  default_vat_pct?: number | null;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -99,6 +108,15 @@ export async function upsertProfile(
         input.location_back_label ?? existing?.location_back_label ?? labelDefaults.back,
       expiry_warning_days:
         input.expiry_warning_days ?? existing?.expiry_warning_days ?? DEFAULT_EXPIRY_WARNING_DAYS,
+      legal_name:
+        input.legal_name === undefined ? (existing?.legal_name ?? null) : input.legal_name,
+      legal_address:
+        input.legal_address === undefined ? (existing?.legal_address ?? null) : input.legal_address,
+      fiscal_id: input.fiscal_id === undefined ? (existing?.fiscal_id ?? null) : input.fiscal_id,
+      default_vat_pct:
+        input.default_vat_pct === undefined
+          ? (existing?.default_vat_pct ?? null)
+          : input.default_vat_pct,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

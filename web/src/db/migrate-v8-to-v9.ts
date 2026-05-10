@@ -206,6 +206,14 @@ function migrateProfile(p: V8ShopProfile, expiryMeta: number | null): ShopProfil
     location_floor_label: floorLabel,
     location_back_label: backLabel,
     expiry_warning_days: expiryWarningDays,
+    // v0.5.2.4 ADR-024: invoicing fields default to null on the v8→v9
+    // hop. The v9→v10 upgrade backfills them on existing installs too,
+    // but we set them here so the kernel returns a fully-typed v9 row
+    // even when run in isolation by the test suite.
+    legal_name: null,
+    legal_address: null,
+    fiscal_id: null,
+    default_vat_pct: null,
     created_at: p.created_at,
     updated_at: p.updated_at,
     last_backup_at: p.last_backup_at,

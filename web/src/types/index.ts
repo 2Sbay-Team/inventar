@@ -179,6 +179,24 @@ export interface ShopProfile {
   // migration copies the pre-v9 meta key `expiry_threshold_days` value
   // here for back-compat.
   expiry_warning_days: number;
+  // v0.5.2.4 — invoicing / Facture fields. All nullable; populated via
+  // Settings only when the merchant actually issues invoices. Kept on
+  // the singleton profile so a v10 migration doesn't need a separate
+  // table just for these four columns. legal_name is distinct from
+  // `name` (which is the display label across the app) — many shops
+  // trade as one name and bill as another (sole proprietor, SARL, etc).
+  legal_name: string | null;
+  // Multi-line free-form address; displayed verbatim on invoices.
+  legal_address: string | null;
+  // Tax / fiscal registration number — matricule fiscal (TN), SIRET
+  // (FR), Steuernummer (DE), etc. Free string; we don't validate the
+  // format because it varies per country and the merchant copies it
+  // from their own paperwork.
+  fiscal_id: string | null;
+  // Default VAT rate as integer percent (e.g. 19 for Tunisia, 20 for
+  // France). Used to pre-fill new invoices; the merchant can override
+  // per-invoice. Null = no default; the invoice form falls back to 0.
+  default_vat_pct: number | null;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
@@ -356,4 +374,54 @@ export interface Photo {
 export interface MetaRow {
   key: string;
   value: unknown;
+}
+
+// v0.5.2.4 ADR-024 — issued invoice / Facture. Snapshot rows: every
+// numeric and label is frozen at issue time so an invoice stays
+// identical even after the underlying article price or shop name
+// changes. transaction_id (when set) ties it back to the /sell run
+// that produced it; null when the merchant generates an invoice
+// outside the sell flow (manual entry).
+export interface InvoiceLine {
+  // Free-form description; usually copied from Article.name at issue.
+  // Stored verbatim so an article rename doesn't mutate old invoices.
+  description: string;
+  // Optional reference (article internal_code, EAN, etc). Display only.
+  reference: string | null;
+  qty: number;
+  // Per-unit price in minor units of the invoice's currency
+  // (millimes for TND, cents for EUR). Matches the rest of the
+  // money-as-integer convention — see ADR-005.
+  unit_price_minor: number;
+}
+
+export interface Invoice {
+  id: UUID;
+  // Sequential, format `INV-{YYYY}-{NNNN}` — guaranteed unique. The
+  // counter lives in meta (META_KEYS.invoice_counter) and resets per
+  // calendar year so the human-readable number stays short.
+  number: string;
+  issued_at: ISODate;
+  // Customer block — all optional. A walk-in cash sale invoice may
+  // have none of these set; a B2B invoice typically has all three.
+  customer_name: string | null;
+  customer_address: string | null;
+  customer_fiscal_id: string | null;
+  lines: InvoiceLine[];
+  currency: CurrencyCode;
+  // Subtotal (sum of lines, pre-VAT) in minor units. Stored so we
+  // don't have to recompute on every render and so partial-rounding
+  // semantics stay frozen at issue time.
+  subtotal_minor: number;
+  // VAT rate snapshot (integer percent). Defaults to ShopProfile.
+  // default_vat_pct at issue but the merchant may override per-invoice.
+  vat_pct: number;
+  vat_minor: number;
+  total_minor: number;
+  notes: string | null;
+  // Link back to the /sell transaction this invoice was generated from.
+  // Null when the invoice was issued manually (no sale on record).
+  transaction_id: UUID | null;
+  created_at: ISODate;
+  deleted_at: ISODate | null;
 }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v9)', () => {
+describe('InventarDB schema (v10)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,15 +15,16 @@ describe('InventarDB schema (v9)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 9', () => {
-    expect(db.verno).toBe(9);
+  it('opens at version 10', () => {
+    expect(db.verno).toBe(10);
   });
 
-  it('has the eight tables from DATA_MODEL §3 (v0.5 adds lots)', () => {
+  it('has the nine tables from DATA_MODEL §3 (v0.5.2.4 adds invoices)', () => {
     const names = db.tables.map((t) => t.name).sort();
     expect(names).toEqual([
       'articles',
       'expenses',
+      'invoices',
       'lots',
       'meta',
       'movements',
@@ -31,6 +32,15 @@ describe('InventarDB schema (v9)', () => {
       'profile',
       'variants',
     ]);
+  });
+
+  it('invoices: primKey id + unique number index + issued_at + transaction_id + deleted_at', () => {
+    const t = db.table('invoices');
+    expect(t.schema.primKey.name).toBe('id');
+    const indexNames = t.schema.indexes.map((i) => i.name).sort();
+    expect(indexNames).toEqual(['deleted_at', 'issued_at', 'number', 'transaction_id']);
+    const numberIdx = t.schema.indexes.find((i) => i.name === 'number');
+    expect(numberIdx?.unique).toBe(true);
   });
 
   it('articles: primKey id + v7 indexes including barcode_ean', () => {
@@ -156,6 +166,10 @@ describe('InventarDB CRUD smoke (v6)', () => {
       location_floor_label: 'Boutique',
       location_back_label: 'Réserve',
       expiry_warning_days: 7,
+      legal_name: 'NAILI SARL',
+      legal_address: '14 rue de Tunis\n1000 Tunis',
+      fiscal_id: '1234567/A/B/000',
+      default_vat_pct: 19,
       created_at: NOW,
       updated_at: NOW,
       last_backup_at: null,
@@ -166,6 +180,81 @@ describe('InventarDB CRUD smoke (v6)', () => {
     expect(read?.logo_photo_id).toBeNull();
     expect(read?.currency).toBe('TND');
     expect(read?.store_type).toBe('shoes');
+    expect(read?.legal_name).toBe('NAILI SARL');
+    expect(read?.fiscal_id).toBe('1234567/A/B/000');
+    expect(read?.default_vat_pct).toBe(19);
+  });
+
+  it('round-trips Invoice (snapshot fields stay frozen)', async () => {
+    await db.invoices.put({
+      id: 'inv-1',
+      number: 'INV-2026-0001',
+      issued_at: NOW,
+      customer_name: 'ACME Co',
+      customer_address: '1 rue X\n2000 Sousse',
+      customer_fiscal_id: '9876543/Z/Z/000',
+      lines: [
+        { description: 'Item A', reference: 'SP-0001', qty: 2, unit_price_minor: 12_500 },
+        { description: 'Item B', reference: null, qty: 1, unit_price_minor: 7_500 },
+      ],
+      currency: 'TND',
+      subtotal_minor: 32_500,
+      vat_pct: 19,
+      vat_minor: 6_175,
+      total_minor: 38_675,
+      notes: null,
+      transaction_id: null,
+      created_at: NOW,
+      deleted_at: null,
+    });
+    const read = await db.invoices.get('inv-1');
+    expect(read?.number).toBe('INV-2026-0001');
+    expect(read?.lines.length).toBe(2);
+    expect(read?.lines[0]?.unit_price_minor).toBe(12_500);
+    expect(read?.subtotal_minor).toBe(32_500);
+    expect(read?.vat_minor).toBe(6_175);
+    expect(read?.total_minor).toBe(38_675);
+  });
+
+  it('invoices.number is unique (duplicate add throws)', async () => {
+    await db.invoices.put({
+      id: 'inv-1',
+      number: 'INV-2026-0001',
+      issued_at: NOW,
+      customer_name: null,
+      customer_address: null,
+      customer_fiscal_id: null,
+      lines: [],
+      currency: 'TND',
+      subtotal_minor: 0,
+      vat_pct: 0,
+      vat_minor: 0,
+      total_minor: 0,
+      notes: null,
+      transaction_id: null,
+      created_at: NOW,
+      deleted_at: null,
+    });
+    await expect(
+      db.invoices.add({
+        id: 'inv-2',
+        number: 'INV-2026-0001', // duplicate
+        issued_at: NOW,
+        customer_name: null,
+        customer_address: null,
+        customer_fiscal_id: null,
+        lines: [],
+        currency: 'TND',
+        subtotal_minor: 0,
+        vat_pct: 0,
+        vat_minor: 0,
+        total_minor: 0,
+        notes: null,
+        transaction_id: null,
+        created_at: NOW,
+        deleted_at: null,
+      }),
+    ).rejects.toThrow();
   });
 
   it('queries variants by [article_id+color+size] compound index', async () => {

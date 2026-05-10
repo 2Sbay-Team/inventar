@@ -75,6 +75,12 @@ export const META_KEYS = {
   // exceeds this snapshot (so a new alert arriving mid-suppression
   // still surfaces).
   alerts_banner_hidden_count_snapshot: 'alerts_banner_hidden_count_snapshot',
+  // v0.5.2.4 ADR-024: per-year invoice sequence counter. Stored as a
+  // map { '2026': 42, '2025': 117 } so we can roll over the per-year
+  // numbering without losing prior years' next-numbers. The
+  // /sell-side invoice issuer reads + increments this atomically
+  // inside the same Dexie transaction that writes the invoice row.
+  invoice_counter: 'invoice_counter',
 } as const;
 
 // v0.5 ADR-019: per-variant snooze for the expiry banner. The banner
