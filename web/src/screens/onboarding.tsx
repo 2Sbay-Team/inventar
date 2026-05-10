@@ -9,7 +9,6 @@ import {
   Shirt,
   ShoppingCart,
   Sparkles,
-  Store,
   Upload,
   X,
   type LucideIcon,
@@ -32,8 +31,9 @@ import { type CurrencyCode, type Locale, type StoreType } from '../types';
 const STORE_TYPE_ICONS: Record<StoreType, LucideIcon> = {
   shoes: Footprints,
   clothes: Shirt,
-  kiosk: Store,
-  grocery: ShoppingCart,
+  // v0.5 ADR-017: 'shop' replaces the legacy kiosk + grocery verticals.
+  // The cart icon best evokes the merged "small minimarket" reference.
+  shop: ShoppingCart,
 };
 
 interface LanguageOption {

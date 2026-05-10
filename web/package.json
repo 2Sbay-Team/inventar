@@ -18,6 +18,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc -b --noEmit",
+    "preflight": "npm run typecheck && npm run lint && npm test",
     "prepare": "cd .. && husky web/.husky"
   },
   "dependencies": {

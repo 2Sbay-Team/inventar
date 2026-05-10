@@ -36,4 +36,22 @@ export const META_KEYS = {
   // Re-shows after the timestamp passes; only set when the user taps
   // "Hide for now" with markers still outstanding.
   migration_banner_hidden_until: 'migration_banner_hidden_until',
+  // v0.5 ADR-017: set after the v6→v7 upgrade callback completes.
+  // No banner needed (the migration is unambiguous), but the timestamp
+  // is useful for debugging and for the e2e migration smoke spec.
+  migration_v7_completed_at: 'migration_v7_completed_at',
+  // v0.5 ADR-019: number of days ahead the daily expiry sweep should
+  // look for soon-to-expire lots. Default 7 days. Settings exposes a
+  // picker (3 / 7 / 14 / 30) — the value is read on every dashboard
+  // mount.
+  expiry_threshold_days: 'expiry_threshold_days',
 } as const;
+
+// v0.5 ADR-019: per-variant snooze for the expiry banner. The banner
+// hides one variant for N days when the merchant taps "Hide for 7 days"
+// in /expiry. We store one meta row per snoozed variant rather than a
+// table because expirations naturally clear themselves once stock sells
+// through, so the row count stays small.
+export function expirySnoozeKey(variantId: string): string {
+  return `expiry_snooze_${variantId}`;
+}

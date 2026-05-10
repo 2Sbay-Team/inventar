@@ -3,6 +3,7 @@ import {
   type CurrencyCode,
   type Locale,
   type ShopProfile,
+  type ShopSubtype,
   type StoreType,
   type UUID,
 } from '../types';
@@ -33,6 +34,11 @@ export interface UpsertProfileInput {
   // Optional: when omitted, the existing store_type is preserved (or
   // DEFAULT_STORE_TYPE for first-time creation).
   store_type?: StoreType;
+  // v0.5 ADR-017: shop sub-categorisation. Only meaningful when
+  // store_type is 'shop'. When omitted, the existing value is preserved
+  // (or [] for first-time creation). The onboarding shop-subtypes step
+  // validates ≥1 selection before calling this.
+  shop_subtypes?: ShopSubtype[];
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -60,6 +66,7 @@ export async function upsertProfile(
       logo_photo_id: nextLogo,
       currency: input.currency ?? existing?.currency ?? DEFAULT_CURRENCY,
       store_type: input.store_type ?? existing?.store_type ?? DEFAULT_STORE_TYPE,
+      shop_subtypes: input.shop_subtypes ?? existing?.shop_subtypes ?? [],
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

@@ -18,7 +18,28 @@ export type Category = string;
 // Top-level shop archetype. Drives which categories the user sees, whether
 // articles need sizes (Variant.size becomes optional for sizeless types),
 // and which dashboard widgets are most relevant.
-export type StoreType = 'shoes' | 'clothes' | 'kiosk' | 'grocery';
+//
+// v0.5 (ADR-017): merged the legacy 'kiosk' and 'grocery' archetypes into
+// a single 'shop' archetype. Sub-categorisation is captured separately in
+// `ShopProfile.shop_subtypes` (multi-select). Splitting the two added no
+// functional difference and forced the merchant to misclassify themselves
+// at onboarding (most small minimarkets sell both).
+export type StoreType = 'shoes' | 'clothes' | 'shop';
+
+// Multi-select sub-categorisation for the shop vertical. v0.5 ADR-017:
+// the sub-types determine which default category list shows up in Add
+// Article and shape the dashboard widgets (e.g. expiry warnings only
+// matter for stores that sell food / cosmetics / vitamins). The merchant
+// can pick any combination at onboarding and edit later in Settings.
+export type ShopSubtype =
+  | 'food_beverages'
+  | 'tobacco_lottery'
+  | 'snacks_confectionery'
+  | 'personal_care'
+  | 'household_cleaning'
+  | 'parapharmaceutique'
+  | 'stationery'
+  | 'other';
 
 // ADR-012 (v0.3): Movements carry a location for stock kept on the shop
 // floor vs in the back room. Transfers move stock between the two.
@@ -27,6 +48,20 @@ export type Location = 'floor' | 'back';
 // ADR-012 extends the v1 set with 'transfer' (between locations within a
 // variant) and 'damage' (write-off without revenue impact).
 export type MovementType = 'sale' | 'purchase' | 'adjustment' | 'return' | 'transfer' | 'damage';
+
+// v0.5 ADR-017: the eight canonical shop sub-types. Source of truth lives
+// in config/shop-subtypes.ts; this is the type union the storage layer
+// uses for `ShopProfile.shop_subtypes`.
+export const SHOP_SUBTYPES: readonly ShopSubtype[] = [
+  'food_beverages',
+  'tobacco_lottery',
+  'snacks_confectionery',
+  'personal_care',
+  'household_cleaning',
+  'parapharmaceutique',
+  'stationery',
+  'other',
+] as const;
 
 export type ExpenseCategory =
   | 'supplier_transport'
@@ -53,6 +88,12 @@ export interface ShopProfile {
   // What kind of shop. Drives category suggestions + whether articles
   // require sizes. Existing pre-multi-vertical installs default to 'shoes'.
   store_type: StoreType;
+  // v0.5 ADR-017: multi-select sub-categorisation, only meaningful when
+  // store_type='shop'. Always an array; empty for non-shop verticals.
+  // The migration v6→v7 maps legacy kiosk → ['tobacco_lottery',
+  // 'snacks_confectionery'] and grocery → ['food_beverages']; merchants
+  // can edit on first launch.
+  shop_subtypes: ShopSubtype[];
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
@@ -76,6 +117,16 @@ export interface Article {
   cost_price_tnd: number;
   sale_price_tnd: number;
   notes: string | null;
+  // v0.5 ADR-017: factory EAN-13 / UPC. Indexed for fast scanner lookup.
+  // Null for items without a barcode (fresh produce, bread, in-house
+  // products). Free-form string at the storage layer — the input
+  // boundary in /receive validates EAN-13 checksum.
+  barcode_ean: string | null;
+  // v0.5 ADR-017: optional reorder threshold. When current stock drops
+  // below this number, search/list show a "Low (N left)" badge and the
+  // dashboard's "Items running low" widget counts this article. Null =
+  // disabled. Stock units are integer (one per Variant), so this is too.
+  min_stock_threshold: number | null;
   search_blob: string;
   updated_at: ISODate;
   archived_at: ISODate | null;
@@ -86,7 +137,7 @@ export interface Variant {
   id: UUID;
   article_id: UUID;
   // Colour label — required for store_types where has_colors=true (shoes,
-  // clothes), null for store_types where has_colors=false (kiosk, grocery).
+  // clothes), null for store_types where has_colors=false (shop).
   // Stored lowercase. ADR-011 moved this off Article so per-(colour, size)
   // stock counts are unambiguous.
   color: string | null;
@@ -125,7 +176,48 @@ export interface Movement {
   // transfer_from and adds to transfer_to.
   transfer_from: Location | null;
   transfer_to: Location | null;
+  // v0.5 ADR-018: groups movements created in a single /receive or /sell
+  // session. Same UUID across every Movement of one transaction so the
+  // dashboard can count "transactions" (sales sessions, not units sold)
+  // and the activity feed can collapse one cart of 5 items into a single
+  // expandable row. Indexed. Null for movements created via the legacy
+  // single-row paths (Quick Adjust, Add Article seed).
+  transaction_id: UUID | null;
+  // v0.5 ADR-019: expiry date stamped on the lot at receiving time. Set
+  // on type='purchase' movements when the merchant entered an expiry in
+  // the /receive bottom sheet. Null for non-perishable items and for
+  // every non-purchase movement type. Indexed for the daily expiry sweep.
+  expires_at: ISODate | null;
+  // v0.5 ADR-019: FIFO attribution for sales of items that have lots.
+  // Set on type='sale' movements when /sell resolves to a variant with at
+  // least one Lot — the sale is attributed to the lot with the earliest
+  // expires_at that still has remaining quantity. Null for non-perishable
+  // items, for sales recorded before lots existed, and for non-sale types.
+  lot_id: UUID | null;
   created_at: ISODate;
+  deleted_at: ISODate | null;
+}
+
+// v0.5 ADR-019: a Lot is a single batch of one Variant received in one
+// /receive session, with one expires_at value. Lots are created
+// automatically by the receiving flow whenever the merchant enters an
+// expiry; non-perishable items never produce Lot rows.
+//
+// Lot.remaining_quantity is NOT stored — it is computed as
+// `original_quantity - SUM(sale movements where lot_id = this.id)`.
+// This keeps Lot append-only and follows the Movement-as-truth principle
+// (ADR-002).
+export interface Lot {
+  id: UUID;
+  variant_id: UUID;
+  // The expiry date the merchant entered at receiving. Indexed (ascending)
+  // so the FIFO query and the daily expiry sweep are O(log n).
+  expires_at: ISODate;
+  received_at: ISODate;
+  original_quantity: number;
+  // FK back to the Movement that created this Lot. Lets the audit trail
+  // and the migration / backup paths reconstruct the receiving event.
+  source_movement_id: UUID;
   deleted_at: ISODate | null;
 }
 

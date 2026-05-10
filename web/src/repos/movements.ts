@@ -45,6 +45,19 @@ export interface RecordMovementInput {
   // (or null) for every other type.
   transfer_from?: Location | null;
   transfer_to?: Location | null;
+  // v0.5 ADR-018: groups movements created in one /receive or /sell
+  // session so the activity feed and dashboard can display them as a
+  // single transaction. Optional — single-row paths (Quick Adjust,
+  // Add Article seed) leave it null.
+  transaction_id?: UUID | null;
+  // v0.5 ADR-019: only meaningful on type='purchase' for items entering
+  // a /receive flow with an expiry date. Validated as ISO date when set.
+  expires_at?: string | null;
+  // v0.5 ADR-019: only meaningful on type='sale' when /sell resolves to
+  // a variant with at least one Lot. Set automatically by
+  // recordSaleTransaction; can also be set manually via the long-form
+  // Quick Adjust for non-FIFO sales.
+  lot_id?: UUID | null;
 }
 
 function assertLocation(value: unknown): asserts value is Location {
@@ -66,6 +79,19 @@ function validate(input: RecordMovementInput): void {
         `Movement.unit_price_tnd must be a non-negative integer, got ${input.unit_price_tnd}`,
       );
     }
+  }
+  if (input.expires_at != null) {
+    if (typeof input.expires_at !== 'string' || Number.isNaN(Date.parse(input.expires_at))) {
+      throw new Error(`Movement.expires_at must be an ISO date string, got ${input.expires_at}`);
+    }
+    if (input.type !== 'purchase') {
+      throw new Error(
+        `Movement.expires_at is only valid on type='purchase', got type='${input.type}'`,
+      );
+    }
+  }
+  if (input.lot_id != null && input.type !== 'sale') {
+    throw new Error(`Movement.lot_id is only valid on type='sale', got type='${input.type}'`);
   }
 
   if (input.type === 'transfer') {
@@ -116,6 +142,9 @@ export async function recordMovement(
     location: input.type === 'transfer' ? null : (input.location as Location),
     transfer_from: input.type === 'transfer' ? (input.transfer_from as Location) : null,
     transfer_to: input.type === 'transfer' ? (input.transfer_to as Location) : null,
+    transaction_id: input.transaction_id ?? null,
+    expires_at: input.expires_at ?? null,
+    lot_id: input.lot_id ?? null,
     created_at: nowISO(),
     deleted_at: null,
   };

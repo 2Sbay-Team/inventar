@@ -1,16 +1,19 @@
 import { expect, test } from '@playwright/test';
 
-// Walks the exact scenario the user asked about: a grocery shop with a
-// "Spaghetti" article. Confirms the sizeless flow works end-to-end —
+// Walks the exact scenario the user asked about: a small minimarket with
+// a "Spaghetti" article. Confirms the sizeless flow works end-to-end —
 // stock count visible, search shows correct copy (no "1 sizes"), and
 // today's profit shows up after a sale.
+//
+// v0.5 (ADR-017): the legacy 'grocery' vertical was merged into 'shop'.
+// The behaviour under test is unchanged; only the picker chip changed.
 
-test('grocery: add spaghetti, sell some, see stock + today profit', async ({ page }) => {
-  // Onboard as grocery via UI so store_type=grocery.
+test('shop: add spaghetti, sell some, see stock + today profit', async ({ page }) => {
+  // Onboard as shop via UI so store_type=shop.
   await page.goto('/');
   await page.getByTestId('lang-en').click();
   await page.getByTestId('intent-new').click();
-  await page.getByTestId('onb-store-grocery').click();
+  await page.getByTestId('onb-store-shop').click();
   await page.getByTestId('shop-name-input').fill('Mini Mart');
   await page.getByTestId('continue').click();
   await page.getByTestId('got-it').click();
@@ -55,7 +58,9 @@ test('grocery: add spaghetti, sell some, see stock + today profit', async ({ pag
       tx.objectStore('variants').add({
         id: variantId,
         article_id: articleId,
+        color: null,
         size: '',
+        photo_id: null,
         hidden: false,
         updated_at: now,
         deleted_at: null,
@@ -66,6 +71,13 @@ test('grocery: add spaghetti, sell some, see stock + today profit', async ({ pag
         delta: 50,
         type: 'purchase',
         note: null,
+        unit_price_tnd: null,
+        location: 'back',
+        transfer_from: null,
+        transfer_to: null,
+        transaction_id: null,
+        expires_at: null,
+        lot_id: null,
         created_at: now,
         deleted_at: null,
       });
@@ -75,6 +87,13 @@ test('grocery: add spaghetti, sell some, see stock + today profit', async ({ pag
         delta: -3,
         type: 'sale',
         note: null,
+        unit_price_tnd: null,
+        location: 'floor',
+        transfer_from: null,
+        transfer_to: null,
+        transaction_id: null,
+        expires_at: null,
+        lot_id: null,
         created_at: now,
         deleted_at: null,
       });

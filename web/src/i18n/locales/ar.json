@@ -147,7 +147,6 @@
     "field_cost": "التكلفة ({{currency}})",
     "field_sale": "البيع ({{currency}})",
     "optional": "اختياري",
-    "save_and_add": "حفظ وإضافة آخر",
     "err_name_required": "الاسم إلزامي (حرفان على الأقل)",
     "err_photo_required": "الصورة إلزامية",
     "err_invalid_sizes": "المقاسات يجب أن تكون أحرفاً وأرقاماً مفصولة بفواصل",
@@ -161,7 +160,21 @@
     "scan_hint": "وجّه نحو باركود أو رمز QR",
     "scan_unsupported_title": "الماسح غير مدعوم هنا",
     "scan_unsupported_body": "استخدم Chrome على Android أو Edge أو Safari للماسح المدمج. يمكنك دائماً كتابة الرمز يدوياً في الملاحظات.",
-    "scan_error_title": "الكاميرا غير متاحة"
+    "scan_error_title": "الكاميرا غير متاحة",
+    "add_color_block": "+ إضافة لون آخر",
+    "remove_color_block": "حذف هذا اللون",
+    "add_size_row": "+ إضافة مقاس",
+    "remove_size_row": "حذف المقاس",
+    "size_placeholder": "٤٠",
+    "floor_label": "العرض",
+    "back_label": "المخزن",
+    "field_mfr_code_placeholder": "رمز الصانع (اختياري)",
+    "err_color_required": "اختر لونًا أو أدخل لونًا مخصصًا",
+    "err_size_required": "المقاس مطلوب",
+    "err_stock_required": "أدخل كمية واحدة على الأقل",
+    "duplicate_warn": "لديك بالفعل {{name}} ({{count}} ألوان). هل تريد إضافة لون جديد إليه؟",
+    "duplicate_open_existing": "فتح العنصر الموجود",
+    "duplicate_dismiss": "إنشاء عنصر جديد على أي حال"
   },
   "color": {
     "white": "أبيض",
@@ -344,10 +357,8 @@
     "shoes_desc": "أحذية / أحذية طويلة — مخزون بمقاسات",
     "clothes_label": "ملابس",
     "clothes_desc": "ملابس — مخزون بمقاسات",
-    "kiosk_label": "كشك",
-    "kiosk_desc": "بقالة صغيرة، وجبات، مجلات",
-    "grocery_label": "بقالة",
-    "grocery_desc": "طعام، مشروبات، احتياجات يومية"
+    "shop_label": "متجر",
+    "shop_desc": "بقالة، كشك، سوبرماركت صغير — تدفق بالمسح الضوئي"
   },
   "help": {
     "title": "دليل سريع",

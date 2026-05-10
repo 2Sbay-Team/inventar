@@ -43,6 +43,15 @@ interface CreateArticleInputCommon {
   // Optional: SKU prefix for the auto-allocated internal_code. Defaults
   // to 'SH' if omitted.
   sku_prefix?: string;
+  // v0.5 ADR-017: factory EAN-13 / UPC. Optional — set by the /receive
+  // mini-form when the merchant scans a barcode that doesn't match any
+  // existing article. Indexed for fast scanner lookup.
+  barcode_ean?: string | null;
+  // v0.5 ADR-017: optional reorder threshold. When the variant's stock
+  // drops below this number, the search/list views show a "Low (N left)"
+  // badge and the dashboard's "Items running low" widget counts the
+  // article. Null = disabled (the default for legacy articles).
+  min_stock_threshold?: number | null;
 }
 
 export interface CreateArticleInputV2 extends CreateArticleInputCommon {
@@ -139,6 +148,8 @@ export async function createArticle(
       cost_price_tnd: input.cost_price_tnd,
       sale_price_tnd: input.sale_price_tnd,
       notes: input.notes,
+      barcode_ean: input.barcode_ean ?? null,
+      min_stock_threshold: input.min_stock_threshold ?? null,
       search_blob: '', // filled in just below
       updated_at: ts,
       archived_at: null,
@@ -179,6 +190,9 @@ export async function createArticle(
           location,
           transfer_from: null,
           transfer_to: null,
+          transaction_id: null,
+          expires_at: null,
+          lot_id: null,
           created_at: ts,
           deleted_at: null,
         };
@@ -203,9 +217,31 @@ export async function getArticle(db: InventarDB, id: UUID): Promise<Article | un
 export type UpdateArticleInput = Partial<
   Pick<
     Article,
-    'name' | 'photo_id' | 'category' | 'brand' | 'cost_price_tnd' | 'sale_price_tnd' | 'notes'
+    | 'name'
+    | 'photo_id'
+    | 'category'
+    | 'brand'
+    | 'cost_price_tnd'
+    | 'sale_price_tnd'
+    | 'notes'
+    | 'barcode_ean'
+    | 'min_stock_threshold'
   >
 >;
+
+// v0.5 ADR-018: scanner-driven lookup. The /receive flow reads this on
+// every successful scan to decide between "match → bottom-sheet quantity
+// picker" and "no match → mini-form for new product". Returns the first
+// matching alive article (uniqueness of EANs is enforced at the input
+// boundary, but we don't trust the index alone — a future bulk import
+// could land duplicates).
+export async function findArticleByEAN(db: InventarDB, ean: string): Promise<Article | undefined> {
+  const trimmed = ean.trim();
+  if (trimmed === '') return undefined;
+  const row = await db.articles.where('barcode_ean').equals(trimmed).first();
+  if (!row || row.deleted_at !== null) return undefined;
+  return row;
+}
 
 // Edits a subset of indexed/searchable fields. We always recompute
 // `search_blob` (DATA_MODEL §5: deterministic on every create/update) and

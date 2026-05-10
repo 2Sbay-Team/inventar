@@ -147,7 +147,6 @@
     "field_cost": "Coût ({{currency}})",
     "field_sale": "Vente ({{currency}})",
     "optional": "facultatif",
-    "save_and_add": "Enregistrer et ajouter un autre",
     "err_name_required": "Le nom est obligatoire (min. 2 caractères)",
     "err_photo_required": "La photo est obligatoire",
     "err_invalid_sizes": "Les tailles doivent être alphanumériques, séparées par virgules",
@@ -161,7 +160,21 @@
     "scan_hint": "Visez un code-barre ou un QR code",
     "scan_unsupported_title": "Scanner non supporté ici",
     "scan_unsupported_body": "Utilisez Chrome sur Android, Edge ou Safari pour le scanner intégré. Vous pouvez toujours saisir le code à la main dans les Notes.",
-    "scan_error_title": "Caméra indisponible"
+    "scan_error_title": "Caméra indisponible",
+    "add_color_block": "+ Ajouter une couleur",
+    "remove_color_block": "Supprimer cette couleur",
+    "add_size_row": "+ Ajouter une pointure",
+    "remove_size_row": "Supprimer cette pointure",
+    "size_placeholder": "40",
+    "floor_label": "Vitrine",
+    "back_label": "Stock",
+    "field_mfr_code_placeholder": "Code fabricant (optionnel)",
+    "err_color_required": "Choisissez une couleur ou saisissez la vôtre",
+    "err_size_required": "La pointure est requise",
+    "err_stock_required": "Saisissez au moins une quantité",
+    "duplicate_warn": "Vous avez déjà un {{name}} ({{count}} couleurs). Ajouter plutôt une nouvelle couleur ?",
+    "duplicate_open_existing": "Ouvrir l'article existant",
+    "duplicate_dismiss": "Créer un nouvel article quand même"
   },
   "color": {
     "white": "blanc",
@@ -344,10 +357,8 @@
     "shoes_desc": "Chaussures / bottes — stock par taille",
     "clothes_label": "Vêtements",
     "clothes_desc": "Habillement — stock par taille",
-    "kiosk_label": "Kiosque",
-    "kiosk_desc": "Mini-marché, snacks, magazines",
-    "grocery_label": "Épicerie",
-    "grocery_desc": "Alimentation, boissons, produits du quotidien"
+    "shop_label": "Boutique",
+    "shop_desc": "Minimarket, kiosque, épicerie — flux par scan"
   },
   "help": {
     "title": "Guide rapide",

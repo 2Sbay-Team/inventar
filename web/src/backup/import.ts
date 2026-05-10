@@ -1,7 +1,13 @@
 import { db as appDB, type InventarDB } from '../db/db';
 import { migrateRowsV5ToV6 } from '../db/migrate-v5-to-v6';
+import {
+  migrateRowsV6ToV7,
+  type V6Article,
+  type V6Movement,
+  type V6ShopProfile,
+} from '../db/migrate-v6-to-v7';
 import { setMeta } from '../repos/meta';
-import type { Photo } from '../types';
+import type { Article, Movement, Photo, ShopProfile } from '../types';
 import { base64ToBlob } from './base64';
 import { FORMAT_V1, type BackupV1, type PhotoExport } from './format-v1';
 import { FORMAT_V2, type BackupV2, type ExportRowsV2, type PhotoExportV2 } from './format-v2';
@@ -123,23 +129,70 @@ function rehydratePhoto(row: PhotoExport | PhotoExportV2): Photo {
 
 // Translates a parsed v1 backup into the same row shape applyRows
 // expects. The migrate-v5-to-v6 kernel handles the variant fan-out and
-// movement remapping; the resulting rows are byte-identical to what the
-// Dexie version(6) upgrade callback would produce on the same input.
+// movement remapping; v6→v7 then layers the v0.5 field defaults on top
+// (barcode_ean, min_stock_threshold, transaction_id, expires_at, lot_id,
+// shop_subtypes). The resulting rows are byte-identical to what the
+// Dexie version(7) upgrade callback would produce on the same input.
 function transformV1ToApplied(backup: BackupV1): AppliedRows {
-  const profile = backup.rows.profile[0] ?? null;
-  const { rows } = migrateRowsV5ToV6({
-    profile,
+  // v5→v6 only transforms articles / variants / movements; profile is
+  // carried through unchanged. v6→v7 handles the kiosk/grocery → shop
+  // mapping and stamps the new field defaults.
+  const profileV1 = backup.rows.profile[0] ?? null;
+  const v6 = migrateRowsV5ToV6({
+    profile: profileV1,
     articles: backup.rows.articles,
     variants: backup.rows.variants,
     movements: backup.rows.movements,
-  });
+  }).rows;
+  const v7 = migrateRowsV6ToV7({
+    profile: profileV1 as V6ShopProfile | null,
+    articles: v6.articles as V6Article[],
+    movements: v6.movements as V6Movement[],
+  }).rows;
   return {
-    profile: backup.rows.profile,
-    articles: rows.articles,
-    variants: rows.variants,
-    movements: rows.movements,
+    profile: v7.profile ? [v7.profile] : [],
+    articles: v7.articles,
+    variants: v6.variants,
+    movements: v7.movements,
     expenses: backup.rows.expenses,
     photos: backup.rows.photos,
+  };
+}
+
+// v0.5: defensive backfill for v2 backups exported BEFORE the v0.5
+// fields existed. We can't tell from the format-v2 envelope alone which
+// shape the rows have inside, so we run every imported v2 row through a
+// no-op upgrade that fills in null defaults on missing fields. Rows that
+// already have the v0.5 fields pass through unchanged.
+function backfillV05Defaults(rows: AppliedRows): AppliedRows {
+  return {
+    profile: rows.profile.map(
+      (p) =>
+        ({
+          ...p,
+          shop_subtypes: ((p as ShopProfile).shop_subtypes ?? []) as ShopProfile['shop_subtypes'],
+        }) as ShopProfile,
+    ),
+    articles: rows.articles.map(
+      (a) =>
+        ({
+          ...a,
+          barcode_ean: (a as Article).barcode_ean ?? null,
+          min_stock_threshold: (a as Article).min_stock_threshold ?? null,
+        }) as Article,
+    ),
+    variants: rows.variants,
+    movements: rows.movements.map(
+      (m) =>
+        ({
+          ...m,
+          transaction_id: (m as Movement).transaction_id ?? null,
+          expires_at: (m as Movement).expires_at ?? null,
+          lot_id: (m as Movement).lot_id ?? null,
+        }) as Movement,
+    ),
+    expenses: rows.expenses,
+    photos: rows.photos,
   };
 }
 
@@ -255,8 +308,13 @@ export async function applyBackup(
   options: ApplyOptions,
   db: InventarDB = appDB,
 ): Promise<ImportSummary> {
-  const rows: AppliedRows =
+  const raw: AppliedRows =
     parsed.kind === 'v2' ? parsed.backup.rows : transformV1ToApplied(parsed.backup);
+  // v0.5 defensive backfill — the v2 envelope predates the v0.5 fields,
+  // so a v2 backup taken before this version won't have barcode_ean,
+  // shop_subtypes, etc. We fill nulls so the apply path never touches a
+  // row missing required keys.
+  const rows = backfillV05Defaults(raw);
   return applyRows(rows, parsed, options, db);
 }
 

@@ -25,6 +25,10 @@ interface SeedArticleInput {
   // Tiny PNG bytes (base64) to attach as a photo. Optional.
   photoB64?: string;
   archived?: boolean;
+  // v0.5 ADR-017: optional fields exposed to e2e seeds so tests can
+  // exercise the new shop-vertical features without a UI walk.
+  barcode_ean?: string | null;
+  min_stock_threshold?: number | null;
 }
 
 interface SeedInput {
@@ -86,6 +90,8 @@ async function applySeed(input: SeedInput): Promise<void> {
       cost_price_tnd: a.cost_tnd ?? 30000,
       sale_price_tnd: a.sale_tnd ?? 60000,
       notes: null,
+      barcode_ean: a.barcode_ean ?? null,
+      min_stock_threshold: a.min_stock_threshold ?? null,
       sizes: sizes.map(({ size, qty }) => ({ size, initial_qty: qty })),
     });
     if (a.archived) {
@@ -110,7 +116,15 @@ async function sellOne(articleName: string, size: string): Promise<void> {
   if (!article) throw new Error(`seed: article not found: ${articleName}`);
   const variant = await db.variants.where('[article_id+size]').equals([article.id, size]).first();
   if (!variant) throw new Error(`seed: variant not found ${articleName}/${size}`);
-  await recordMovement(db, { variant_id: variant.id, delta: -1, type: 'sale', note: null });
+  // ADR-012: location is required on sale movements. Default to 'floor'
+  // — the merchant rings sales from the shop floor.
+  await recordMovement(db, {
+    variant_id: variant.id,
+    delta: -1,
+    type: 'sale',
+    note: null,
+    location: 'floor',
+  });
 }
 
 async function deleteAll(): Promise<void> {

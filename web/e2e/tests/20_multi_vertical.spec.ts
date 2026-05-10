@@ -2,36 +2,42 @@ import { expect, test } from '@playwright/test';
 import { onboardViaUI } from '../helpers/onboarding';
 
 // Multi-vertical (StoreType) coverage — onboarding step 2 lets the user
-// pick a shop type. Sizeless types (kiosk / grocery) skip the size grid
-// entirely and let the user manage stock as a single unit per article.
+// pick a shop type. v0.5 (ADR-017) merged 'kiosk' and 'grocery' into
+// 'shop', so the picker now offers 3 cards instead of 4. The shop card
+// covers every sizeless/colorless small-format vertical (kiosk, grocery,
+// minimarket, parapharma, stationery — see commit 2 for the sub-types
+// step that further differentiates them).
 
 test.describe('Multi-vertical store types', () => {
-  test('onboarding step 2 renders 4 store-type cards', async ({ page }) => {
+  test('onboarding step 2 renders 3 store-type cards (shop replaces kiosk + grocery)', async ({
+    page,
+  }) => {
     await page.goto('/');
     await expect(page.getByTestId('onboarding')).toBeVisible();
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
 
-    // The 4 cards are present and clickable.
-    for (const code of ['shoes', 'clothes', 'kiosk', 'grocery']) {
+    for (const code of ['shoes', 'clothes', 'shop']) {
       await expect(page.getByTestId(`onb-store-${code}`)).toBeVisible();
     }
+    // Old kiosk and grocery chips must be gone.
+    await expect(page.getByTestId('onb-store-kiosk')).toHaveCount(0);
+    await expect(page.getByTestId('onb-store-grocery')).toHaveCount(0);
   });
 
-  test('selecting kiosk persists to ShopProfile.store_type after onboarding', async ({ page }) => {
+  test('selecting shop persists to ShopProfile.store_type after onboarding', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
 
-    await page.getByTestId('onb-store-kiosk').click();
-    await page.getByTestId('shop-name-input').fill('Kiosk Test');
+    await page.getByTestId('onb-store-shop').click();
+    await page.getByTestId('shop-name-input').fill('Shop Test');
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
 
-    // Read it back from IndexedDB via the seed surface.
     const storeType = await page.evaluate(async () => {
       const dbReq = indexedDB.open('inventar');
       return new Promise<string>((resolve, reject) => {
@@ -46,7 +52,7 @@ test.describe('Multi-vertical store types', () => {
         dbReq.onerror = () => reject(dbReq.error);
       });
     });
-    expect(storeType).toBe('kiosk');
+    expect(storeType).toBe('shop');
   });
 
   test('default selection is shoes — categories show shoe options', async ({ page }) => {
@@ -64,7 +70,7 @@ test.describe('Multi-vertical store types', () => {
 });
 
 test.describe('Switching store type from Settings', () => {
-  test('select kiosk in Settings → confirm warning → store_type updates', async ({ page }) => {
+  test('select shop in Settings → confirm warning → store_type updates', async ({ page }) => {
     // Start as a shoes shop (default).
     await page.goto('/');
     await page.getByTestId('lang-en').click();
@@ -78,14 +84,12 @@ test.describe('Switching store type from Settings', () => {
     // Settings → Shop profile → store-type select.
     await page.getByTestId('nav-settings').click();
     await expect(page.getByTestId('section-shop-profile')).toBeVisible();
-    await page.getByTestId('settings-store-type').selectOption('kiosk');
+    await page.getByTestId('settings-store-type').selectOption('shop');
 
-    // Confirm warning appears + confirm button changes the store_type.
     await expect(page.getByTestId('store-type-confirm')).toBeVisible();
     await page.getByTestId('store-type-confirm-btn').click();
     await expect(page.getByTestId('store-type-confirm')).toHaveCount(0);
 
-    // Read back from IndexedDB.
     const storeType = await page.evaluate(async () => {
       const dbReq = indexedDB.open('inventar');
       return new Promise<string>((resolve, reject) => {
@@ -100,12 +104,11 @@ test.describe('Switching store type from Settings', () => {
         dbReq.onerror = () => reject(dbReq.error);
       });
     });
-    expect(storeType).toBe('kiosk');
+    expect(storeType).toBe('shop');
 
-    // Add Article should now show kiosk categories AND no sizes input.
+    // Add Article should now hide sizes (shop is sizeless).
     await page.getByTestId('nav-add').click();
     await expect(page.getByTestId('field-sizes')).toHaveCount(0);
-    await expect(page.getByTestId('category-drinks')).toBeVisible();
   });
 
   test('cancel button on store-type warning leaves type unchanged', async ({ page }) => {
@@ -117,7 +120,7 @@ test.describe('Switching store type from Settings', () => {
     await page.getByTestId('got-it').click();
 
     await page.getByTestId('nav-settings').click();
-    await page.getByTestId('settings-store-type').selectOption('grocery');
+    await page.getByTestId('settings-store-type').selectOption('shop');
     await expect(page.getByTestId('store-type-confirm')).toBeVisible();
     await page.getByTestId('store-type-cancel').click();
     await expect(page.getByTestId('store-type-confirm')).toHaveCount(0);
@@ -140,13 +143,13 @@ test.describe('Switching store type from Settings', () => {
   });
 });
 
-test.describe('Sizeless mode (kiosk)', () => {
-  test('Add Article hides sizes and shows kiosk categories', async ({ page }) => {
+test.describe('Sizeless mode (shop)', () => {
+  test('Add Article hides sizes for shop vertical', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
-    await page.getByTestId('onb-store-kiosk').click();
+    await page.getByTestId('onb-store-shop').click();
     await page.getByTestId('shop-name-input').fill('Mini Mart');
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
@@ -154,13 +157,8 @@ test.describe('Sizeless mode (kiosk)', () => {
 
     await page.getByTestId('nav-add').click();
 
-    // Sizes input must be gone for kiosk.
+    // Sizes input must be gone for shop.
     await expect(page.getByTestId('field-sizes')).toHaveCount(0);
-
-    // Kiosk-specific categories should be present.
-    await expect(page.getByTestId('category-drinks')).toBeVisible();
-    await expect(page.getByTestId('category-snacks')).toBeVisible();
-    await expect(page.getByTestId('category-tobacco')).toBeVisible();
 
     // Shoe categories must NOT be present.
     await expect(page.getByTestId('category-sport')).toHaveCount(0);

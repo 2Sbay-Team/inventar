@@ -147,7 +147,6 @@
     "field_cost": "Cost ({{currency}})",
     "field_sale": "Sale ({{currency}})",
     "optional": "optional",
-    "save_and_add": "Save and add another",
     "err_name_required": "Name is required (min 2 characters)",
     "err_photo_required": "Photo is required",
     "err_invalid_sizes": "Sizes must be alphanumeric, comma-separated",
@@ -161,7 +160,21 @@
     "scan_hint": "Point at a barcode or QR code",
     "scan_unsupported_title": "Scanner not supported here",
     "scan_unsupported_body": "Use Chrome on Android, Edge, or Safari for the in-app scanner. You can still type the SKU into Notes.",
-    "scan_error_title": "Camera unavailable"
+    "scan_error_title": "Camera unavailable",
+    "add_color_block": "+ Add another colour",
+    "remove_color_block": "Remove this colour",
+    "add_size_row": "+ Add size",
+    "remove_size_row": "Remove size",
+    "size_placeholder": "40",
+    "floor_label": "Floor",
+    "back_label": "Back",
+    "field_mfr_code_placeholder": "Manufacturer code (optional)",
+    "err_color_required": "Pick a colour or type a custom one",
+    "err_size_required": "Size is required",
+    "err_stock_required": "Set at least one quantity",
+    "duplicate_warn": "You already have a {{name}} ({{count}} colours). Add a new colour to it instead?",
+    "duplicate_open_existing": "Open existing article",
+    "duplicate_dismiss": "Add a new article anyway"
   },
   "color": {
     "white": "white",
@@ -344,10 +357,8 @@
     "shoes_desc": "Shoes / boots — sized stock",
     "clothes_label": "Clothes",
     "clothes_desc": "Apparel — sized stock",
-    "kiosk_label": "Kiosk",
-    "kiosk_desc": "Mini-mart, snacks, magazines",
-    "grocery_label": "Grocery",
-    "grocery_desc": "Food, drinks, daily goods"
+    "shop_label": "Shop",
+    "shop_desc": "Minimarket, kiosk, grocery — scan-driven"
   },
   "help": {
     "title": "Quick guide",

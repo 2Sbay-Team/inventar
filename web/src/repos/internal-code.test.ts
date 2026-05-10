@@ -15,6 +15,8 @@ function mkArticle(overrides: Partial<Article> & Pick<Article, 'id' | 'internal_
     cost_price_tnd: 0,
     sale_price_tnd: 0,
     notes: null,
+    barcode_ean: null,
+    min_stock_threshold: null,
     search_blob: '',
     updated_at: NOW,
     archived_at: null,

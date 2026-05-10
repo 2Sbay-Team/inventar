@@ -1,5 +1,14 @@
 import Dexie, { type Table } from 'dexie';
-import type { Article, Expense, MetaRow, Movement, Photo, ShopProfile, Variant } from '../types';
+import type {
+  Article,
+  Expense,
+  Lot,
+  MetaRow,
+  Movement,
+  Photo,
+  ShopProfile,
+  Variant,
+} from '../types';
 import { META_KEYS } from '../repos/meta';
 import {
   migrateRowsV5ToV6,
@@ -8,6 +17,12 @@ import {
   type V5ShopProfile,
   type V5Variant,
 } from './migrate-v5-to-v6';
+import {
+  migrateRowsV6ToV7,
+  type V6Article,
+  type V6Movement,
+  type V6ShopProfile,
+} from './migrate-v6-to-v7';
 
 export const DB_NAME = 'inventar';
 
@@ -19,6 +34,7 @@ export class InventarDB extends Dexie {
   expenses!: Table<Expense, string>;
   photos!: Table<Photo, string>;
   meta!: Table<MetaRow, string>;
+  lots!: Table<Lot, string>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -187,6 +203,68 @@ export class InventarDB extends Dexie {
         await tx.table('meta').put({
           key: 'migration_v6_report',
           value: report,
+        });
+      });
+    // v7: ADR-017 / ADR-018 / ADR-019. Five additive changes:
+    //   1. ShopProfile: store_type 'kiosk'/'grocery' rewritten to 'shop'
+    //      with shop_subtypes derived from the legacy vertical
+    //      (kiosk → ['tobacco_lottery', 'snacks_confectionery'],
+    //      grocery → ['food_beverages']). All other store_types untouched.
+    //   2. Article: barcode_ean (indexed) + min_stock_threshold default
+    //      to null. Both are optional fields that the new shop flows
+    //      populate going forward.
+    //   3. Movement: transaction_id + expires_at + lot_id default to null.
+    //      transaction_id and expires_at gain indexes; lot_id stays
+    //      non-indexed (queries are always scoped to a single lot).
+    //   4. New `lots` table indexed on [variant_id+expires_at] for FIFO
+    //      queries and on source_movement_id for back-reference. No rows
+    //      backfilled — only new /receive sessions create lots.
+    //   5. meta.migration_v7_completed_at written so the e2e smoke and
+    //      future debugging can confirm the upgrade ran.
+    this.version(7)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        // Pure kernel: read every row, transform in memory, write back.
+        // Catalogues are small (~500 articles per SPEC §5) so the
+        // memory overhead is irrelevant; the kernel staying pure makes
+        // it unit-testable in fake-indexeddb without spinning a Dexie
+        // upgrade pipeline.
+        const profileRow = (await tx.table('profile').get('singleton')) as
+          | V6ShopProfile
+          | undefined;
+        const articles = (await tx.table('articles').toArray()) as V6Article[];
+        const movements = (await tx.table('movements').toArray()) as V6Movement[];
+
+        const { rows } = migrateRowsV6ToV7({
+          profile: profileRow ?? null,
+          articles,
+          movements,
+        });
+
+        if (rows.profile) {
+          await tx.table('profile').put(rows.profile);
+        }
+        for (const a of rows.articles) {
+          await tx.table('articles').put(a);
+        }
+        for (const m of rows.movements) {
+          await tx.table('movements').put(m);
+        }
+
+        await tx.table('meta').put({
+          key: META_KEYS.migration_v7_completed_at,
+          value: new Date().toISOString(),
         });
       });
   }

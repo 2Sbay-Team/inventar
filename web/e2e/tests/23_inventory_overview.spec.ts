@@ -35,13 +35,13 @@ test.describe('Inventory overview (shoes)', () => {
   });
 });
 
-test.describe('Inventory overview (kiosk — sizeless)', () => {
-  test('kiosk shop shows "Units in stock", not "Pairs"', async ({ page }) => {
-    // Onboard as kiosk via UI.
+test.describe('Inventory overview (shop — sizeless)', () => {
+  test('shop vertical shows "Units in stock", not "Pairs"', async ({ page }) => {
+    // Onboard as shop via UI. v0.5 ADR-017: kiosk merged into shop.
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
-    await page.getByTestId('onb-store-kiosk').click();
+    await page.getByTestId('onb-store-shop').click();
     await page.getByTestId('shop-name-input').fill('Kiosk Test');
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();

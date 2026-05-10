@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v6)', () => {
+describe('InventarDB schema (v7)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,15 +15,16 @@ describe('InventarDB schema (v6)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 6', () => {
-    expect(db.verno).toBe(6);
+  it('opens at version 7', () => {
+    expect(db.verno).toBe(7);
   });
 
-  it('has the seven tables from DATA_MODEL §3', () => {
+  it('has the eight tables from DATA_MODEL §3 (v0.5 adds lots)', () => {
     const names = db.tables.map((t) => t.name).sort();
     expect(names).toEqual([
       'articles',
       'expenses',
+      'lots',
       'meta',
       'movements',
       'photos',
@@ -32,12 +33,13 @@ describe('InventarDB schema (v6)', () => {
     ]);
   });
 
-  it('articles: primKey id + the v6 indexes (no more multi-entry *colors)', () => {
+  it('articles: primKey id + v7 indexes including barcode_ean', () => {
     const t = db.table('articles');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
     expect(indexNames).toEqual([
       'archived_at',
+      'barcode_ean',
       'category',
       'deleted_at',
       'internal_code',
@@ -64,7 +66,7 @@ describe('InventarDB schema (v6)', () => {
     expect(tri?.keyPath).toEqual(['article_id', 'color', 'size']);
   });
 
-  it('movements: primKey id + per-location compound for the activity feed', () => {
+  it('movements: primKey id + per-location compound + v7 transaction/expiry indexes', () => {
     const t = db.table('movements');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
@@ -73,12 +75,30 @@ describe('InventarDB schema (v6)', () => {
       '[variant_id+location+created_at]',
       'created_at',
       'deleted_at',
+      'expires_at',
+      'transaction_id',
       'type',
       'variant_id',
     ]);
     const triple = t.schema.indexes.find((i) => i.name === '[variant_id+location+created_at]');
     expect(triple?.compound).toBe(true);
     expect(triple?.keyPath).toEqual(['variant_id', 'location', 'created_at']);
+  });
+
+  it('lots: primKey id + [variant_id+expires_at] for FIFO + source_movement_id back-ref', () => {
+    const t = db.table('lots');
+    expect(t.schema.primKey.name).toBe('id');
+    const indexNames = t.schema.indexes.map((i) => i.name).sort();
+    expect(indexNames).toEqual([
+      '[variant_id+expires_at]',
+      'deleted_at',
+      'expires_at',
+      'source_movement_id',
+      'variant_id',
+    ]);
+    const fifo = t.schema.indexes.find((i) => i.name === '[variant_id+expires_at]');
+    expect(fifo?.compound).toBe(true);
+    expect(fifo?.keyPath).toEqual(['variant_id', 'expires_at']);
   });
 
   it('expenses: primKey id + 3 indexes', () => {
@@ -130,6 +150,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
       logo_photo_id: null,
       currency: 'TND',
       store_type: 'shoes',
+      shop_subtypes: [],
       created_at: NOW,
       updated_at: NOW,
       last_backup_at: null,
@@ -200,6 +221,9 @@ describe('InventarDB CRUD smoke (v6)', () => {
       location: 'back',
       transfer_from: null,
       transfer_to: null,
+      transaction_id: null,
+      expires_at: null,
+      lot_id: null,
       created_at: t,
       deleted_at: null,
     });

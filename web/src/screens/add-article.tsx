@@ -205,7 +205,7 @@ export function AddArticleScreen(): JSX.Element {
         onClose={() => setScannerOpen(false)}
         onDetected={(value) => {
           setScannerOpen(false);
-          // Drop the scanned code into the Notes field. For grocery shops
+          // Drop the scanned code into the Notes field. For shop verticals
           // this becomes "exp. <expiry> · <UPC>"-style; for others it's
           // just a SKU note that survives in the article record.
           patch({ notes: form.notes ? `${form.notes} · ${value}` : value });
@@ -452,7 +452,7 @@ export function AddArticleScreen(): JSX.Element {
           ) : null}
 
           <Field
-            label={t(storeType === 'grocery' ? 'field_expiry_label' : 'field_notes')}
+            label={t(storeCfg.has_expiry ? 'field_expiry_label' : 'field_notes')}
             hint={t('optional')}
           >
             <input
@@ -461,7 +461,7 @@ export function AddArticleScreen(): JSX.Element {
               value={form.notes}
               onChange={(e) => patch({ notes: e.target.value })}
               placeholder={t(
-                storeType === 'grocery' ? 'field_expiry_placeholder' : 'field_notes_placeholder',
+                storeCfg.has_expiry ? 'field_expiry_placeholder' : 'field_notes_placeholder',
               )}
               className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
             />

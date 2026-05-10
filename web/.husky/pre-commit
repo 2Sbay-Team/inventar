@@ -2,4 +2,4 @@
 set -e
 cd "$(git rev-parse --show-toplevel)/web"
 npx lint-staged
-npm run typecheck
+npm run preflight

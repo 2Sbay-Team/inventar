@@ -80,12 +80,20 @@ export function QuickAdjustSheet({
       const parsed = parseCurrency(discountInput, locale, currency);
       if (parsed !== null && parsed >= 0) unitPriceOverride = parsed;
     }
+    // ADR-012: location is required for non-transfer movement types.
+    // Quick Adjust doesn't expose a location picker (the v0.3 long-form
+    // adjust does), so default to the most common case per reason:
+    // purchases land on 'back' (stock arriving from supplier); sales,
+    // returns, and adjustments happen on the 'floor' where the
+    // merchant is standing.
+    const defaultLocation = reason === 'purchase' ? 'back' : 'floor';
     await recordMovement(db, {
       variant_id: target.variantId,
       delta: sign * step,
       type: reason,
       note: note.trim() === '' ? null : note.trim(),
       unit_price_tnd: unitPriceOverride,
+      location: defaultLocation,
     });
     setSubmitting(false);
     onClose();
