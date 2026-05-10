@@ -149,10 +149,21 @@ Validation:
 
 On save:
 - Article record persisted to IndexedDB.
-- Variant records created (one per size).
-- Initial purchase movement records created (one per variant, `delta: +qty`, type: purchase).
+- Variant records created (one per size; v0.3 fans this out per (colour, size) cell).
+- Initial purchase movement records created (one per non-zero floor / back cell, type: purchase).
 - Camera resource released.
 - If "Save and add another": photo resets, form keeps Color/Brand/Category as defaults for the next entry.
+
+**v0.5 (ADR-017).** For the shop vertical, Step 1 also offers an
+optional "Reorder when stock drops below" input that writes
+`Article.min_stock_threshold`. Setting it surfaces the "Low (N left)"
+chip in Search/List and bumps the dashboard's Items-running-low
+widget once stock drops below the value. Shoes / clothes do not
+render the input (the field is shop-shaped). `Article.barcode_ean`
+is **not** surfaced in Add Article — the canonical entry point for a
+barcoded item is `/receive`, which auto-fills the EAN from the scan
+and creates the article via the same repo path. A merchant adding a
+non-barcoded item (fresh produce, bread) leaves `barcode_ean` null.
 
 ### 2.6 Dashboard
 
@@ -187,6 +198,27 @@ Profit on what sold:
 Below — top 3 selling articles (this period), each a small card with name + qty sold + revenue.
 Below — Activity feed: sales, purchases, expenses, archives, all interleaved chronologically.
 Floating button: "+ Add expense" — opens the expense modal.
+
+**v0.5 shop widgets (ADR-018).** Three cards render at the top of
+the Dashboard for shop merchants only (gated on
+`profile.store_type === 'shop'`):
+
+- **Today's close** — sum of revenue for sale movements created
+  since today's local midnight, count of distinct
+  `transaction_id` values (plus per-row count for legacy
+  Quick-Adjust sales with `transaction_id=null`), and the top
+  seller (article name + qty). One-line summary.
+- **Items running low** — number of articles with
+  `min_stock_threshold` set AND total stock below it. Tap navigates
+  to `/list?filter=low` (the filter wiring on /list is a follow-up).
+- **Expiring soon** — number of variants with at least one Lot
+  whose `expires_at` falls within the merchant-configured threshold
+  AND whose snooze (`expiry_snooze_${variantId}`) isn't currently
+  active. Tap navigates to `/expiry`. Same predicate as the Search-
+  screen banner.
+
+Non-shop verticals never render the widgets — the section returns
+null at `ShopWidgets`.
 
 ### 2.7 Expense modal
 
@@ -298,6 +330,108 @@ Service worker uses a "stale-while-revalidate" strategy for the app shell. When 
 4. The merchant sees a small "Updated to v1.X" toast on launch.
 
 No forced reload mid-session. No download progress UI.
+
+---
+
+### 2.10 Settings additions (v0.5, shop only)
+
+- **Shop sub-types** (ADR-017) — multi-select chip card; Save writes
+  `ShopProfile.shop_subtypes`. The selection drives Add Article's
+  default category list (union of selected sub-types' default
+  categories) and the dashboard widgets. Validation: at least one
+  sub-type must remain selected.
+- **Expiry warning threshold** (ADR-019) — chip group
+  (3 / 7 / 14 / 30 days) writing `META_KEYS.expiry_threshold_days`.
+  Tap saves immediately. The Search-screen banner, /expiry default
+  filter, and the dashboard Expiring-soon widget all read this value.
+
+### 2.11 /receive (v0.5 ADR-018, shop only)
+
+Camera-first scan-driven receiving. Replaces Add Article in the shop
+bottom nav (Add Article remains reachable via direct URL for the
+rare non-barcoded item).
+
+```
+[Top bar: Done | Receive Stock | session counter "N items received"]
+[Camera viewfinder fills the body]
+[Floating "Type instead" button — bottom right]
+```
+
+On detect (or manual entry) the screen runs:
+1. `normalizeEan` + `isPlausibleScannableCode` (12 or 13 digits, all
+   numeric); invalid → red banner "Invalid barcode".
+2. `findArticleByEAN`. **Match** → bottom sheet with current stock
+   (from `quantityFor` across the article's variants), qty stepper,
+   optional expiry date input. Save appends one purchase Movement
+   (`location='back'`, `transaction_id=session UUID`, `expires_at`
+   set if entered) and, when expiry was set, a corresponding Lot row.
+   **No match** → bottom sheet with mini-form: name, optional photo,
+   cost, sale, category (chips drawn from the merchant's
+   `shop_subtypes`), qty, optional expiry. Save calls `createArticle`
+   with `barcode_ean=ean` then patches the seed Movement with the
+   session's transaction_id + expiry; Lot row created if expiry set.
+3. While a sheet is open, further detections are ignored. Done
+   navigates back to /. The session UUID is stable for the lifetime
+   of the screen so every Movement created groups under one
+   `transaction_id`.
+
+The "Type instead" sheet accepts a 12/13-digit string (short-circuits
+to the same handler as a real scan), an internal_code (e.g. `GR-0042`),
+or a free-text product-name search.
+
+### 2.12 /sell (v0.5 ADR-018, shop only)
+
+Camera-first scan-driven checkout. Same shape as /receive, but
+accumulates a cart of items and commits the whole transaction at the
+end.
+
+```
+[Top bar: Cancel | Sell + cart-count chip | session counter (taps to open drawer)]
+[Camera viewfinder fills the body]
+[Peek strip — bottom: "{N} in cart · TND total" when non-empty]
+[Floating "Type instead" — bottom right]
+```
+
+Cart semantics:
+- One CartRow per Article. A second scan of the same EAN bumps the
+  row's qty (capped at the current stock).
+- The FIFO Lot is picked when the row is first added (not at Done):
+  earliest `expires_at` with remaining > 0. Null for non-perishable
+  items.
+- Tap the cart-count chip to open the drawer; rows show name × qty
+  + line total + +/− stepper + Remove. Continue scanning closes the
+  drawer; Save commits.
+- On Save: one sale Movement per cart row with
+  `delta=-row.qty, type='sale', location='floor',
+  transaction_id=session UUID, lot_id=row.lot_id, unit_price_tnd=null`
+  (uses the article's catalogue price; per-sale discounts go through
+  the existing Quick Adjust path).
+- A scanned EAN that resolves to a sized vertical's article (clothes
+  / shoes with `barcode_ean` set) is rejected with toast "open it
+  manually" — the user should use Quick Adjust which handles
+  per-(colour, size) sales.
+
+### 2.13 /expiry (v0.5 ADR-019, shop only)
+
+List of variants with at least one alive Lot in the active filter
+window. Default filter "this week" (≤ 7 days); filter chips also
+offer "today" / "this month" / "all upcoming" (365 d). Reachable
+from the Search-screen expiry banner and the dashboard
+Expiring-soon widget.
+
+Each row:
+- Article name + internal_code + sum of remaining (across this
+  variant's lots in the window).
+- Earliest expiry: red chip if past, warn-soft chip if within
+  threshold, neutral otherwise.
+- Actions: **Discount** (disabled in v0.5; planned), **Mark damaged**
+  (writes a damage Movement for the earliest-lot's remaining +
+  `softDeleteLot(earliestLotId)`), **Hide 7 days** (writes
+  `expiry_snooze_${variantId}` meta with `(now + 7d).iso`; the banner
+  predicate honors snoozes).
+
+Snoozed rows render at 60 % opacity but stay actionable so the
+merchant can change their mind.
 
 ---
 

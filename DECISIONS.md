@@ -167,3 +167,158 @@ Each ADR documents a load-bearing decision: what we chose, what we rejected, and
 **Decision:** A single Docker container running `nginx:alpine` serves the built `dist/` folder. The existing cloudflared in `/opt/stack/` adds an ingress rule for `inventar.hoodhood.ai` → `inventar_web:80`. No application server. No database server. No additional services.
 
 **Consequences:** Updates are `git pull && docker compose up -d --build`. Container restart takes 5 seconds. Service worker handles the seamless update on next user launch.
+
+---
+
+> ADRs 011–016 covered the v0.3 / v0.4 vertical-data work
+> (colour-on-Variant, location-on-Movement, photo fallback, etc.) and
+> live in the commit messages and inline `// ADR-NNN` comments. They
+> are referenced from the v0.5 ADRs below but are not reproduced here
+> until the v0.3/v0.4 doc backfill happens. v0.5 picks up at 017.
+
+---
+
+## ADR-017: Shop vertical merger (kiosk + grocery → shop)
+
+**Status:** Accepted (v0.5).
+
+**Context:** v0.4 had four verticals — shoes, clothes, kiosk, grocery.
+Kiosk and grocery were functionally identical (factory-barcoded
+consumer goods, fast turnover, expiry-sensitive, scan-driven). Field
+testing found that splitting them created the appearance of
+customisation without delivering different functionality, and forced
+the merchant to misclassify themselves at onboarding (most small
+minimarkets sell both food and tobacco).
+
+**Decision:** Merge into one `'shop'` vertical with a multi-select
+`shop_subtypes: ShopSubtype[]` field on the profile. The eight
+canonical sub-types (food_beverages, tobacco_lottery,
+snacks_confectionery, personal_care, household_cleaning,
+parapharmaceutique, stationery, other) drive the default category
+list in Add Article and shape the dashboard widgets. Existing kiosk
+profiles map to `shop` + `['tobacco_lottery','snacks_confectionery']`
+on first launch; existing grocery profiles map to `shop` +
+`['food_beverages']`. Article also gains `barcode_ean` (indexed) and
+`min_stock_threshold` (optional reorder threshold).
+
+**Rejected alternatives:**
+
+- Keep kiosk + grocery, deduplicate code internally — code dedup
+  doesn't fix the misclassification at onboarding.
+- One `'minimarket'` vertical without sub-types — loses the
+  category-list signal that drives Add Article and the dashboard.
+
+**Consequences:** Existing data is migrated by `migrate-v6-to-v7.ts`
+(idempotent, pure kernel). Internal codes (KI-NNNN, GR-NNNN) are
+preserved verbatim. The new `barcode_ean` index supports O(log n)
+scanner lookups in /receive + /sell. `Variant.color` and
+`Variant.size` stay null for shop articles — same uniform storage
+shape as v0.3's sizeless / colourless verticals.
+
+---
+
+## ADR-018: Scan-driven flows are the primary entry for shop
+
+**Status:** Accepted (v0.5).
+
+**Context:** Shop merchants live with factory-barcoded items.
+Requiring them to type names + sizes via Add Article for every new
+purchase or sale would burn 10–15 seconds per item. The reference
+model (Carrefour City running on a phone) is camera-first: scan
+EAN, app increments / decrements, repeat.
+
+**Decision:** Introduce `/receive` and `/sell`, both camera-first
+screens with a "Type instead" manual fallback. The shop bottom nav
+becomes Search · Receive · Sell · Dashboard · Settings (replaces
+the Add and List slots — both stay reachable via direct URL for
+edge cases). The non-shop verticals' nav is unchanged.
+
+The scanner component (`barcode-scanner.tsx`) gains a
+`keepOpenAfterDetect` prop with a 1500 ms per-value cooldown so
+streaming-mode callers get one event per distinct code. /receive and
+/sell inline the camera + BarcodeDetector wiring (rather than
+nesting the Dialog-based scanner) because they need to layer their
+own bottom sheets above the camera surface; if a third caller
+appears, extract a `useBarcodeStream` hook.
+
+EAN validation is **loose** in v0.5: 12 or 13 digits, all numeric,
+no checksum check. Strict EAN-13 checksum validation is deferred
+because real-world Tunisian retail barcodes (and the brief's test
+fixtures) frequently fail strict validation.
+
+**Consequences:** Add Article remains the canonical entry point for
+non-barcoded shop items (fresh produce, bread, in-house products).
+Shoes / clothes are unaffected. The session UUID groups all
+movements created in one /receive or /sell visit under one
+`transaction_id`, so the activity feed can collapse one cart of
+five items into a single expandable row when that UI lands.
+
+---
+
+## ADR-019: Lots + automatic FIFO; manual override available
+
+**Status:** Accepted (v0.5).
+
+**Context:** Shop merchants stock perishable items in batches with
+different expiry dates (yogurt received last week vs. yogurt
+received yesterday). Ordering sales randomly from any batch wastes
+the older stock. The merchant should not have to think about which
+batch a customer's purchase comes from.
+
+**Decision:** Add a `Lot` table indexed on
+`[variant_id+expires_at]`. Lots are created automatically by /receive
+when the merchant enters an expiry date; non-perishable items never
+produce Lot rows. /sell calls `pickFifoLot(variantId)` which returns
+the alive lot with the earliest `expires_at` that still has remaining
+stock. The resulting sale Movement carries `lot_id = pickedLot.id`.
+Lot.remaining is computed at read time as
+`original_quantity − SUM(|delta|) for sale movements with lot_id =
+this.id` — no stored counter (ADR-002 movement-as-truth holds).
+
+`Movement.lot_id` is intentionally **not** indexed. Queries scope
+by `variant_id` (which IS indexed) and filter by `lot_id` in memory;
+the inner set is bounded — one variant's movements. The
+remainingForLot fix in commit 4 made this the canonical pattern
+after the initial commit-1 implementation tripped over a
+"KeyPath lot_id is not indexed" Dexie error.
+
+Manual override path: Article Detail's variant view can show a
+per-lot breakdown so the merchant can sell from a non-FIFO batch
+(e.g. a customer bringing their own Tupperware wants the last bit
+of an opened jar). The UI surface for this is a future commit; the
+data model already supports it (`recordMovement` accepts an
+explicit `lot_id`).
+
+**Consequences:** No background job — FIFO runs at scan time. The
+audit trail names the specific batch each sale depleted, which
+makes /expiry's "Mark damaged" surgical (only damages the earliest
+lot, not the variant's entire stock).
+
+---
+
+## ADR-020: Expiry warnings are in-app banners, not push notifications
+
+**Status:** Accepted (v0.5).
+
+**Context:** ADR-007 says the dashboard is observational, not
+prescriptive. Push notifications would be the most aggressive
+prescriptive surface possible — and the PWA architecture (ADR-001)
+makes them brittle on iOS in any case.
+
+**Decision:** Expiry warnings surface as a yellow banner on the
+Search screen and a dashboard widget, never as a push or browser
+notification. The merchant chooses when to look. Per-variant
+"Hide for 7 days" snooze writes a meta key
+(`expiry_snooze_${variantId}`) the banner predicate honors; the
+threshold (3 / 7 / 14 / 30 days) is a Settings card.
+
+**Rejected alternatives:**
+
+- Web Push notifications — iOS PWA support is recent and limited;
+  silent on a backgrounded tab on Android.
+- Email reminders — no email infrastructure; would require user
+  accounts (forbidden by ADR-003).
+
+**Consequences:** The merchant who never opens the app misses
+expiring stock. Documented at install. Acceptable trade-off given
+the architecture and ADR-007's tone.

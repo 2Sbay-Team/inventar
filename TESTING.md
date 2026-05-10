@@ -61,7 +61,35 @@ web/e2e/
 │   ├── 12_archive_and_delete.spec.ts
 │   ├── 13_backup_export.spec.ts
 │   ├── 14_backup_import.spec.ts
-│   └── 15_search_normalisation.spec.ts
+│   ├── 15_search_normalisation.spec.ts
+│   │
+│   ├── 16_layout_max_width.spec.ts            ← v0.2/0.3 follow-ups
+│   ├── 17_photo_cta_renders.spec.ts
+│   ├── 18_bottom_nav_active_pill.spec.ts
+│   ├── 19_features_smoke.spec.ts
+│   ├── 20_multi_vertical.spec.ts
+│   ├── 21_stress.spec.ts
+│   ├── 22_grocery_flow.spec.ts                ← shop now (v0.5 ADR-017 rename)
+│   ├── 23_inventory_overview.spec.ts
+│   ├── 24_mixed_prefix.spec.ts
+│   ├── 25_qr.spec.ts
+│   ├── 26_offline.spec.ts
+│   ├── 27_photo_replace.spec.ts
+│   ├── 28_discount_dashboard.spec.ts
+│   ├── 29_color_on_variant_migration.spec.ts  ← v0.3 v5→v6 e2e smoke
+│   ├── 30_add_multicolor_with_location.spec.ts
+│   ├── 33_shop_sizeless_add_article.spec.ts   ← v0.5 prep cleanup
+│   │
+│   ├── 34_v6_v7_migration.spec.ts             ← v0.5 specs start here
+│   ├── 35_onboarding_shop_subtypes.spec.ts
+│   ├── 36_receive_known_ean.spec.ts
+│   ├── 37_receive_unknown_ean.spec.ts
+│   ├── 38_sell_scan_flow.spec.ts
+│   ├── 39_fifo_sale.spec.ts
+│   ├── 40_expiry_banner.spec.ts
+│   ├── 41_min_stock_threshold_data.spec.ts    ← + UI badge in commit 7
+│   ├── 42_manual_fallback.spec.ts
+│   └── 43_dashboard_shop_widgets.spec.ts
 └── helpers/
     ├── offline.ts          ← context.setOffline wrappers
     ├── time.ts             ← clock manipulation
@@ -115,6 +143,20 @@ test('Quick adjust decrements stock and appends a movement', async ({ page }) =>
 | Archive bin | restore article, delete forever |
 | Locale switch | live without restart; verify all visible strings change; verify RTL direction; verify Eastern numerals |
 | Backup banner | shows after 7 days simulated time; tap export; banner dismiss; reappears next week |
+| Onboarding (v0.5) | shop pick → sub-types step (8 chips, ≥1 required); Settings sub-types editor (35) |
+| /receive (v0.5) | known-EAN bottom sheet + qty + expiry → purchase Movement + Lot (36); unknown-EAN mini-form → Article + purchase Movement + barcode_ean round-trip (37) |
+| /sell (v0.5) | scan-A×2 + scan-B×1 → cart aggregates → 2 sale Movements with shared transaction_id (38); FIFO picks earliest-expiring lot (39); manual-fallback Type-instead matches scan path (42) |
+| Expiry banner (v0.5) | banner shows when lot ≤ threshold; Hide-7d snooze persists; non-shop verticals never see banner (40) |
+| Dashboard widgets (v0.5) | shop merchant sees Today's-close + Items-low + Expiring-soon with correct counts; non-shop hides them (43) |
+| Low-stock badge (v0.5) | "Low (N left)" chip appears in Search when stock < threshold; clears when restocked (41 UI extension) |
+
+**Vertical coverage.**
+
+| Vertical | Coverage path                                            |
+|----------|----------------------------------------------------------|
+| shoes    | 01–28 (default seed); colour-on-variant via 29, 30       |
+| clothes  | 20 (multi-vertical picker)                               |
+| shop     | 22 (renamed from grocery), 23 (inventory overview), 33–43 cover the entire v0.5 surface (sub-types, /receive, /sell, /expiry, dashboard widgets, low-stock badge) |
 
 ### 2.4 Offline tests (`10_offline_writes.spec.ts`)
 

@@ -17,21 +17,40 @@ This document is the firewall against scope creep. Anything listed here is **del
 ### Commerce features
 
 - **Customer database.** No "who bought what". Sales are anonymous.
+- **Customer credit ("Karneh").** v0.5 explicitly excluded — "we sell now, settle later" tracking would need a customer database (also excluded).
 - **Invoices, receipts, or printable documents** of any kind.
 - **Sales tax computation, VAT.** Prices are stored as the merchant types them.
-- **Loyalty programs, discounts, coupons, vouchers.**
+- **Loyalty programs, discounts, coupons, vouchers.** (Per-sale `unit_price_tnd` override exists since v0.4 for one-off discounts; promotional pricing is out.)
 - **Online ordering / e-commerce storefront.** This is an internal tool, not a customer-facing site.
 - **Payment processing.** Cash-only; no integration with any payment service provider.
+- **Multi-payment tracking** (cash / card / mobile money). v0.5 explicitly excluded.
 - **Refunds workflow with money tracking.** Returns adjust stock; cash flow is the merchant's mental note.
+- **Weighed-item integration** (scale hardware). v0.5 explicitly excluded.
+- **Pack / unit math** (e.g. "received 1 case of 12, sell singles"). Out of scope; merchant types the unit count manually.
+
+### Pharmacy / regulated retail (v0.5)
+
+- **Licensed pharmacy features** (prescription tracking, drug
+  interactions, regulatory reporting). Out of scope.
+  Parapharmaceutique (over-the-counter cosmetics, vitamins,
+  hygiene) IS in scope under the shop vertical's `parapharmaceutique`
+  sub-type — same sized=false, scan-driven shape as other shop sub-
+  types, no special regulatory layer.
 
 ### Inventory features
 
-- **Barcode scanning.** Many of the target users' items have no barcode; designing for barcodes optimises for the wrong case.
 - **AI-based photo recognition** to autofill name/category. Phase 3 if validated demand.
-- **Multi-store / multi-warehouse / location tracking.** One install = one shop.
+- **Multi-store / multi-warehouse.** One install = one shop. (v0.3 added an in-shop floor / back location dimension on Movement; that is a single-shop layout aid, not a multi-warehouse system.)
 - **Supplier database, supplier-specific pricing.** Brand free-text is enough.
 - **Purchase orders, stock requests, automated reorder.**
 - **Bundles or kits** (e.g. "shoe + shoe-care kit at one price").
+- **Cycle counting / formal inventory variance reports.** (v0.5 plan, explicit out-of-scope.)
+
+> **v0.5 scope-shift.** v1.0 deliberately excluded barcode scanning
+> ("designing for barcodes optimises for the wrong case" for
+> no-SKU shoe stock). v0.5 introduced barcode scanning ONLY for the
+> shop vertical, where factory-barcoded consumer goods are the
+> common case. Shoes / clothes still don't expose a scan flow.
 
 ### Notifications & automation
 

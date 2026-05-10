@@ -68,12 +68,16 @@ Read in this order. Do not start coding before all eight files are read end-to-e
 
 | Term | Meaning |
 |---|---|
-| Article | A model in the catalogue (one shoe model, one shirt design, etc.). Has many Variants. |
-| Variant | One size + color combination of an Article. |
-| Movement | An append-only event recording a stock change (sale, purchase, adjustment, return). Quantity is computed as `SUM(movements.delta)` for a variant — never stored. |
+| Article | A model in the catalogue (one shoe model, one shirt design, one packaged retail SKU). Has many Variants. |
+| Variant | One (colour, size) combination of an Article. v0.3 ADR-011 moved colour off Article; v0.3 ADR-012 added a per-Movement floor / back location. Sizeless / colourless verticals (shop) keep one Variant per Article with both fields null. |
+| Movement | An append-only event recording a stock change (sale, purchase, adjustment, return, transfer, damage). Quantity is computed as `SUM(movements.delta)` for a variant — never stored. |
+| Lot | (v0.5 ADR-019) A single batch of one Variant received in one /receive session, with one expiry date. Lots are created automatically when the merchant enters an expiry. /sell auto-attributes the sale to the FIFO lot (earliest expires_at with remaining > 0). Lot.remaining is derived: `original_quantity − SUM(|delta|)` for sale movements with `lot_id = this.id`. |
+| Transaction | (v0.5 ADR-018) A UUID stamped on every Movement created in one /receive or /sell session. Lets the activity feed collapse one cart of N items into a single expandable row. |
 | Expense | A flat cost not tied to a specific article (delivery, rent, packaging). |
+| Vertical / store_type | The shape of the catalogue (shoes / clothes / shop). v0.5 ADR-017 merged the legacy kiosk + grocery into 'shop' with multi-select `shop_subtypes` for sub-categorisation. |
+| Shop sub-type | (v0.5) One of food_beverages, tobacco_lottery, snacks_confectionery, personal_care, household_cleaning, parapharmaceutique, stationery, other. Only meaningful when store_type === 'shop'. Drives Add Article's category list and the dashboard widgets. |
 | LWW | Last-Writer-Wins. Conflict resolution for editable metadata fields if/when concurrent edits ever happen on the same device (rare). |
 | Tombstone | A soft-delete marker (`deleted_at` timestamp). Hard deletes reserved for explicit user-confirmed mistakes. |
 | PWA | Progressive Web App. Installable from a URL, runs offline after first install. |
-| TND | Tunisian Dinar. The only currency in MVP. Stored as integer millimes (1 TND = 1000 millimes). |
+| TND | Tunisian Dinar. The default currency. Stored as integer millimes (1 TND = 1000 millimes). v0.4 added per-shop currency selection — the `_tnd` suffix on money fields is historical and now means "minor units of the shop's chosen currency". |
 | millimes | Subunit of TND. Stored as integers to avoid floating-point arithmetic on money. |

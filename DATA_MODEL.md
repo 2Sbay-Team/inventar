@@ -16,18 +16,33 @@ Single source of truth for table shapes, types, and indexes. The app has only on
 
 ## 2. TypeScript types (canonical)
 
-```ts
-// src/types/index.ts — used everywhere in the app
+The shape below reflects the v0.5 schema. v0.3 introduced colour-on-Variant
++ location-on-Movement (ADR-011/012); v0.5 added the shop fields, lots, and
+transaction grouping (ADR-017/018/019). The authoritative file is
+`src/types/index.ts`.
 
+```ts
 export type UUID = string;        // uuidv4()
 export type ISODate = string;     // "2026-05-05T14:23:00.123Z"
 export type Locale = 'fr' | 'ar' | 'en';
+export type CurrencyCode = string;          // ISO 4217
+export type Category = string;              // free-form
 
-export type Category =
-  | 'sport' | 'dress' | 'casual'
-  | 'kids'  | 'women' | 'men';
+// v0.5 ADR-017 — kiosk + grocery merged into one 'shop' vertical.
+export type StoreType = 'shoes' | 'clothes' | 'shop';
 
-export type MovementType = 'sale' | 'purchase' | 'adjustment' | 'return';
+// v0.5 ADR-017 — multi-select sub-categorisation, only used when
+// store_type === 'shop'. Drives Add Article's default category list.
+export type ShopSubtype =
+  | 'food_beverages' | 'tobacco_lottery' | 'snacks_confectionery'
+  | 'personal_care'  | 'household_cleaning' | 'parapharmaceutique'
+  | 'stationery'     | 'other';
+
+// v0.3 ADR-012.
+export type Location = 'floor' | 'back';
+
+// v0.3 ADR-012 added 'transfer' + 'damage'.
+export type MovementType = 'sale' | 'purchase' | 'adjustment' | 'return' | 'transfer' | 'damage';
 
 export type ExpenseCategory =
   | 'supplier_transport' | 'rent' | 'electricity'
@@ -36,9 +51,14 @@ export type ExpenseCategory =
 export type RecurringPeriod = 'none' | 'weekly' | 'monthly';
 
 export interface ShopProfile {
-  id: 'singleton';        // there is exactly one row, fixed id
+  id: 'singleton';
   name: string;
   locale: Locale;
+  logo_photo_id: UUID | null;
+  currency: CurrencyCode;
+  store_type: StoreType;
+  // v0.5 ADR-017: empty array for non-shop verticals.
+  shop_subtypes: ShopSubtype[];
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
@@ -46,18 +66,23 @@ export interface ShopProfile {
 
 export interface Article {
   id: UUID;
-  internal_code: string;   // "SH-0042", auto-generated
+  internal_code: string;
   name: string;
-  photo_id: UUID | null;   // FK to Photo
+  photo_id: UUID | null;     // ADR-013: doubles as fallback when Variant.photo_id is null
   category: Category;
-  colors: string[];        // free-form, lowercase
+  // DEPRECATED v0.3: kept as a denormalised cache of unique
+  // Variant.color values; readers should use the variants list.
+  colors: string[];
   brand: string | null;
-  cost_price_tnd: number;  // millimes
-  sale_price_tnd: number;  // millimes
+  cost_price_tnd: number;
+  sale_price_tnd: number;
   notes: string | null;
-
-  search_blob: string;     // denormalised, lowercase, diacritics-stripped, for indexed search
-
+  // v0.5 ADR-017: factory EAN-13 / UPC. Indexed for /receive + /sell scanner lookup.
+  barcode_ean: string | null;
+  // v0.5 ADR-017: optional reorder threshold; drives the "Low (N left)" badge in
+  // Search/List and the dashboard's Items-running-low widget.
+  min_stock_threshold: number | null;
+  search_blob: string;
   updated_at: ISODate;
   archived_at: ISODate | null;
   deleted_at: ISODate | null;
@@ -66,9 +91,11 @@ export interface Article {
 export interface Variant {
   id: UUID;
   article_id: UUID;
-  size: string;            // "42", "M", "32x34" — alphanumeric
-  hidden: boolean;         // cosmetic only, default false
-
+  // v0.3 ADR-011 — colour moved off Article. Null for sizeless / colourless verticals.
+  color: string | null;
+  size: string | null;
+  photo_id: UUID | null;  // per-colour photo; falls back to Article.photo_id
+  hidden: boolean;
   updated_at: ISODate;
   deleted_at: ISODate | null;
 }
@@ -76,34 +103,55 @@ export interface Variant {
 export interface Movement {
   id: UUID;
   variant_id: UUID;
-  delta: number;           // signed integer, non-zero
+  delta: number;
   type: MovementType;
   note: string | null;
+  // Per-unit price override (millimes); null = use article.sale_price_tnd.
+  unit_price_tnd: number | null;
+  // v0.3 ADR-012 location dimension.
+  location: Location | null;
+  transfer_from: Location | null;
+  transfer_to: Location | null;
+  // v0.5 ADR-018: groups movements created in one /receive or /sell session.
+  transaction_id: UUID | null;
+  // v0.5 ADR-019: ISO date stamped on type='purchase' movements with expiry.
+  expires_at: ISODate | null;
+  // v0.5 ADR-019: FIFO attribution on type='sale' movements.
+  lot_id: UUID | null;
+  created_at: ISODate;
+  deleted_at: ISODate | null;
+}
 
-  created_at: ISODate;     // immutable, set once
-  deleted_at: ISODate | null;  // tombstone if reverted; never edited
+// v0.5 ADR-019: Lots track expiry-dated batches of one Variant.
+// remaining_quantity is NOT stored — see §6 + §9.
+export interface Lot {
+  id: UUID;
+  variant_id: UUID;
+  expires_at: ISODate;
+  received_at: ISODate;
+  original_quantity: number;
+  source_movement_id: UUID;
+  deleted_at: ISODate | null;
 }
 
 export interface Expense {
   id: UUID;
   category: ExpenseCategory;
-  amount_tnd: number;       // millimes
+  amount_tnd: number;
   note: string | null;
-  at: ISODate;              // user-editable date
+  at: ISODate;
   recurring: RecurringPeriod;
-
   updated_at: ISODate;
   deleted_at: ISODate | null;
 }
 
 export interface Photo {
   id: UUID;
-  blob: Blob;               // compressed image data
+  blob: Blob;
   width: number;
   height: number;
   bytes: number;
-  mime: string;             // typically "image/jpeg"
-
+  mime: string;
   created_at: ISODate;
   deleted_at: ISODate | null;
 }
@@ -113,43 +161,40 @@ export interface Photo {
 
 ## 3. Dexie schema
 
+The current schema is at version 7 (v0.5). The full version chain is in
+`src/db/db.ts`; only the v7 stores are reproduced here.
+
 ```ts
-// src/db/db.ts
-import Dexie, { Table } from 'dexie';
-import type { ShopProfile, Article, Variant, Movement, Expense, Photo } from '../types';
-
-export class InventarDB extends Dexie {
-  profile!:   Table<ShopProfile, string>;
-  articles!:  Table<Article, string>;
-  variants!:  Table<Variant, string>;
-  movements!: Table<Movement, string>;
-  expenses!:  Table<Expense, string>;
-  photos!:    Table<Photo, string>;
-  meta!:      Table<{ key: string; value: unknown }, string>;
-
-  constructor() {
-    super('inventar');
-    this.version(1).stores({
-      profile:   'id',
-      articles:  'id, internal_code, *colors, category, archived_at, deleted_at, updated_at, search_blob',
-      variants:  'id, article_id, [article_id+size], deleted_at',
-      movements: 'id, variant_id, type, created_at, [variant_id+created_at], deleted_at',
-      expenses:  'id, category, at, deleted_at',
-      photos:    'id, deleted_at',
-      meta:      'key',
-    });
-  }
-}
-
-export const db = new InventarDB();
+this.version(7).stores({
+  profile:   'id',
+  articles:  'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+  variants:  'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+  movements: 'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at',
+  expenses:  'id, category, at, deleted_at',
+  photos:    'id, deleted_at',
+  meta:      'key',
+  lots:      'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+});
 ```
 
 Key indexes explained:
 
 - `articles.search_blob` — token-prefix search via `where('search_blob').startsWithIgnoreCase(token)` for each token in the user's query.
-- `articles.*colors` — multi-entry index, allows `where('colors').equals('white')`.
-- `variants.[article_id+size]` — compound, used for "do we have this size for this article" lookup.
+- `articles.barcode_ean` — v0.5 ADR-018: scanner lookup in /receive + /sell.
+- `variants.[article_id+color+size]` — v0.3 ADR-011: per-(colour, size) cell lookup.
 - `movements.[variant_id+created_at]` — compound, used for the activity feed.
+- `movements.[variant_id+location+created_at]` — v0.3 ADR-012: per-location quantity scans.
+- `movements.transaction_id` — v0.5 ADR-018: group movements created in one /receive or /sell session.
+- `movements.expires_at` — v0.5 ADR-019: daily expiry sweep.
+- `lots.[variant_id+expires_at]` — v0.5 ADR-019: FIFO query (earliest expiry first per variant).
+- `lots.source_movement_id` — v0.5 ADR-019: back-reference to the purchase Movement that created the lot.
+
+Note: `Movement.lot_id` is **not** indexed. `repos/lots.ts` queries scope
+by `variant_id` and filter by `lot_id` in memory — see §9.
+
+Note: the legacy `articles.*colors` multi-entry index was dropped in v6
+when colour moved to Variant. Old `Article.colors[]` remains as a
+denormalised cache for legacy reads but is no longer indexed.
 
 ---
 
@@ -237,6 +282,26 @@ async function sizeGridFor(articleId: string): Promise<Array<{size: string, qty:
 
 This is fast because Dexie compound indexes make the per-variant movement scan O(log n + k) where k is the number of movements for that variant. At 100 movements per variant per year and 5 variants per article, the size grid for a typical article computes in well under 10 ms.
 
+**v0.3 location split.** `quantityByLocation(variantId)` returns
+`{floor, back}` by walking the same movements and applying location
+rules (ADR-012): sale/purchase/return/adjustment/damage contribute to
+`m.location`; transfer subtracts from `m.transfer_from` and adds to
+`m.transfer_to`. `quantityFor(variantId)` returns floor + back so legacy
+single-number callers stay correct.
+
+**v0.5 lot remaining.** Lot.remaining_quantity is also derived:
+
+```ts
+remaining(lot) = lot.original_quantity
+               - SUM(|m.delta|) for alive sale movements
+                 with m.lot_id === lot.id
+```
+
+`lot_id` is not indexed (§3); `repos/lots.ts:remainingForLot` scopes the
+movement query by the lot's `variant_id` (which IS indexed) and filters
+by `lot_id` in memory. The inner set is bounded — one variant's
+movements — so the filter is fast in practice.
+
 ---
 
 ## 7. Migrations strategy
@@ -244,6 +309,26 @@ This is fast because Dexie compound indexes make the per-variant movement scan O
 - Dexie versioned migrations only. New `db.version(N)` block with `.upgrade(...)` callback.
 - Backwards compatibility: schema changes that drop columns are forbidden in the first six months. Add new columns nullable; deprecate before dropping.
 - Migration logic must be idempotent: a user opening an old version of the app, then a new version, then the old version again, must not corrupt data.
+
+**Migration log.**
+
+| From → To | Brief                                                                                 |
+|-----------|---------------------------------------------------------------------------------------|
+| v1 → v2   | `ShopProfile.logo_photo_id` (nullable, default null).                                 |
+| v2 → v3   | `ShopProfile.currency` (default 'TND').                                               |
+| v3 → v4   | `ShopProfile.store_type` (default 'shoes').                                           |
+| v4 → v5   | `Movement.unit_price_tnd` (nullable, default null).                                   |
+| v5 → v6   | v0.3 ADR-011/012: colour-on-Variant, location-on-Movement, fan-out per (color, size). |
+| v6 → v7   | v0.5 ADR-017/018/019: kiosk+grocery → shop, shop_subtypes, barcode_ean,               |
+|           | min_stock_threshold, transaction_id, expires_at, lot_id, new lots store.              |
+
+The v6→v7 kernel is pure: read every legacy row, transform in memory,
+write back. Kiosk profiles map to `store_type='shop'` with
+`shop_subtypes=['tobacco_lottery','snacks_confectionery']`; grocery
+profiles map with `shop_subtypes=['food_beverages']`. All other store
+types pass through unchanged. Internal codes (KI-NNNN, GR-NNNN) are
+preserved verbatim. No Lot rows are backfilled — only new /receive
+sessions create Lots.
 
 ---
 
@@ -274,3 +359,45 @@ Import modes:
 
 - **Replace**: clear current IndexedDB, write imported rows.
 - **Merge**: per-table, keep the row with the greater `updated_at`. For movements, append both copies (UUID prevents duplicates).
+
+---
+
+## 9. Lots & FIFO (v0.5 ADR-019)
+
+A **Lot** is a single batch of one Variant received in one /receive
+session, with one expiry date. Lots are created automatically when
+the merchant enters an expiry on the receive bottom sheet; non-
+perishable items never produce Lot rows. The Lot's
+`source_movement_id` links back to the purchase Movement that created
+it; if that purchase is later reverted (tombstoned), the Lot stays
+but its `remaining` recomputes naturally because no sales were ever
+attributed to it.
+
+**Sale attribution.** /sell calls `pickFifoLot(variantId)` which
+returns the alive lot with the earliest `expires_at` that still has
+remaining stock, or null if the variant has no lots. The resulting
+sale Movement carries `lot_id = pickedLot.id` (or null for non-
+perishable items / sales recorded before lots existed / Quick Adjust
+sales the merchant directs at a specific lot via the not-yet-shipped
+manual override path).
+
+**Damage / write-off.** /expiry's "Mark damaged" action writes a
+damage Movement for the lot's full remaining quantity (location='floor',
+note carries the expiry date) then `softDeleteLot(lotId)`. Other lots
+of the same variant keep their FIFO position. The variant's overall
+stock decreases by exactly the damaged amount.
+
+**Snooze.** /expiry's "Hide for 7 days" stamps an
+`expiry_snooze_${variantId}` meta key with `(now + 7d).iso`. The
+Search-screen banner and the dashboard's Expiring-soon widget filter
+out variants whose snooze is in the future. The /expiry list itself
+shows snoozed rows dimmed (still actionable).
+
+**Indexes.** See §3. The compound `[variant_id+expires_at]` powers
+the FIFO query. `expires_at` alone supports the daily expiry sweep
+across all variants. `Movement.lot_id` is **not** indexed —
+`remainingForLot` scopes by `variant_id` (which IS indexed) and
+filters by `lot_id` in memory. The original commit-1 reasoning that
+"lot queries are always single-lot scoped" turned out to be wrong
+because `pickFifoLot` iterates lots calling `remainingForLot`; the
+fix landed in commit 4 and is now the canonical pattern.
