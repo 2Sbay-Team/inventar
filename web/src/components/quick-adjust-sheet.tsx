@@ -9,7 +9,8 @@ import { formatNumber } from '../i18n/format-number';
 import { parseCurrency } from '../i18n/parse-currency';
 import { db } from '../db/db';
 import { findMostRecentSale, recordMovement } from '../repos/movements';
-import { type Movement, type MovementType, type UUID } from '../types';
+import { lotsForVariant, remainingForLot } from '../repos/lots';
+import { type Lot, type Movement, type MovementType, type UUID } from '../types';
 
 export interface QuickAdjustTarget {
   variantId: UUID;
@@ -67,6 +68,12 @@ export function QuickAdjustSheet({
   // sale" — the merchant can still record a return; lot accounting
   // just skips the credit-back path.
   const [linkedSale, setLinkedSale] = useState<Movement | null>(null);
+  // v0.5.2 ADR-020: alive lots with remaining > 0 for the variant.
+  // When the merchant has ≥2 such lots and the reason is sale or
+  // return, a Lot dropdown appears. Default selection is the FIFO
+  // (earliest-expiry) lot — same as the /sell scan-driven path.
+  const [aliveLots, setAliveLots] = useState<Array<{ lot: Lot; remaining: number }>>([]);
+  const [selectedLotId, setSelectedLotId] = useState<UUID | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -75,8 +82,32 @@ export function QuickAdjustSheet({
       setNote('');
       setDiscountInput('');
       setLinkedSale(null);
+      setAliveLots([]);
+      setSelectedLotId(null);
     }
   }, [open, defaultReason]);
+
+  // Load alive lots when the sheet opens. We always load — the dropdown
+  // visibility is decided at render time based on alive count + reason.
+  useEffect(() => {
+    if (!open || !target) return;
+    let cancelled = false;
+    void (async () => {
+      const lots = await lotsForVariant(db, target.variantId);
+      const withRemaining: Array<{ lot: Lot; remaining: number }> = [];
+      for (const lot of lots) {
+        const remaining = await remainingForLot(db, lot.id);
+        if (remaining > 0) withRemaining.push({ lot, remaining });
+      }
+      if (cancelled) return;
+      setAliveLots(withRemaining);
+      // Default = FIFO (first in lotsForVariant's expires_at ascending).
+      setSelectedLotId(withRemaining[0]?.lot.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, target]);
 
   // Look up the most recent sale whenever the reason flips to return.
   // Cheap (single indexed query); intentionally not pre-fetched on
@@ -163,6 +194,19 @@ export function QuickAdjustSheet({
     // returns, and adjustments happen on the 'floor' where the
     // merchant is standing.
     const defaultLocation = reason === 'purchase' ? 'back' : 'floor';
+    // v0.5.2 ADR-020: lot_id on sale / return movements. Sales attribute
+    // to the merchant-selected lot (default FIFO); returns credit back
+    // to the lot the linked sale depleted (carried via refunds_
+    // movement_id), falling back to the merchant's selection only when
+    // there's no linked sale to inherit from.
+    let lotIdForMovement: UUID | null = null;
+    if (reason === 'sale' && selectedLotId) {
+      lotIdForMovement = selectedLotId;
+    } else if (reason === 'return' && linkedSale?.lot_id) {
+      lotIdForMovement = linkedSale.lot_id;
+    } else if (reason === 'return' && selectedLotId) {
+      lotIdForMovement = selectedLotId;
+    }
     await recordMovement(db, {
       variant_id: target.variantId,
       delta: sign * step,
@@ -171,6 +215,7 @@ export function QuickAdjustSheet({
       unit_price_tnd: unitPriceOverride,
       location: defaultLocation,
       refunds_movement_id: reason === 'return' ? (linkedSale?.id ?? null) : null,
+      lot_id: lotIdForMovement,
     });
     setSubmitting(false);
     onClose();
@@ -220,6 +265,34 @@ export function QuickAdjustSheet({
               +
             </button>
           </div>
+
+          {/* v0.5.2 ADR-020: Lot picker. Only renders when this variant
+              has ≥2 alive lots AND the reason is sale/return (the only
+              reasons where lot_id is meaningful). Default selection is
+              FIFO; merchant can override. */}
+          {aliveLots.length >= 2 && (reason === 'sale' || reason === 'return') ? (
+            <div className="mt-4">
+              <label htmlFor="adjust-lot" className="text-ink-2 mb-1 block text-xs font-medium">
+                {t('lot_picker_label')}
+              </label>
+              <select
+                id="adjust-lot"
+                data-testid="adjust-lot"
+                value={selectedLotId ?? ''}
+                onChange={(e) => setSelectedLotId(e.target.value === '' ? null : e.target.value)}
+                className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                {aliveLots.map(({ lot, remaining }, i) => (
+                  <option key={lot.id} value={lot.id} data-testid={`adjust-lot-option-${lot.id}`}>
+                    {t(i === 0 ? 'lot_option_fifo' : 'lot_option_alt', {
+                      date: lot.expires_at.slice(0, 10),
+                      remaining,
+                    })}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <RadioGroup.Root
             data-testid="adjust-reason"
