@@ -155,12 +155,20 @@ async function exportJson(): Promise<string> {
   return blob.text();
 }
 
+// v0.5 ADR-018: e2e scan injection. BarcodeScanner listens for
+// 'inventar:e2e-scan' on document when VITE_E2E=true. Tests dispatch via
+// this helper so the call site reads the same shape as a real scan.
+function simulateScan(value: string): void {
+  document.dispatchEvent(new CustomEvent('inventar:e2e-scan', { detail: { value } }));
+}
+
 interface SeedAPI {
   seed: (input: SeedInput) => Promise<void>;
   sellOne: (articleName: string, size: string) => Promise<void>;
   reset: () => Promise<void>;
   deleteDb: () => Promise<void>;
   exportJson: () => Promise<string>;
+  simulateScan: (value: string) => void;
 }
 
 declare global {
@@ -178,6 +186,7 @@ export function mountTestSeed(): void {
     reset: deleteAll,
     deleteDb,
     exportJson,
+    simulateScan,
   };
   window.__inventarSeed = api;
 }

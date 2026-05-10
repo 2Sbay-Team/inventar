@@ -91,7 +91,11 @@ test.describe('Onboarding — shop sub-types', () => {
     // unique categories. We assert presence of one category from each
     // sub-type to prove the union actually fired (vs. just the static
     // fallback list from STORE_TYPES.shop.categories).
-    await page.getByTestId('nav-add').click();
+    //
+    // v0.5 ADR-018: shop bottom nav replaces Add with Receive. We
+    // navigate to /add directly to verify the chip list — Add Article
+    // is still reachable, just not surfaced in the primary nav.
+    await page.goto('/add');
     await expect(page.getByTestId('step-1')).toBeVisible();
     await expect(page.getByTestId('category-produce')).toBeVisible();
     await expect(page.getByTestId('category-tobacco')).toBeVisible();

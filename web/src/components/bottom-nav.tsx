@@ -4,22 +4,30 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Plus,
+  ScanLine,
   Search as SearchIcon,
   Settings as SettingsIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { useProfile } from '../hooks/use-profile';
+import { STORE_TYPES } from '../config/store-types';
 
 // Bottom nav, present on Search / List / Add / Dashboard / Settings.
 // Active tab gets a soft accent pill behind icon + label.
+//
+// v0.5 ADR-018: when the active store_type's primary_flow is 'scan'
+// (currently only 'shop'), the Add slot is replaced by Receive.
+// Merchants in scan-first verticals reach Add Article through
+// /receive's manual fallback when they need a non-barcoded item.
 
 interface NavItem {
   to: string;
   testId: string;
-  i18nKey: 'search' | 'list' | 'add' | 'dashboard' | 'settings';
+  i18nKey: 'search' | 'list' | 'add' | 'dashboard' | 'settings' | 'receive';
   Icon: LucideIcon;
 }
 
-const ITEMS: readonly NavItem[] = [
+const ADD_ITEMS: readonly NavItem[] = [
   { to: '/', testId: 'nav-search', i18nKey: 'search', Icon: SearchIcon },
   { to: '/list', testId: 'nav-list', i18nKey: 'list', Icon: LayoutGrid },
   { to: '/add', testId: 'nav-add', i18nKey: 'add', Icon: Plus },
@@ -27,14 +35,26 @@ const ITEMS: readonly NavItem[] = [
   { to: '/settings', testId: 'nav-settings', i18nKey: 'settings', Icon: SettingsIcon },
 ];
 
+const SCAN_ITEMS: readonly NavItem[] = [
+  { to: '/', testId: 'nav-search', i18nKey: 'search', Icon: SearchIcon },
+  { to: '/list', testId: 'nav-list', i18nKey: 'list', Icon: LayoutGrid },
+  { to: '/receive', testId: 'nav-receive', i18nKey: 'receive', Icon: ScanLine },
+  { to: '/dashboard', testId: 'nav-dashboard', i18nKey: 'dashboard', Icon: LayoutDashboard },
+  { to: '/settings', testId: 'nav-settings', i18nKey: 'settings', Icon: SettingsIcon },
+];
+
 export function BottomNav(): JSX.Element {
   const { t } = useTranslation('nav');
+  const profile = useProfile();
+  const storeType = profile?.store_type ?? 'shoes';
+  const isScanFirst = STORE_TYPES[storeType].primary_flow === 'scan';
+  const items = isScanFirst ? SCAN_ITEMS : ADD_ITEMS;
   return (
     <nav
       data-testid="bottom-nav"
       className="border-hair flex flex-shrink-0 justify-around border-t bg-white py-3 pb-5"
     >
-      {ITEMS.map(({ to, testId, i18nKey, Icon }) => (
+      {items.map(({ to, testId, i18nKey, Icon }) => (
         <NavLink
           key={to}
           to={to}

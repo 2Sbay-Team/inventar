@@ -112,8 +112,9 @@ test.describe('Switching store type from Settings', () => {
     expect(storeType).toBe('shop');
 
     // Add Article should now hide sizes (shop is sizeless): Step 2 renders
-    // the sizeless floor/back pair, no size-row input.
-    await page.getByTestId('nav-add').click();
+    // the sizeless floor/back pair, no size-row input. v0.5 ADR-018:
+    // shop nav replaces Add with Receive; route via /add directly.
+    await page.goto('/add');
     await page.getByTestId('field-name').fill('Sizeless check');
     await page.getByTestId('continue').click();
     await expect(page.getByTestId('block-0-sizeless')).toBeVisible();
@@ -167,7 +168,9 @@ test.describe('Sizeless mode (shop)', () => {
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
 
-    await page.getByTestId('nav-add').click();
+    // v0.5 ADR-018: shop nav replaces Add with Receive; route via
+    // /add directly to inspect the Add Article surface for shop.
+    await page.goto('/add');
 
     // Shoe categories must NOT be present (Step 1 chips reflect the shop
     // category list).

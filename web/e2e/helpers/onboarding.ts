@@ -9,6 +9,7 @@ declare global {
       reset: () => Promise<void>;
       deleteDb: () => Promise<void>;
       exportJson: () => Promise<string>;
+      simulateScan: (value: string) => void;
     };
   }
 }

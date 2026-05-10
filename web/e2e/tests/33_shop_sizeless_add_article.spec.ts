@@ -27,7 +27,9 @@ test.describe('Add Article — sizeless, colourless verticals (shop)', () => {
     await expect(page.getByTestId('search-screen')).toBeVisible();
     void onboardViaUI; // type-check the import — kept for parity with sibling tests
 
-    await page.getByTestId('nav-add').click();
+    // v0.5 ADR-018: shop nav replaces Add with Receive; /add stays
+    // reachable directly for the rare non-barcoded item.
+    await page.goto('/add');
     await expect(page.getByTestId('step-1')).toBeVisible();
 
     // Step 1 — basics. The category list is the shop fallback one

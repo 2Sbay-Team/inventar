@@ -31,19 +31,62 @@ interface BarcodeScannerProps {
   // Called with the raw scanned value (e.g. an EAN-13 string, or a URL
   // for QR codes). Caller decides what to do with it.
   onDetected: (value: string) => void;
+  // v0.5 ADR-018: when true, the rAF loop keeps running after onDetected
+  // fires so the user can scan another code without re-opening the
+  // modal. Each value is suppressed within a SAME_VALUE_COOLDOWN_MS
+  // window so the same code isn't re-emitted while the camera lingers
+  // on it. Used by /receive and /sell — both flows scan one item after
+  // another.
+  keepOpenAfterDetect?: boolean;
 }
 
-export function BarcodeScanner({ open, onClose, onDetected }: BarcodeScannerProps): JSX.Element {
+const SAME_VALUE_COOLDOWN_MS = 1500;
+
+export function BarcodeScanner({
+  open,
+  onClose,
+  onDetected,
+  keepOpenAfterDetect = false,
+}: BarcodeScannerProps): JSX.Element {
   const { t } = useTranslation('add');
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  // Tracks the most recent emission so streaming mode can suppress
+  // duplicate frames of the same code without losing distinct codes.
+  const lastEmittedRef = useRef<{ value: string; at: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const supported = getBarcodeDetector() !== null;
+
+  // v0.5 ADR-018: e2e test surface. Headless playwright cannot feed real
+  // video frames to BarcodeDetector, so we listen for a CustomEvent that
+  // the seed surface dispatches in its place. Only mounted when the
+  // bundle was built with VITE_E2E=true (production never sees this).
+  useEffect(() => {
+    if (!open) return;
+    if (!import.meta.env.VITE_E2E) return;
+    function handleE2eScan(ev: Event): void {
+      const detail = (ev as CustomEvent<{ value: string }>).detail;
+      if (!detail?.value) return;
+      const now = Date.now();
+      const dup =
+        lastEmittedRef.current &&
+        lastEmittedRef.current.value === detail.value &&
+        now - lastEmittedRef.current.at < SAME_VALUE_COOLDOWN_MS;
+      if (dup) return;
+      lastEmittedRef.current = { value: detail.value, at: now };
+      onDetected(detail.value);
+    }
+    document.addEventListener('inventar:e2e-scan', handleE2eScan);
+    return () => document.removeEventListener('inventar:e2e-scan', handleE2eScan);
+  }, [open, onDetected]);
 
   useEffect(() => {
     if (!open) return;
     if (!supported) return;
+    // Reset cooldown each time the scanner opens — a fresh session
+    // shouldn't be silenced by a code emitted in a previous one.
+    lastEmittedRef.current = null;
 
     let cancelled = false;
     const Detector = getBarcodeDetector();
@@ -72,8 +115,17 @@ export function BarcodeScanner({ open, onClose, onDetected }: BarcodeScannerProp
           try {
             const codes = await detector.detect(videoRef.current);
             if (codes.length > 0 && codes[0]) {
-              onDetected(codes[0].rawValue);
-              return;
+              const value = codes[0].rawValue;
+              const now = Date.now();
+              const dup =
+                lastEmittedRef.current &&
+                lastEmittedRef.current.value === value &&
+                now - lastEmittedRef.current.at < SAME_VALUE_COOLDOWN_MS;
+              if (!dup) {
+                lastEmittedRef.current = { value, at: now };
+                onDetected(value);
+                if (!keepOpenAfterDetect) return;
+              }
             }
           } catch {
             // Detector occasionally throws on a black frame — ignore
@@ -95,7 +147,7 @@ export function BarcodeScanner({ open, onClose, onDetected }: BarcodeScannerProp
       if (stream) stream.getTracks().forEach((tr) => tr.stop());
       streamRef.current = null;
     };
-  }, [open, supported, onDetected]);
+  }, [open, supported, onDetected, keepOpenAfterDetect]);
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
