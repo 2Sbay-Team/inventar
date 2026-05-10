@@ -42,15 +42,62 @@ export interface StoreTypeConfig {
   // Short i18n key for the one-line description shown under each card.
   desc_key: string;
   // 2-letter prefix used for the auto-allocated internal_code on new
-  // articles. Old articles keep whatever prefix they were created with —
-  // the parser strips by '-' so prefix changes don't break sequencing.
-  // Shop uses 'GR' (carried over from the legacy grocery prefix; the
-  // v6→v7 migration leaves existing 'KI' codes on kiosk-origin articles
-  // alone).
+  // articles. v0.5.2 ADR-024: per-prefix counters — each prefix is
+  // independent. Legacy SH/CL/KI/GR codes from before the v0.5.2 vertical
+  // merge stay in place untouched; FN/SP allocate fresh sequences from
+  // -0001. The parser anchors on `${prefix}-` so prefix changes don't
+  // pollute counters across prefixes.
   sku_prefix: string;
 }
 
+// v0.5.2 ADR-021: 'shoes' + 'clothes' merged into 'fashion'. The legacy
+// keys remain in STORE_TYPES so reads from pre-v9 profiles (between the
+// `db.open()` call and the v8→v9 migration completing) don't crash.
+// They are removed in v0.7+ once we're confident every install has run
+// the migration.
 export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
+  fashion: {
+    has_sizes: true,
+    has_colors: true,
+    has_expiry: false,
+    primary_flow: 'add',
+    // Union of the legacy shoes + clothes category lists. Sub-type
+    // selection in onboarding narrows / expands this in Add Article.
+    categories: [
+      'sport',
+      'dress',
+      'casual',
+      'kids',
+      'women',
+      'men',
+      'shirts',
+      'pants',
+      'dresses',
+      'accessories',
+    ],
+    flag: '👗',
+    label_key: 'fashion_label',
+    desc_key: 'fashion_desc',
+    sku_prefix: 'FN',
+  },
+  shop: {
+    has_sizes: false,
+    has_colors: false,
+    has_expiry: true,
+    primary_flow: 'scan',
+    // Fallback categories when no sub-types are selected. The onboarding
+    // step requires ≥1 sub-type, so this list rarely surfaces in
+    // practice — kept as a safety net for legacy v6 rows pre-migration.
+    categories: ['food', 'drinks', 'snacks', 'household', 'personal_care', 'other'],
+    flag: '🏪',
+    label_key: 'shop_label',
+    desc_key: 'shop_desc',
+    sku_prefix: 'SP',
+  },
+  // Legacy entries (v0.5.2 ADR-021): kept for back-compat reads only.
+  // No new profile should land on these — onboarding offers fashion+shop.
+  // The v8→v9 migration rewrites every existing 'shoes' / 'clothes'
+  // profile to 'fashion'.
   shoes: {
     has_sizes: true,
     has_colors: true,
@@ -73,20 +120,8 @@ export const STORE_TYPES: Record<StoreType, StoreTypeConfig> = {
     desc_key: 'clothes_desc',
     sku_prefix: 'CL',
   },
-  shop: {
-    has_sizes: false,
-    has_colors: false,
-    has_expiry: true,
-    primary_flow: 'scan',
-    // Fallback categories when no sub-types are selected. The onboarding
-    // step requires ≥1 sub-type, so this list rarely surfaces in
-    // practice — kept as a safety net for legacy v6 rows pre-migration.
-    categories: ['food', 'drinks', 'snacks', 'household', 'personal_care', 'other'],
-    flag: '🏪',
-    label_key: 'shop_label',
-    desc_key: 'shop_desc',
-    sku_prefix: 'GR',
-  },
 };
 
-export const STORE_TYPE_ORDER: readonly StoreType[] = ['shoes', 'clothes', 'shop'];
+// Onboarding picker order. v0.5.2 ADR-021: fashion + shop only — the
+// legacy entries are not offered for new profiles.
+export const STORE_TYPE_ORDER: readonly StoreType[] = ['fashion', 'shop'];

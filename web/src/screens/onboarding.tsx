@@ -7,6 +7,7 @@ import {
   FileUp,
   Footprints,
   Shirt,
+  ShoppingBag,
   ShoppingCart,
   Sparkles,
   Upload,
@@ -30,11 +31,17 @@ import { type CurrencyCode, type Locale, type ShopSubtype, type StoreType } from
 // this mapping (rather than the data-only STORE_TYPES config) so the
 // config can stay JSX-free and importable from non-React modules.
 const STORE_TYPE_ICONS: Record<StoreType, LucideIcon> = {
-  shoes: Footprints,
-  clothes: Shirt,
+  // v0.5.2 ADR-021: 'fashion' replaces the legacy shoes + clothes
+  // verticals. The shopping-bag icon evokes the merged boutique flow.
+  fashion: ShoppingBag,
   // v0.5 ADR-017: 'shop' replaces the legacy kiosk + grocery verticals.
   // The cart icon best evokes the merged "small minimarket" reference.
   shop: ShoppingCart,
+  // Legacy entries kept so any read against an un-migrated profile
+  // doesn't crash the picker. Onboarding's STORE_TYPE_ORDER no longer
+  // includes them.
+  shoes: Footprints,
+  clothes: Shirt,
 };
 
 interface LanguageOption {

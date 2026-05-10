@@ -52,6 +52,12 @@ export const META_KEYS = {
   // catalogue is exclusively real EAN-13s — UPC-A or in-house codes
   // would be rejected otherwise.
   ean_strict: 'ean_strict',
+  // v0.5.2 ADR-021: set after the v8→v9 upgrade callback completes.
+  // The /migrations/confirm-subtypes route + the migration banner read
+  // this in tandem with `migration_v9_subtypes_confirmed_at` to decide
+  // whether to surface the "We've simplified your shop categories"
+  // prompt.
+  migration_v9_completed_at: 'migration_v9_completed_at',
 } as const;
 
 // v0.5 ADR-019: per-variant snooze for the expiry banner. The banner

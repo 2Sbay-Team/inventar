@@ -1,16 +1,22 @@
 import { type InventarDB } from '../db/db';
 import {
   type CurrencyCode,
+  type FashionSubtype,
   type Locale,
   type ShopProfile,
   type ShopSubtype,
   type StoreType,
   type UUID,
 } from '../types';
+import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
 import { nowISO } from '../utils/now';
 
 export const DEFAULT_CURRENCY: CurrencyCode = 'TND';
-export const DEFAULT_STORE_TYPE: StoreType = 'shoes';
+// v0.5.2 ADR-021: 'fashion' replaces the legacy 'shoes' default. New
+// profiles created via the API without an explicit store_type land on
+// fashion; onboarding always passes one explicitly.
+export const DEFAULT_STORE_TYPE: StoreType = 'fashion';
+export const DEFAULT_EXPIRY_WARNING_DAYS = 7;
 
 // SPEC §2.1 onboarding produces exactly one ShopProfile row, primary key
 // is the literal string "singleton" (DATA_MODEL §2). We never insert a
@@ -39,6 +45,19 @@ export interface UpsertProfileInput {
   // (or [] for first-time creation). The onboarding shop-subtypes step
   // validates ≥1 selection before calling this.
   shop_subtypes?: ShopSubtype[];
+  // v0.5.2 ADR-021: fashion-vertical analogue of shop_subtypes. Only
+  // meaningful when store_type is 'fashion'. Preserved on omit, [] on
+  // first-time creation.
+  fashion_subtypes?: FashionSubtype[];
+  // v0.5.2 ADR-022: per-vertical merchant-customisable location labels.
+  // When omitted, defaults are derived from store_type + locale via
+  // defaultLocationLabels(); when explicitly set, the merchant's
+  // string is stored verbatim and survives subsequent locale changes.
+  location_floor_label?: string;
+  location_back_label?: string;
+  // v0.5.2 ADR-023: global expiry warning threshold in days. Default
+  // 7 at first-create; preserved across subsequent upserts when omitted.
+  expiry_warning_days?: number;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -59,14 +78,27 @@ export async function upsertProfile(
     if (existing && existing.logo_photo_id && existing.logo_photo_id !== nextLogo) {
       await db.photos.delete(existing.logo_photo_id);
     }
+    const nextStoreType = input.store_type ?? existing?.store_type ?? DEFAULT_STORE_TYPE;
+    // For label defaults: fashion (and the legacy shoes/clothes which
+    // map to it) get fashion-vertical labels; everything else (i.e.
+    // shop) gets shop-vertical labels.
+    const verticalForLabels: 'fashion' | 'shop' = nextStoreType === 'shop' ? 'shop' : 'fashion';
+    const labelDefaults = defaultLocationLabels(verticalForLabels, input.locale);
     const next: ShopProfile = {
       id: SINGLETON_ID,
       name: input.name,
       locale: input.locale,
       logo_photo_id: nextLogo,
       currency: input.currency ?? existing?.currency ?? DEFAULT_CURRENCY,
-      store_type: input.store_type ?? existing?.store_type ?? DEFAULT_STORE_TYPE,
+      store_type: nextStoreType,
       shop_subtypes: input.shop_subtypes ?? existing?.shop_subtypes ?? [],
+      fashion_subtypes: input.fashion_subtypes ?? existing?.fashion_subtypes ?? [],
+      location_floor_label:
+        input.location_floor_label ?? existing?.location_floor_label ?? labelDefaults.floor,
+      location_back_label:
+        input.location_back_label ?? existing?.location_back_label ?? labelDefaults.back,
+      expiry_warning_days:
+        input.expiry_warning_days ?? existing?.expiry_warning_days ?? DEFAULT_EXPIRY_WARNING_DAYS,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

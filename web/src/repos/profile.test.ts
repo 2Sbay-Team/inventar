@@ -29,7 +29,11 @@ describe('profile repo', () => {
     expect(p.locale).toBe('fr');
     expect(p.logo_photo_id).toBeNull();
     expect(p.currency).toBe('TND');
-    expect(p.store_type).toBe('shoes');
+    // v0.5.2 ADR-021: DEFAULT_STORE_TYPE moved from 'shoes' (legacy)
+    // to 'fashion' (the post-merge default). Onboarding always passes
+    // an explicit store_type; this default fires only for API calls
+    // that omit it.
+    expect(p.store_type).toBe('fashion');
     expect(p.created_at).toBe('2026-05-07T08:00:00.000Z');
     expect(p.updated_at).toBe('2026-05-07T08:00:00.000Z');
     expect(p.last_backup_at).toBeNull();

@@ -23,6 +23,7 @@ import {
   type V6Movement,
   type V6ShopProfile,
 } from './migrate-v6-to-v7';
+import { migrateRowsV8ToV9, type V8Article, type V8ShopProfile } from './migrate-v8-to-v9';
 
 export const DB_NAME = 'inventar';
 
@@ -293,6 +294,70 @@ export class InventarDB extends Dexie {
           .modify((m: { refunds_movement_id?: string | null }) => {
             if (!('refunds_movement_id' in m)) m.refunds_movement_id = null;
           });
+      });
+    // v9: ADR-021 / ADR-022 / ADR-023 — vertical consolidation
+    // (shoes + clothes → fashion), customisable location labels, and
+    // the per-article expiry-alert override. Five additive changes:
+    //   1. ShopProfile.fashion_subtypes (new field, default []).
+    //   2. ShopProfile.location_floor_label / location_back_label
+    //      (new fields, defaulted from locale + new vertical via the
+    //      kernel).
+    //   3. ShopProfile.expiry_warning_days (new field, copied from the
+    //      pre-v9 meta key `expiry_threshold_days` if present; the meta
+    //      key stays readable for one release for backup compat — see
+    //      NON_GOALS: drop in v0.7+).
+    //   4. ShopProfile.store_type 'shoes' / 'clothes' rewritten to
+    //      'fashion' with fashion_subtypes derived from the legacy
+    //      vertical (shoes → ['shoes'], clothes → ['clothing_men',
+    //      'clothing_women']).
+    //   5. Article.expiry_alert_days (new field, default null).
+    //
+    // No schema string changes on movements / lots / variants — v9 only
+    // touches profile + articles. The Lot table is unchanged.
+    //
+    // Idempotency: gated on meta.migration_v9_completed_at. A re-run
+    // (Dexie history replay, manual db.open() after a crash) skips the
+    // entire data path. The sentinel key is also what /migrations/
+    // confirm-subtypes uses to decide whether to render the banner.
+    this.version(9)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        const completed = await tx.table('meta').get(META_KEYS.migration_v9_completed_at);
+        if (completed?.value) return;
+        const profileRow = (await tx.table('profile').get('singleton')) as
+          | V8ShopProfile
+          | undefined;
+        const articles = (await tx.table('articles').toArray()) as V8Article[];
+        const expiryMetaRow = await tx.table('meta').get(META_KEYS.expiry_threshold_days);
+        const expiryMetaValue =
+          typeof expiryMetaRow?.value === 'number' ? (expiryMetaRow.value as number) : null;
+
+        const { rows } = migrateRowsV8ToV9({
+          profile: profileRow ?? null,
+          articles,
+          expiryThresholdDaysMeta: expiryMetaValue,
+        });
+        if (rows.profile) {
+          await tx.table('profile').put(rows.profile);
+        }
+        for (const a of rows.articles) {
+          await tx.table('articles').put(a);
+        }
+        await tx.table('meta').put({
+          key: META_KEYS.migration_v9_completed_at,
+          value: new Date().toISOString(),
+        });
       });
   }
 }

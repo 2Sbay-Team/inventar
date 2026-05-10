@@ -17,6 +17,7 @@ function mkArticle(overrides: Partial<Article> & Pick<Article, 'id' | 'internal_
     notes: null,
     barcode_ean: null,
     min_stock_threshold: null,
+    expiry_alert_days: null,
     search_blob: '',
     updated_at: NOW,
     archived_at: null,
@@ -71,14 +72,42 @@ describe('nextInternalCode', () => {
     expect(await nextInternalCode(db, 'GR')).toBe('GR-0001');
   });
 
-  it('continues numbering across mixed prefixes (post store-type switch)', async () => {
-    // Simulates a shop that started as shoes (SH-0001..SH-0003) and
-    // switched to clothes — the next clothes code should be CL-0004,
-    // not CL-0001, because it builds on the global numeric max.
+  it('per-prefix counter: switching prefix starts a fresh sequence at -0001', async () => {
+    // v0.5.2 ADR-024: each prefix is independent. A shop that started as
+    // shoes (SH-0001..SH-0003) and switched to fashion gets FN-0001 as
+    // the first fashion code — NOT FN-0004 (which was the pre-v0.5.2
+    // global-counter behaviour and confused merchants).
     await db.articles.bulkAdd([
       mkArticle({ id: 'a', internal_code: 'SH-0001' }),
       mkArticle({ id: 'b', internal_code: 'SH-0003' }),
     ]);
-    expect(await nextInternalCode(db, 'CL')).toBe('CL-0004');
+    expect(await nextInternalCode(db, 'FN')).toBe('FN-0001');
+    expect(await nextInternalCode(db, 'SP')).toBe('SP-0001');
+    // The legacy prefix is unaffected — still SH-0004 if anyone asks.
+    expect(await nextInternalCode(db, 'SH')).toBe('SH-0004');
+  });
+
+  it('per-prefix counter: legacy and new prefixes coexist without bleeding', async () => {
+    // The realistic post-migration shape: a profile with a few SH-* and
+    // CL-* articles from before the merge plus a couple of FN-* added
+    // after migration. Asking for the next FN respects only FN-* tails.
+    await db.articles.bulkAdd([
+      mkArticle({ id: 'a', internal_code: 'SH-0042' }),
+      mkArticle({ id: 'b', internal_code: 'CL-0017' }),
+      mkArticle({ id: 'c', internal_code: 'FN-0001' }),
+      mkArticle({ id: 'd', internal_code: 'FN-0002' }),
+    ]);
+    expect(await nextInternalCode(db, 'FN')).toBe('FN-0003');
+    expect(await nextInternalCode(db, 'SP')).toBe('SP-0001');
+  });
+
+  it('per-prefix counter: ignores prefix lookalikes (SHX-, SH2-, longer prefixes)', async () => {
+    // tailNumber's startsWith guard MUST require the exact `${prefix}-`
+    // boundary, otherwise "SHX-0050" would bleed into the SH counter.
+    await db.articles.bulkAdd([
+      mkArticle({ id: 'a', internal_code: 'SHX-0050' }),
+      mkArticle({ id: 'b', internal_code: 'SH2-0099' }),
+    ]);
+    expect(await nextInternalCode(db, 'SH')).toBe('SH-0001');
   });
 });

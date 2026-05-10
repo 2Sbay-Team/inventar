@@ -1,35 +1,37 @@
 import { type InventarDB } from '../db/db';
 
 // DATA_MODEL §4: Articles get a human-readable "PFX-NNNN" code, zero-padded
-// to four digits, allocated globally across the catalogue. The prefix
-// comes from the active store_type's sku_prefix (SH for shoes, CL for
-// clothes, KI for kiosk, GR for grocery). The code is derived from the
-// maximum existing code's numeric tail — including archived AND soft-
-// deleted rows — so a deleted "SH-0042" never returns to circulation.
+// to four digits. The prefix comes from the active store_type's
+// sku_prefix.
 //
-// We rely on the lexicographic order of zero-padded numeric tails
-// ("SH-0099" < "SH-0100"), which is why the padding is fixed-width. If
-// the catalogue ever exceeds 9999 articles the padding widens
-// automatically (the parsed integer keeps incrementing); ordering breaks
-// at that boundary, but the MVP target is two orders of magnitude below.
+// v0.5.2 ADR-024: each prefix has an INDEPENDENT counter. The legacy
+// global counter (used pre-v0.5.2) had the side effect that switching
+// store_type left the new prefix continuing the old prefix's max — so
+// a kiosk that had reached GR-0156 would allocate FN-0157 as the next
+// fashion code. That's confusing for the merchant ("why does my first
+// fashion item have number 157?") and breaks the "internal_code labels
+// printed for SH-* still map to a meaningful sequence" assumption.
 //
-// Mixed-prefix scenarios: a user who switches store_type after creating
-// articles will end up with a mix of prefixes. The parser strips the
-// prefix portion (everything before the last '-') and parses the numeric
-// tail, so the next code keeps incrementing the global max regardless of
-// which prefix it had.
+// New behaviour: per-prefix max+1. SH-0042 + FN-0008 → next fashion
+// code is FN-0009. Empty per-prefix history → starts at PFX-0001.
+//
+// Legacy SH/CL/KI/GR codes from before the v0.5.2 vertical merge stay
+// in place untouched; they just don't grow because new fashion / shop
+// articles use the FN / SP prefixes going forward.
 
 const PAD = 4;
 
-// Default for callers that haven't been threaded through the per-store
-// type config yet (tests, legacy code paths). Real callers should pass
-// the active store_type's sku_prefix.
+// Default for callers that haven't been threaded through the per-store-
+// type config (tests, legacy code paths). Real callers should pass the
+// active store_type's sku_prefix.
 const DEFAULT_PREFIX = 'SH';
 
-function tailNumber(internalCode: string): number | null {
-  const dash = internalCode.lastIndexOf('-');
-  if (dash < 0) return null;
-  const tail = internalCode.slice(dash + 1);
+function tailNumber(internalCode: string, prefix: string): number | null {
+  // Match `${prefix}-(\d+)` exactly. Anchored on the prefix so SH-0042
+  // doesn't pollute the FN-counter even though both end in -NNNN.
+  if (!internalCode.startsWith(`${prefix}-`)) return null;
+  const tail = internalCode.slice(prefix.length + 1);
+  if (!/^\d+$/.test(tail)) return null;
   const n = Number.parseInt(tail, 10);
   return Number.isFinite(n) ? n : null;
 }
@@ -38,13 +40,13 @@ export async function nextInternalCode(
   db: InventarDB,
   prefix: string = DEFAULT_PREFIX,
 ): Promise<string> {
-  // We can't rely on Dexie ordering across mixed prefixes, so scan all
-  // codes and pick the max tail. Article count is small (MVP cap ~500)
-  // so the linear pass is cheap.
+  // Linear scan. Article count is small (MVP cap ~500), so even a O(n)
+  // pass per allocation is cheap. We deliberately include archived AND
+  // soft-deleted rows so a deleted "FN-0042" never returns to circulation.
   const all = await db.articles.toArray();
   let max = 0;
   for (const a of all) {
-    const n = tailNumber(a.internal_code);
+    const n = tailNumber(a.internal_code, prefix);
     if (n !== null && n > max) max = n;
   }
   return `${prefix}-${String(max + 1).padStart(PAD, '0')}`;

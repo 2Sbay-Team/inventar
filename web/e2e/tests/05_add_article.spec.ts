@@ -33,7 +33,9 @@ test.describe('Add Article — two-step flow, fields, validation, save', () => {
   test('step 1 fields are present and writable; step 2 reveals per-colour blocks', async ({
     page,
   }) => {
-    await expect(page.getByTestId('field-code')).toContainText('SH-');
+    // v0.5.2 ADR-021: default vertical for new profiles is 'fashion'
+    // (was 'shoes' pre-v9). New articles get the FN- prefix.
+    await expect(page.getByTestId('field-code')).toContainText('FN-');
     await page.getByTestId('field-name').fill('Test name');
     await page.getByTestId('field-brand').fill('Lotto');
     await page.getByTestId('category-sport').click();

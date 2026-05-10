@@ -52,6 +52,11 @@ interface CreateArticleInputCommon {
   // badge and the dashboard's "Items running low" widget counts the
   // article. Null = disabled (the default for legacy articles).
   min_stock_threshold?: number | null;
+  // v0.5.2 ADR-023: per-article override of the global expiry warning
+  // threshold (ShopProfile.expiry_warning_days). Null = use the global.
+  // Only meaningful for shop articles with at least one Lot; ignored
+  // for fashion articles (which don't have expiry tracking).
+  expiry_alert_days?: number | null;
 }
 
 export interface CreateArticleInputV2 extends CreateArticleInputCommon {
@@ -150,6 +155,7 @@ export async function createArticle(
       notes: input.notes,
       barcode_ean: input.barcode_ean ?? null,
       min_stock_threshold: input.min_stock_threshold ?? null,
+      expiry_alert_days: input.expiry_alert_days ?? null,
       search_blob: '', // filled in just below
       updated_at: ts,
       archived_at: null,
@@ -227,6 +233,7 @@ export type UpdateArticleInput = Partial<
     | 'notes'
     | 'barcode_ean'
     | 'min_stock_threshold'
+    | 'expiry_alert_days'
   >
 >;
 

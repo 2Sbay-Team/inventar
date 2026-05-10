@@ -116,8 +116,12 @@ test.describe('Onboarding — shop sub-types', () => {
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
-    // Default selection is shoes; no sub-types step expected.
-    await page.getByTestId('shop-name-input').fill('Shoe Shop');
+    // v0.5.2 ADR-021: vertical picker now offers fashion + shop only;
+    // fashion is the default selection, so the shop-subtypes step does
+    // not appear. (Pre-v9 the default was 'shoes' which was its own
+    // vertical — the merged fashion vertical inherits the same
+    // sub-types-skipping behaviour.)
+    await page.getByTestId('shop-name-input').fill('Fashion Boutique');
     await page.getByTestId('continue').click();
     await expect(page.getByTestId('step-shop-subtypes')).toHaveCount(0);
     await expect(page.getByTestId('step-backup-card')).toBeVisible();
@@ -144,7 +148,7 @@ test.describe('Onboarding — shop sub-types', () => {
         dbReq.onerror = () => reject(dbReq.error);
       });
     });
-    expect(profile.store_type).toBe('shoes');
+    expect(profile.store_type).toBe('fashion');
     expect(profile.shop_subtypes).toEqual([]);
   });
 });

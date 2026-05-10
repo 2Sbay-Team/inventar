@@ -1,4 +1,4 @@
-import type { Article, Locale, Movement, ShopProfile, ShopSubtype, StoreType } from '../types';
+import type { Locale, Movement, ShopSubtype, StoreType } from '../types';
 
 // v0.5 ADR-017 / ADR-018 / ADR-019 — pure migration kernel for v6 → v7.
 //
@@ -73,6 +73,42 @@ export interface V6Movement {
   deleted_at: string | null;
 }
 
+// v7-shape output types. Intentionally narrower than the live ShopProfile /
+// Article (which already include v9 fields). The v8→v9 kernel will add
+// the v9 fields downstream — this kernel just produces the v7 shape that
+// existed at the moment v7 shipped.
+export interface V7ShopProfile {
+  id: 'singleton';
+  name: string;
+  locale: Locale;
+  logo_photo_id: string | null;
+  currency: string;
+  store_type: StoreType;
+  shop_subtypes: ShopSubtype[];
+  created_at: string;
+  updated_at: string;
+  last_backup_at: string | null;
+}
+
+export interface V7Article {
+  id: string;
+  internal_code: string;
+  name: string;
+  photo_id: string | null;
+  category: string;
+  colors: string[];
+  brand: string | null;
+  cost_price_tnd: number;
+  sale_price_tnd: number;
+  notes: string | null;
+  barcode_ean: string | null;
+  min_stock_threshold: number | null;
+  search_blob: string;
+  updated_at: string;
+  archived_at: string | null;
+  deleted_at: string | null;
+}
+
 export interface MigrateInput {
   profile: V6ShopProfile | null;
   articles: V6Article[];
@@ -81,8 +117,8 @@ export interface MigrateInput {
 
 export interface MigrateOutput {
   rows: {
-    profile: ShopProfile | null;
-    articles: Article[];
+    profile: V7ShopProfile | null;
+    articles: V7Article[];
     movements: Movement[];
   };
 }
@@ -104,11 +140,18 @@ export function migrateRowsV6ToV7(input: MigrateInput): MigrateOutput {
   return { rows: { profile, articles, movements } };
 }
 
-function migrateProfile(p: V6ShopProfile): ShopProfile {
+function migrateProfile(p: V6ShopProfile): V7ShopProfile {
   // Cast `locale` once: the v6 row had `locale: string` (no enum) but
   // every value the previous schema actually allowed is one of 'fr' /
   // 'ar' / 'en'. The v3 migration wrote 'TND' as currency; locale was
   // never widened beyond the 3-locale set.
+  //
+  // v0.5.2 ADR-021 / ADR-022 / ADR-023: returns a V7-shaped row only.
+  // The v9 fields (fashion_subtypes, location labels, expiry_warning_
+  // days) are NOT pre-filled here; the chained v8→v9 migration adds
+  // them with the correct locale + vertical-aware values. Pre-filling
+  // here would create a sentinel-vs-real ambiguity in v8→v9 (an empty
+  // array would falsely look like an idempotent re-run).
   const base = {
     id: 'singleton' as const,
     name: p.name,
@@ -145,7 +188,7 @@ function migrateProfile(p: V6ShopProfile): ShopProfile {
   };
 }
 
-function migrateArticle(a: V6Article): Article {
+function migrateArticle(a: V6Article): V7Article {
   return {
     ...a,
     barcode_ean: null,

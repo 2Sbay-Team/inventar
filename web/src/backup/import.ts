@@ -6,6 +6,7 @@ import {
   type V6Movement,
   type V6ShopProfile,
 } from '../db/migrate-v6-to-v7';
+import { migrateRowsV8ToV9 } from '../db/migrate-v8-to-v9';
 import { setMeta } from '../repos/meta';
 import type { Article, Movement, Photo, ShopProfile } from '../types';
 import { base64ToBlob } from './base64';
@@ -128,15 +129,11 @@ function rehydratePhoto(row: PhotoExport | PhotoExportV2): Photo {
 }
 
 // Translates a parsed v1 backup into the same row shape applyRows
-// expects. The migrate-v5-to-v6 kernel handles the variant fan-out and
-// movement remapping; v6→v7 then layers the v0.5 field defaults on top
-// (barcode_ean, min_stock_threshold, transaction_id, expires_at, lot_id,
-// shop_subtypes). The resulting rows are byte-identical to what the
-// Dexie version(7) upgrade callback would produce on the same input.
+// expects. Chains v5→v6 → v6→v7 → v8→v9 (v7→v8's only change is on
+// movements, which we apply inline below). v0.5.2 ADR-021: the v8→v9
+// chain ensures imported v1 backups land on the new fashion / shop
+// vertical with all v9 profile + article fields populated.
 function transformV1ToApplied(backup: BackupV1): AppliedRows {
-  // v5→v6 only transforms articles / variants / movements; profile is
-  // carried through unchanged. v6→v7 handles the kiosk/grocery → shop
-  // mapping and stamps the new field defaults.
   const profileV1 = backup.rows.profile[0] ?? null;
   const v6 = migrateRowsV5ToV6({
     profile: profileV1,
@@ -149,11 +146,25 @@ function transformV1ToApplied(backup: BackupV1): AppliedRows {
     articles: v6.articles as V6Article[],
     movements: v6.movements as V6Movement[],
   }).rows;
-  return {
-    profile: v7.profile ? [v7.profile] : [],
+  // v7→v8 inline: stamp refunds_movement_id null on every movement.
+  const v8Movements = v7.movements.map((m) => ({
+    ...m,
+    refunds_movement_id: m.refunds_movement_id ?? null,
+  }));
+  // v8→v9: fashion / shop vertical consolidation + location labels +
+  // expiry_warning_days + Article.expiry_alert_days. No meta value to
+  // pass for expiry_threshold_days — backups didn't carry the meta
+  // table in v1; the kernel's default 7 wins.
+  const v9 = migrateRowsV8ToV9({
+    profile: v7.profile,
     articles: v7.articles,
+    expiryThresholdDaysMeta: null,
+  }).rows;
+  return {
+    profile: v9.profile ? [v9.profile] : [],
+    articles: v9.articles,
     variants: v6.variants,
-    movements: v7.movements,
+    movements: v8Movements,
     expenses: backup.rows.expenses,
     photos: backup.rows.photos,
   };
