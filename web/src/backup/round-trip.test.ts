@@ -6,6 +6,8 @@ import { recordMovement } from '../repos/movements';
 import { addExpense } from '../repos/expenses';
 import { storePhoto } from '../repos/photos';
 import { quantityFor } from '../repos/quantity';
+import { createInvoice } from '../repos/invoices';
+import { getMeta, META_KEYS } from '../repos/meta';
 import { backupFilename, buildBackup, exportBackupBlob } from './export';
 import {
   BackupFormatTooNewError,
@@ -16,7 +18,8 @@ import {
   parseBackup,
   verifyIntegrity,
 } from './import';
-import { FORMAT_V2, type BackupV2 } from './format-v2';
+import { FORMAT_V2 } from './format-v2';
+import { FORMAT_V3, type BackupV3 } from './format-v3';
 import { FORMAT_V1, type BackupV1 } from './format-v1';
 import { integrityHash } from './integrity';
 
@@ -74,10 +77,10 @@ describe('backup round-trip (v2)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('builds a v2 backup containing every table', async () => {
+  it('builds a v3 backup containing every table (incl. lots + invoices)', async () => {
     await seed(db);
     const backup = await buildBackup(db, { appVersion: '0.3.0' });
-    expect(backup.format).toBe(FORMAT_V2);
+    expect(backup.format).toBe(FORMAT_V3);
     expect(backup.app_version).toBe('0.3.0');
     expect(backup.rows.profile).toHaveLength(1);
     expect(backup.rows.articles).toHaveLength(1);
@@ -86,23 +89,28 @@ describe('backup round-trip (v2)', () => {
     expect(backup.rows.expenses).toHaveLength(1);
     expect(backup.rows.photos).toHaveLength(1);
     expect(backup.rows.photos[0]?.blob_b64).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
-    // ADR-012: v2 movements carry location.
+    // v0.5.2.5: v3 carries lots + invoices arrays (empty in this seed
+    // since the fixture doesn't issue any) and the per-year counter.
+    expect(backup.rows.lots).toEqual([]);
+    expect(backup.rows.invoices).toEqual([]);
+    expect(backup.invoice_counter).toEqual({});
+    // ADR-012: v2 movements carry location (still true on v3).
     expect(backup.rows.movements.every((m) => m.location !== undefined)).toBe(true);
-    // ADR-011: v2 variants carry colour.
+    // ADR-011: variants carry colour.
     expect(backup.rows.variants.every((v) => 'color' in v)).toBe(true);
   });
 
   it('integrity hash verifies on the freshly-built backup', async () => {
     await seed(db);
     const backup = await buildBackup(db, { appVersion: '0.3.0' });
-    expect(await verifyIntegrity({ kind: 'v2', backup })).toBe(true);
+    expect(await verifyIntegrity({ kind: 'v3', backup })).toBe(true);
   });
 
   it('integrity hash fails when a row is mutated', async () => {
     await seed(db);
     const backup = await buildBackup(db, { appVersion: '0.3.0' });
     backup.rows.expenses[0]!.amount_tnd = 999_999;
-    expect(await verifyIntegrity({ kind: 'v2', backup })).toBe(false);
+    expect(await verifyIntegrity({ kind: 'v3', backup })).toBe(false);
   });
 
   it('export → reset → replace import recovers full state', async () => {
@@ -165,7 +173,7 @@ describe('backup round-trip (v2)', () => {
     };
     backup.integrity_sha256 = await integrityHash(backup.rows);
 
-    await applyBackup({ kind: 'v2', backup }, { mode: 'merge' }, db);
+    await applyBackup({ kind: 'v3', backup }, { mode: 'merge' }, db);
     const profile = await db.profile.get('singleton');
     expect(profile?.name).toBe('Round Trip Shop');
   });
@@ -180,7 +188,7 @@ describe('backup round-trip (v2)', () => {
     };
     backup.integrity_sha256 = await integrityHash(backup.rows);
 
-    await applyBackup({ kind: 'v2', backup }, { mode: 'merge' }, db);
+    await applyBackup({ kind: 'v3', backup }, { mode: 'merge' }, db);
     const profile = await db.profile.get('singleton');
     expect(profile?.name).toBe('Renamed In Backup');
   });
@@ -189,14 +197,14 @@ describe('backup round-trip (v2)', () => {
     await seed(db);
     const backup = await buildBackup(db, { appVersion: '0.3.0' });
     const before = await db.movements.count();
-    await applyBackup({ kind: 'v2', backup }, { mode: 'merge' }, db);
+    await applyBackup({ kind: 'v3', backup }, { mode: 'merge' }, db);
     expect(await db.movements.count()).toBe(before);
   });
 
   it('importBackup throws BackupIntegrityError when the hash is wrong', async () => {
     await seed(db);
     const backup = await buildBackup(db, { appVersion: '0.3.0' });
-    const tampered: BackupV2 = { ...backup, integrity_sha256: 'deadbeef' };
+    const tampered: BackupV3 = { ...backup, integrity_sha256: 'deadbeef' };
     await expect(
       importBackup({ data: JSON.stringify(tampered), mode: 'replace' }, db),
     ).rejects.toBeInstanceOf(BackupIntegrityError);
@@ -222,6 +230,62 @@ describe('backup round-trip (v2)', () => {
         rows: { profile: [], articles: [], variants: [], movements: [], expenses: [], photos: [] },
       }),
     ).toThrow(BackupFormatTooNewError);
+  });
+
+  it('v3 round-trips invoices + the per-year invoice counter', async () => {
+    await seed(db);
+    // Issue two invoices in the source DB so the counter ends at 2
+    // and the rows table has snapshot data.
+    await createInvoice(db, {
+      transaction_id: null,
+      customer_name: 'Cust 1',
+      customer_address: null,
+      customer_fiscal_id: null,
+      lines: [{ description: 'A', reference: null, qty: 1, unit_price_minor: 1000 }],
+      currency: 'TND',
+      vat_pct: 19,
+      notes: null,
+    });
+    const second = await createInvoice(db, {
+      transaction_id: null,
+      customer_name: 'Cust 2',
+      customer_address: null,
+      customer_fiscal_id: null,
+      lines: [{ description: 'B', reference: null, qty: 2, unit_price_minor: 5000 }],
+      currency: 'TND',
+      vat_pct: 19,
+      notes: null,
+    });
+    expect(second.number).toMatch(/^INV-\d{4}-0002$/);
+
+    const { blob, backup } = await exportBackupBlob(db, { appVersion: '0.5.2.5' });
+    expect(backup.format).toBe(FORMAT_V3);
+    expect(backup.rows.invoices).toHaveLength(2);
+    expect(Object.values(backup.invoice_counter ?? {}).reduce((a, b) => a + b, 0)).toBe(2);
+
+    // Wipe + restore via the public import path.
+    await db.invoices.clear();
+    await db.meta.delete(META_KEYS.invoice_counter);
+    await importBackup({ data: await blob.text(), mode: 'replace' }, db);
+
+    const restored = await db.invoices.toArray();
+    expect(restored).toHaveLength(2);
+    const counter = await getMeta<Record<string, number>>(db, META_KEYS.invoice_counter);
+    expect(counter && Object.values(counter).reduce((a, b) => a + b, 0)).toBe(2);
+
+    // The next issued invoice should be #3, not #1 — proves the counter
+    // survived restore (the original bug we're fixing).
+    const next = await createInvoice(db, {
+      transaction_id: null,
+      customer_name: 'Cust 3',
+      customer_address: null,
+      customer_fiscal_id: null,
+      lines: [{ description: 'C', reference: null, qty: 1, unit_price_minor: 100 }],
+      currency: 'TND',
+      vat_pct: 0,
+      notes: null,
+    });
+    expect(next.number).toMatch(/^INV-\d{4}-0003$/);
   });
 
   it('backupFilename uses the YYYY-MM-DD UTC date', () => {

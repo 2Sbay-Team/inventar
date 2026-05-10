@@ -7,10 +7,11 @@ import {
   type V6ShopProfile,
 } from '../db/migrate-v6-to-v7';
 import { migrateRowsV8ToV9 } from '../db/migrate-v8-to-v9';
-import { setMeta } from '../repos/meta';
-import type { Article, Movement, Photo, ShopProfile } from '../types';
+import { setMeta, META_KEYS } from '../repos/meta';
+import type { Article, Invoice, Lot, Movement, Photo, ShopProfile } from '../types';
 import { FORMAT_V1, type BackupV1, type PhotoExport } from './format-v1';
-import { FORMAT_V2, type BackupV2, type ExportRowsV2, type PhotoExportV2 } from './format-v2';
+import { FORMAT_V2, type BackupV2, type PhotoExportV2 } from './format-v2';
+import { FORMAT_V3, type BackupV3, type ExportRowsV3, type PhotoExportV3 } from './format-v3';
 import { integrityHash } from './integrity';
 
 // SPEC §3 / DATA_MODEL §8: import accepts either a parsed object or a JSON
@@ -50,10 +51,10 @@ export class BackupFormatTooNewError extends Error {
   }
 }
 
-// Subset of the v2 row shape used by the apply path. The same shape comes
-// out of both code paths (direct v2 read AND v1-via-migration), so the
+// Common applied-row shape — superset that covers v3, with v1/v2 inputs
+// promoted to the same shape with empty arrays for the new tables. The
 // applier doesn't need to know which branch produced its input.
-type AppliedRows = ExportRowsV2;
+type AppliedRows = ExportRowsV3;
 
 export interface ImportSummary {
   inserted: Record<keyof AppliedRows, number>;
@@ -69,11 +70,16 @@ function emptySummary(): ImportSummary {
     movements: 0,
     expenses: 0,
     photos: 0,
+    lots: 0,
+    invoices: 0,
   });
   return { inserted: z(), updated: z(), skipped: z() };
 }
 
-export type ParsedBackup = { kind: 'v2'; backup: BackupV2 } | { kind: 'v1'; backup: BackupV1 };
+export type ParsedBackup =
+  | { kind: 'v3'; backup: BackupV3 }
+  | { kind: 'v2'; backup: BackupV2 }
+  | { kind: 'v1'; backup: BackupV1 };
 
 export function parseBackup(input: string | unknown): ParsedBackup {
   let raw: unknown;
@@ -92,7 +98,7 @@ export function parseBackup(input: string | unknown): ParsedBackup {
   }
   const obj = raw as Record<string, unknown>;
   const format = obj.format;
-  if (format !== FORMAT_V1 && format !== FORMAT_V2) {
+  if (format !== FORMAT_V1 && format !== FORMAT_V2 && format !== FORMAT_V3) {
     if (typeof format === 'string' && format.startsWith('inventar-export-')) {
       throw new BackupFormatTooNewError(format);
     }
@@ -110,7 +116,16 @@ export function parseBackup(input: string | unknown): ParsedBackup {
       throw new BackupParseError(`rows.${k} must be an array`);
     }
   }
-
+  // v3-only: lots + invoices arrays. v1/v2 imports stay accepted; the
+  // applier promotes them to empty arrays.
+  if (format === FORMAT_V3) {
+    for (const k of ['lots', 'invoices']) {
+      if (!Array.isArray(rows[k])) {
+        throw new BackupParseError(`rows.${k} must be an array`);
+      }
+    }
+    return { kind: 'v3', backup: obj as unknown as BackupV3 };
+  }
   if (format === FORMAT_V2) {
     return { kind: 'v2', backup: obj as unknown as BackupV2 };
   }
@@ -122,7 +137,7 @@ export async function verifyIntegrity(parsed: ParsedBackup): Promise<boolean> {
   return computed === parsed.backup.integrity_sha256;
 }
 
-function rehydratePhoto(row: PhotoExport | PhotoExportV2): Photo {
+function rehydratePhoto(row: PhotoExport | PhotoExportV2 | PhotoExportV3): Photo {
   const { blob_b64, ...rest } = row;
   // v0.5.2.2: store as Uint8Array (not Blob) so the IDB write path is
   // identical to storePhoto's. Webkit refuses certain Blob shapes;
@@ -175,6 +190,9 @@ function transformV1ToApplied(backup: BackupV1): AppliedRows {
     movements: v8Movements,
     expenses: backup.rows.expenses,
     photos: backup.rows.photos,
+    // v0.5.2.5: v1 backups predate both lots and invoices.
+    lots: [],
+    invoices: [],
   };
 }
 
@@ -215,6 +233,10 @@ function backfillV05Defaults(rows: AppliedRows): AppliedRows {
     ),
     expenses: rows.expenses,
     photos: rows.photos,
+    // v0.5.2.5: v2 backups predate lots + invoices. v3 backups carry
+    // them; this defensive backfill is a no-op when the input is v3.
+    lots: ((rows as unknown as { lots?: Lot[] }).lots ?? []) as Lot[],
+    invoices: ((rows as unknown as { invoices?: Invoice[] }).invoices ?? []) as Invoice[],
   };
 }
 
@@ -233,7 +255,17 @@ async function applyRows(
 
   await db.transaction(
     'rw',
-    [db.profile, db.articles, db.variants, db.movements, db.expenses, db.photos, db.meta],
+    [
+      db.profile,
+      db.articles,
+      db.variants,
+      db.movements,
+      db.expenses,
+      db.photos,
+      db.meta,
+      db.lots,
+      db.invoices,
+    ],
     async () => {
       if (options.mode === 'replace') {
         await Promise.all([
@@ -243,6 +275,8 @@ async function applyRows(
           db.movements.clear(),
           db.expenses.clear(),
           db.photos.clear(),
+          db.lots.clear(),
+          db.invoices.clear(),
         ]);
         await db.profile.bulkPut(rows.profile);
         await db.articles.bulkPut(rows.articles);
@@ -250,12 +284,16 @@ async function applyRows(
         await db.movements.bulkPut(rows.movements);
         await db.expenses.bulkPut(rows.expenses);
         await db.photos.bulkPut(photos);
+        await db.lots.bulkPut(rows.lots);
+        await db.invoices.bulkPut(rows.invoices);
         summary.inserted.profile = rows.profile.length;
         summary.inserted.articles = rows.articles.length;
         summary.inserted.variants = rows.variants.length;
         summary.inserted.movements = rows.movements.length;
         summary.inserted.expenses = rows.expenses.length;
         summary.inserted.photos = photos.length;
+        summary.inserted.lots = rows.lots.length;
+        summary.inserted.invoices = rows.invoices.length;
       } else {
         await mergeWithLWW(db.profile, rows.profile, summary, 'profile');
         await mergeWithLWW(db.articles, rows.articles, summary, 'articles');
@@ -263,9 +301,35 @@ async function applyRows(
         await mergeWithLWW(db.expenses, rows.expenses, summary, 'expenses');
         await mergeAppend(db.movements, rows.movements, summary, 'movements');
         await mergeAppend(db.photos, photos, summary, 'photos');
+        // Lots: append-only by id (UUID prevents duplicates). Invoices:
+        // same — never overwrite an existing invoice in merge mode.
+        await mergeAppend(db.lots, rows.lots, summary, 'lots');
+        await mergeAppend(db.invoices, rows.invoices, summary, 'invoices');
       }
     },
   );
+
+  // v0.5.2.5 ADR-024: replay the per-year invoice counter so the next
+  // issued invoice number stays monotonic. In replace mode we trust the
+  // imported snapshot. In merge mode we keep the per-year MAX of
+  // (existing, imported) so neither device's numbering regresses.
+  if (parsed.kind === 'v3') {
+    const importedCounter = parsed.backup.invoice_counter ?? {};
+    if (options.mode === 'replace') {
+      await setMeta(db, META_KEYS.invoice_counter, importedCounter);
+    } else {
+      const existingRaw = await db.meta.get(META_KEYS.invoice_counter);
+      const existing: Record<string, number> =
+        existingRaw && typeof existingRaw.value === 'object' && existingRaw.value !== null
+          ? (existingRaw.value as Record<string, number>)
+          : {};
+      const merged: Record<string, number> = { ...existing };
+      for (const [year, n] of Object.entries(importedCounter)) {
+        merged[year] = Math.max(merged[year] ?? 0, n);
+      }
+      await setMeta(db, META_KEYS.invoice_counter, merged);
+    }
+  }
 
   // After importing a v1 file we set the same migration markers the
   // Dexie upgrade callback would set, so the migration-review banner /
@@ -330,8 +394,17 @@ export async function applyBackup(
   options: ApplyOptions,
   db: InventarDB = appDB,
 ): Promise<ImportSummary> {
-  const raw: AppliedRows =
-    parsed.kind === 'v2' ? parsed.backup.rows : transformV1ToApplied(parsed.backup);
+  // v3 carries lots + invoices natively. v2 needs them defaulted to []
+  // by backfillV05Defaults. v1 goes through the migration kernels first
+  // and ends up with the same v2-shape arrays empty.
+  let raw: AppliedRows;
+  if (parsed.kind === 'v3') {
+    raw = parsed.backup.rows;
+  } else if (parsed.kind === 'v2') {
+    raw = parsed.backup.rows as unknown as AppliedRows;
+  } else {
+    raw = transformV1ToApplied(parsed.backup);
+  }
   // v0.5 defensive backfill — the v2 envelope predates the v0.5 fields,
   // so a v2 backup taken before this version won't have barcode_ean,
   // shop_subtypes, etc. We fill nulls so the apply path never touches a
@@ -341,7 +414,7 @@ export async function applyBackup(
 }
 
 export interface ImportInput {
-  data: string | BackupV1 | BackupV2 | ParsedBackup;
+  data: string | BackupV1 | BackupV2 | BackupV3 | ParsedBackup;
   mode: ImportMode;
 }
 
@@ -360,7 +433,7 @@ export async function importBackup(
   return applyBackup(parsed, { mode: input.mode }, db);
 }
 
-function isRawBackup(value: unknown): value is BackupV1 | BackupV2 {
+function isRawBackup(value: unknown): value is BackupV1 | BackupV2 | BackupV3 {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -370,4 +443,4 @@ function isRawBackup(value: unknown): value is BackupV1 | BackupV2 {
 }
 
 // Re-exports used by callers / tests. Keeps the import surface tight.
-export type { BackupV1, BackupV2 };
+export type { BackupV1, BackupV2, BackupV3 };
