@@ -108,6 +108,7 @@
     "copy_sku": "Copy SKU",
     "show_qr": "Show QR code",
     "qr_hint": "Print this and stick it on the shelf. Scan it with any phone camera to open this article instantly.",
+    "print_label": "Print label",
     "price_cost": "Cost",
     "price_sale": "Sale",
     "in_stock_total": "{{n}} in stock",
@@ -632,5 +633,10 @@
     "total_units": "Units",
     "total_value": "Stock value (cost)",
     "empty": "Nothing in stock yet. Add an article to populate this report."
+  },
+  "label": {
+    "print": "Print",
+    "done": "Done",
+    "not_found": "Article not found."
   }
 }

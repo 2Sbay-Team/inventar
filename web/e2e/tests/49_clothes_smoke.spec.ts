@@ -63,7 +63,11 @@ test.describe('Clothes vertical — end-to-end smoke', () => {
     await page.getByTestId('block-1-size-0-floor').fill('3');
 
     await page.getByTestId('save').click();
-    // Save returns to Search and the article shows up.
+    // v0.5.2.3 — post-save lands on the printable label first.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
+    // Article Detail (where Done lands) hides the nav, so go to Search by URL.
+    await page.getByTestId('label-done').click();
+    await page.goto('/');
     await expect(page.getByTestId('search-screen')).toBeVisible();
     await page.getByTestId('search-input').fill('Cotton');
     await expect(page.getByTestId('result-card')).toHaveCount(1);

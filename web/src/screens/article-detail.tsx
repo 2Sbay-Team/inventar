@@ -503,6 +503,14 @@ export function ArticleDetailScreen(): JSX.Element {
               <p className="text-ink-3 max-w-xs text-center text-xs leading-relaxed">
                 {t('qr_hint')}
               </p>
+              <button
+                type="button"
+                data-testid="qr-dialog-print"
+                onClick={() => navigate(`/article/${article.id}/label`)}
+                className="bg-accent mt-2 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white"
+              >
+                {t('print_label')}
+              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

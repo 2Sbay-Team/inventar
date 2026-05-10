@@ -31,6 +31,10 @@ test.describe('Persistence', () => {
     await page.getByTestId('block-0-size-0-input').fill('42');
     await page.getByTestId('block-0-size-0-back-plus').click();
     await page.getByTestId('save').click();
+    // v0.5.2.3 — post-save lands on the printable label.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
+    await page.getByTestId('label-done').click();
+    await page.goto('/');
     await expect(page.getByTestId('search-screen')).toBeVisible();
 
     await page.reload();

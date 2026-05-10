@@ -51,7 +51,7 @@ test.describe('Add Article — two-step flow, fields, validation, save', () => {
     await expect(page.getByTestId('add-color-block')).toBeVisible();
   });
 
-  test('save persists the article and lands on Search', async ({ page }) => {
+  test('save persists the article and lands on the printable label', async ({ page }) => {
     await page.getByTestId('field-name').fill('Workflow shoe');
     await page.getByTestId('field-cost').fill('40');
     await page.getByTestId('field-sale').fill('70');
@@ -62,7 +62,18 @@ test.describe('Add Article — two-step flow, fields, validation, save', () => {
     await page.getByTestId('block-0-size-0-input').fill('40');
     await page.getByTestId('block-0-size-0-back-plus').click();
     await page.getByTestId('save').click();
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    // v0.5.2.3: post-save lands on the printable label (QR + name + code)
+    // so the merchant can stick a tag on the item in one tap.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
+    await expect(page.getByTestId('label-qr')).toBeVisible();
+    await expect(page.getByTestId('label-article-name')).toContainText('Workflow shoe');
+    await expect(page.getByTestId('label-print')).toBeVisible();
+    // Done returns to article detail; from there a back-and-search verifies
+    // the article persisted correctly.
+    await page.getByTestId('label-done').click();
+    await expect(page.getByTestId('detail-qr')).toBeVisible();
+    // Article Detail hides the bottom nav, so navigate to Search via URL.
+    await page.goto('/');
     await page.getByTestId('search-input').fill('Workflow');
     await expect(page.getByTestId('result-card')).toHaveCount(1);
   });

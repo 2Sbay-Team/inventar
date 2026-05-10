@@ -340,7 +340,7 @@ export function AddArticleScreen(): JSX.Element {
       }
       const notes = noteParts.length === 0 ? null : noteParts.join(' · ');
 
-      await createArticle(db, {
+      const created = await createArticle(db, {
         name: basics.name.trim(),
         photo_id: articlePhotoId,
         category: basics.category,
@@ -355,7 +355,10 @@ export function AddArticleScreen(): JSX.Element {
         // accepts null and stores it verbatim.
         min_stock_threshold: parseMinStock(basics.minStockInput),
       });
-      navigate('/', { replace: true });
+      // v0.5.2.3 — land on the printable-label page so the merchant
+      // sees the QR for the just-created item and can stick it on the
+      // shelf in one tap. Done returns to the article detail.
+      navigate(`/article/${created.article.id}/label`, { replace: true });
     } finally {
       setSubmitting(false);
     }

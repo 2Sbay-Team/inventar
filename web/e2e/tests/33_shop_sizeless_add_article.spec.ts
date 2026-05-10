@@ -60,7 +60,8 @@ test.describe('Add Article — sizeless, colourless verticals (shop)', () => {
     }
 
     await page.getByTestId('save').click();
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    // v0.5.2.3 — post-save lands on the printable label.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
 
     type V = {
       color: string | null;

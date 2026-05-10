@@ -108,8 +108,8 @@ test.describe('Add Article — shop sizes/colours opt-in', () => {
     await page.getByTestId('block-0-size-1-floor').fill('2');
 
     await page.getByTestId('save').click();
-    // Save returns to Search; the new article shows up in results.
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    // v0.5.2.3 — post-save lands on the printable label.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
 
     // IDB check: this article must have >1 variant, each with a non-null
     // size. That's the proof the shop opt-in flowed through to the data.

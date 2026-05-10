@@ -27,6 +27,9 @@ const ArchiveBinScreen = lazy(() =>
 const ArticleDetailScreen = lazy(() =>
   import('./screens/article-detail').then((m) => ({ default: m.ArticleDetailScreen })),
 );
+const ArticleLabelScreen = lazy(() =>
+  import('./screens/article-label').then((m) => ({ default: m.ArticleLabelScreen })),
+);
 const HelpScreen = lazy(() => import('./screens/help').then((m) => ({ default: m.HelpScreen })));
 const StockReportScreen = lazy(() =>
   import('./screens/stock-report').then((m) => ({ default: m.StockReportScreen })),
@@ -122,6 +125,19 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <ArticleDetailScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    // v0.5.2.3 — printable QR-label sheet for an article. Lands here
+    // automatically right after Add Article saves, and reachable via
+    // the Print Label action inside the QR dialog on Article Detail.
+    path: '/article/:id/label',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <ArticleLabelScreen />
         </OnboardingGate>
       </Lazy>
     ),

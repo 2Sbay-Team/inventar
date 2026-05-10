@@ -93,7 +93,8 @@ test.describe('Internal code per-prefix counter', () => {
     await page.getByTestId('block-0-size-0-input').fill('M');
     await page.getByTestId('block-0-size-0-floor').fill('2');
     await page.getByTestId('save').click();
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    // v0.5.2.3 — post-save lands on the printable label.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
 
     const codes = await page.evaluate(async () => {
       const dbReq = indexedDB.open('inventar');

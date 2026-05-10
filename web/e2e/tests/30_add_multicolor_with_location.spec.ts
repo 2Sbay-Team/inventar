@@ -65,7 +65,8 @@ test.describe('Add Article — multi-colour with location split', () => {
     await page.getByTestId('block-2-size-0-back').fill('30');
 
     await page.getByTestId('save').click();
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    // v0.5.2.3 — post-save lands on the printable label.
+    await expect(page.getByTestId('label-screen')).toBeVisible();
 
     type V = {
       id: string;

@@ -108,6 +108,7 @@
     "copy_sku": "Copier le code",
     "show_qr": "Afficher le QR code",
     "qr_hint": "Imprimez-le et collez-le sur l'étagère. Scannez-le avec n'importe quel appareil photo pour ouvrir cet article instantanément.",
+    "print_label": "Imprimer l'étiquette",
     "price_cost": "Coût",
     "price_sale": "Vente",
     "in_stock_total": "{{n}} en stock",
@@ -630,5 +631,10 @@
     "total_units": "Unités",
     "total_value": "Valeur du stock (coût)",
     "empty": "Aucun article en stock pour l'instant. Ajoutez un article pour remplir ce rapport."
+  },
+  "label": {
+    "print": "Imprimer",
+    "done": "Terminer",
+    "not_found": "Article introuvable."
   }
 }
