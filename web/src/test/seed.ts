@@ -6,7 +6,7 @@ import { storePhoto } from '../repos/photos';
 import { recordMovement } from '../repos/movements';
 import { addExpense } from '../repos/expenses';
 import { exportBackupBlob } from '../backup/export';
-import { type Locale, type ShopSubtype, type StoreType } from '../types';
+import { type FashionSubtype, type Locale, type ShopSubtype, type StoreType } from '../types';
 import { setLocale } from '../i18n/i18next';
 
 // Test-only seed surface. Mounted on `window` ONLY when the bundle was built
@@ -43,6 +43,12 @@ interface SeedInput {
   // sub-types for tests that exercise the shop dashboard widgets,
   // category-list union, etc. Defaults to [].
   shopSubtypes?: ShopSubtype[];
+  // v0.5.2 ADR-021: only meaningful when storeType === 'fashion'.
+  fashionSubtypes?: FashionSubtype[];
+  // v0.5.2 ADR-022: optional location label overrides. Both default
+  // to the (vertical, locale) values via upsertProfile.
+  locationFloorLabel?: string;
+  locationBackLabel?: string;
   articles?: SeedArticleInput[];
   expenses?: Array<{ category: string; amount_tnd: number; at?: string }>;
   // Force-clear IndexedDB before applying. Default true.
@@ -76,6 +82,9 @@ async function applySeed(input: SeedInput): Promise<void> {
     locale,
     store_type: input.storeType,
     shop_subtypes: input.shopSubtypes,
+    fashion_subtypes: input.fashionSubtypes,
+    location_floor_label: input.locationFloorLabel,
+    location_back_label: input.locationBackLabel,
   });
   await setMeta(db, META_KEYS.locale, locale);
   await setMeta(db, META_KEYS.persistence_requested, true);

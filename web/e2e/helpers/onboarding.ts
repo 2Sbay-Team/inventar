@@ -1,5 +1,10 @@
 import { type Page, expect } from '@playwright/test';
-import { type Locale, type ShopSubtype, type StoreType } from '../../src/types';
+import {
+  type FashionSubtype,
+  type Locale,
+  type ShopSubtype,
+  type StoreType,
+} from '../../src/types';
 
 declare global {
   interface Window {
@@ -36,13 +41,27 @@ export async function onboardViaUI(
   }
   await page.getByTestId('shop-name-input').fill(options.shopName);
   await page.getByTestId('continue').click();
-  if (options.storeType === 'shop') {
+  // v0.5.2 ADR-021: every vertical now has a subtypes step. Pick at
+  // least one subtype before continuing — defaults are sensible for
+  // tests that don't care about specific subtypes.
+  const effectiveStoreType = options.storeType ?? 'fashion';
+  if (effectiveStoreType === 'shop') {
     await expect(page.getByTestId('step-shop-subtypes')).toBeVisible();
     for (const st of options.shopSubtypes ?? ['food_beverages']) {
       await page.getByTestId(`onb-subtype-${st}`).click();
     }
     await page.getByTestId('continue').click();
+  } else if (effectiveStoreType === 'fashion') {
+    await expect(page.getByTestId('step-fashion-subtypes')).toBeVisible();
+    for (const st of ['shoes']) {
+      await page.getByTestId(`onb-subtype-${st}`).click();
+    }
+    await page.getByTestId('continue').click();
   }
+  // v0.5.2 ADR-022: locations step. Defaults are pre-filled by the
+  // (vertical, locale) labels — Continue accepts them as-is.
+  await expect(page.getByTestId('step-locations')).toBeVisible();
+  await page.getByTestId('continue').click();
   await expect(page.getByTestId('step-backup-card')).toBeVisible();
   await page.getByTestId('got-it').click();
   await expect(page.getByTestId('search-screen')).toBeVisible();
@@ -57,16 +76,33 @@ export async function onboardViaSeed(
     shopName: string;
     storeType?: StoreType;
     shopSubtypes?: ShopSubtype[];
+    fashionSubtypes?: FashionSubtype[];
+    locationFloorLabel?: string;
+    locationBackLabel?: string;
   },
 ): Promise<void> {
   await page.evaluate(async (input) => {
     const api = window.__inventarSeed;
     if (!api) throw new Error('__inventarSeed not mounted — build with VITE_E2E=true');
-    await api.seed({
+    await (
+      api.seed as (i: {
+        shopName: string;
+        locale: Locale;
+        storeType?: StoreType;
+        shopSubtypes?: ShopSubtype[];
+        fashionSubtypes?: FashionSubtype[];
+        locationFloorLabel?: string;
+        locationBackLabel?: string;
+        reset?: boolean;
+      }) => Promise<void>
+    )({
       shopName: input.shopName,
       locale: input.lang,
       storeType: input.storeType,
       shopSubtypes: input.shopSubtypes,
+      fashionSubtypes: input.fashionSubtypes,
+      locationFloorLabel: input.locationFloorLabel,
+      locationBackLabel: input.locationBackLabel,
       reset: true,
     });
   }, options);

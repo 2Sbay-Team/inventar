@@ -77,7 +77,18 @@
     "import_failed": "حدث خطأ أثناء الاستعادة. يُرجى المحاولة مرة أخرى.",
     "subtypes_title": "ماذا يبيع متجرك؟",
     "subtypes_subtitle": "اختر كل ما ينطبق. يمكنك تغيير ذلك لاحقاً في الإعدادات.",
-    "subtypes_min_hint": "اختر خياراً واحداً على الأقل"
+    "subtypes_min_hint": "اختر خياراً واحداً على الأقل",
+    "shop_subtypes_title": "ماذا يبيع متجرك؟",
+    "shop_subtypes_subtitle": "اختر كل ما ينطبق. يمكنك تغيير ذلك لاحقاً.",
+    "fashion_subtypes_title": "ما الأصناف التي تبيعها؟",
+    "fashion_subtypes_subtitle": "اختر الفئات المناسبة لمتجرك. يمكنك تغيير ذلك لاحقاً.",
+    "subtypes_custom_add": "أضف فئة جديدة",
+    "subtypes_custom_placeholder": "مثال: حلال، عضوي…",
+    "locations_title": "أين تضع المخزون؟",
+    "locations_subtitle": "سمِّ المنطقة الأمامية والخلفية كما تتحدث عنهما في متجرك. ستظهر هذه الأسماء في كل مكان.",
+    "location_floor_label": "أمامي / للعرض",
+    "location_back_label": "خلفي / للتخزين",
+    "locations_hint": "يمكنك إعادة تسميتها في أي وقت من الإعدادات."
   },
   "search": {
     "placeholder": "ابحث…",

@@ -77,7 +77,18 @@
     "import_failed": "Une erreur s'est produite pendant la restauration. Réessayez.",
     "subtypes_title": "Que vend votre boutique ?",
     "subtypes_subtitle": "Sélectionnez tout ce qui s'applique. Modifiable plus tard dans Réglages.",
-    "subtypes_min_hint": "Choisissez au moins une option"
+    "subtypes_min_hint": "Choisissez au moins une option",
+    "shop_subtypes_title": "Que vend votre boutique ?",
+    "shop_subtypes_subtitle": "Sélectionnez tout ce qui s'applique. Modifiable plus tard.",
+    "fashion_subtypes_title": "Quels articles vendez-vous ?",
+    "fashion_subtypes_subtitle": "Choisissez les catégories de votre boutique. Modifiable plus tard.",
+    "subtypes_custom_add": "Ajouter une catégorie",
+    "subtypes_custom_placeholder": "ex. tabac, halal, bio…",
+    "locations_title": "Où rangez-vous le stock ?",
+    "locations_subtitle": "Nommez la zone avant et l'arrière comme vous en parlez dans votre boutique. Ces noms apparaîtront partout.",
+    "location_floor_label": "Avant / vente",
+    "location_back_label": "Arrière / réserve",
+    "locations_hint": "Modifiable à tout moment dans Réglages."
   },
   "search": {
     "placeholder": "Rechercher…",

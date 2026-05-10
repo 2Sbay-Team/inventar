@@ -12,7 +12,9 @@ test.describe('Onboarding', () => {
     await page.goto('/');
   });
 
-  test('walks language → intent → name → backup card → search', async ({ page }) => {
+  test('walks language → intent → name → fashion subtypes → locations → backup card → search', async ({
+    page,
+  }) => {
     await expect(page.getByTestId('onboarding')).toBeVisible();
     await expect(page.getByTestId('step-language')).toBeVisible();
     await page.getByTestId('lang-en').click();
@@ -22,19 +24,32 @@ test.describe('Onboarding', () => {
     await expect(page.getByTestId('continue')).toBeDisabled();
     await page.getByTestId('shop-name-input').fill('A');
     await expect(page.getByTestId('continue')).toBeDisabled();
-    await page.getByTestId('shop-name-input').fill('Naili Shoes');
+    await page.getByTestId('shop-name-input').fill('Naili Boutique');
     await expect(page.getByTestId('continue')).toBeEnabled();
+    await page.getByTestId('continue').click();
+    // v0.5.2 ADR-021: fashion is the default vertical → fashion subtypes step.
+    await expect(page.getByTestId('step-fashion-subtypes')).toBeVisible();
+    await page.getByTestId('onb-subtype-shoes').click();
+    await page.getByTestId('continue').click();
+    // v0.5.2 ADR-022: locations step with pre-filled defaults.
+    await expect(page.getByTestId('step-locations')).toBeVisible();
     await page.getByTestId('continue').click();
     await expect(page.getByTestId('step-backup-card')).toBeVisible();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
-    await expect(page.getByTestId('shop-name')).toHaveText('Naili Shoes');
+    await expect(page.getByTestId('shop-name')).toHaveText('Naili Boutique');
   });
 
   test('Arabic locale flips to RTL with Eastern numerals in counts', async ({ page }) => {
     await page.getByTestId('lang-ar').click();
     await page.getByTestId('intent-new').click();
     await page.getByTestId('shop-name-input').fill('متجر الاختبار');
+    await page.getByTestId('continue').click();
+    // Default vertical is fashion → walk through subtypes + locations.
+    await expect(page.getByTestId('step-fashion-subtypes')).toBeVisible();
+    await page.getByTestId('onb-subtype-shoes').click();
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-locations')).toBeVisible();
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();

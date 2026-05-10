@@ -70,6 +70,10 @@ test.describe('Onboarding — shop sub-types', () => {
     await expect(page.getByTestId('continue')).toBeEnabled();
 
     await page.getByTestId('continue').click();
+    // v0.5.2 ADR-022: locations step now sits between subtypes and the
+    // backup card. Continue accepts the (vertical, locale) defaults.
+    await expect(page.getByTestId('step-locations')).toBeVisible();
+    await page.getByTestId('continue').click();
     await expect(page.getByTestId('step-backup-card')).toBeVisible();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
@@ -121,19 +125,22 @@ test.describe('Onboarding — shop sub-types', () => {
     await expect(page.getByTestId('category-household')).toHaveCount(0);
   });
 
-  test('non-shop verticals skip the sub-types step', async ({ page }) => {
+  test('fashion vertical: own subtypes step (not shop-subtypes)', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
-    // v0.5.2 ADR-021: vertical picker now offers fashion + shop only;
-    // fashion is the default selection, so the shop-subtypes step does
-    // not appear. (Pre-v9 the default was 'shoes' which was its own
-    // vertical — the merged fashion vertical inherits the same
-    // sub-types-skipping behaviour.)
+    // v0.5.2 ADR-021: fashion is the default vertical, so it has its
+    // own fashion-subtypes step (NOT the shop one). Locations step
+    // follows.
     await page.getByTestId('shop-name-input').fill('Fashion Boutique');
     await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-fashion-subtypes')).toBeVisible();
     await expect(page.getByTestId('step-shop-subtypes')).toHaveCount(0);
+    await page.getByTestId('onb-subtype-shoes').click();
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-locations')).toBeVisible();
+    await page.getByTestId('continue').click();
     await expect(page.getByTestId('step-backup-card')).toBeVisible();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
@@ -168,6 +175,7 @@ test.describe('Settings — shop sub-types editor', () => {
     page,
   }) => {
     // Onboard as shop with one sub-type so the editor has a starting state.
+    // v0.5.2: subtypes step → locations step → backup card.
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
@@ -175,6 +183,8 @@ test.describe('Settings — shop sub-types editor', () => {
     await page.getByTestId('shop-name-input').fill('Editor Test');
     await page.getByTestId('continue').click();
     await page.getByTestId('onb-subtype-food_beverages').click();
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-locations')).toBeVisible();
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
@@ -253,8 +263,12 @@ test.describe('Settings — shop sub-types editor', () => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
-    // Default is shoes — section-shop-subtypes should not render.
+    // v0.5.2: default is fashion — section-shop-subtypes should not render.
     await page.getByTestId('shop-name-input').fill('No Subtypes Here');
+    await page.getByTestId('continue').click();
+    await page.getByTestId('onb-subtype-shoes').click();
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-locations')).toBeVisible();
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await page.getByTestId('nav-settings').click();

@@ -18,10 +18,13 @@ test.describe('Multi-vertical store types', () => {
     await page.getByTestId('intent-new').click();
     await expect(page.getByTestId('step-name')).toBeVisible();
 
-    for (const code of ['shoes', 'clothes', 'shop']) {
+    // v0.5.2 ADR-021: vertical picker offers 2 verticals (fashion + shop).
+    // Legacy shoes/clothes/kiosk/grocery chips are gone.
+    for (const code of ['fashion', 'shop']) {
       await expect(page.getByTestId(`onb-store-${code}`)).toBeVisible();
     }
-    // Old kiosk and grocery chips must be gone.
+    await expect(page.getByTestId('onb-store-shoes')).toHaveCount(0);
+    await expect(page.getByTestId('onb-store-clothes')).toHaveCount(0);
     await expect(page.getByTestId('onb-store-kiosk')).toHaveCount(0);
     await expect(page.getByTestId('onb-store-grocery')).toHaveCount(0);
   });
@@ -35,8 +38,10 @@ test.describe('Multi-vertical store types', () => {
     await page.getByTestId('onb-store-shop').click();
     await page.getByTestId('shop-name-input').fill('Shop Test');
     await page.getByTestId('continue').click();
-    // v0.5 ADR-017: walk the new sub-types step.
+    // v0.5 ADR-017 / v0.5.2: shop sub-types step → locations step → backup card.
     await page.getByTestId('onb-subtype-food_beverages').click();
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-locations')).toBeVisible();
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
@@ -58,15 +63,19 @@ test.describe('Multi-vertical store types', () => {
     expect(storeType).toBe('shop');
   });
 
-  test('default selection is shoes — categories show shoe options', async ({ page }) => {
+  test('default selection is fashion — fashion-vertical categories shown', async ({ page }) => {
+    // v0.5.2 ADR-021: default is now 'fashion' (was 'shoes' pre-v9).
+    // Fashion's category list is the union of shoes + clothes + accessories
+    // (see config/store-types.ts STORE_TYPES.fashion). Pick 'shoes' as
+    // the subtype so the categories surface as the shoes-specific ones
+    // when the merchant lands on Add Article.
     await page.goto('/');
     await onboardViaUI(page, { lang: 'en', shopName: 'Default Shop' });
     await page.getByTestId('nav-add').click();
 
-    // Default shoe categories should be present (sport / dress / casual).
+    // Fashion's fallback categories include sport / dress / casual
+    // (inherited from shoes) — at least one must render.
     await expect(page.getByTestId('category-sport')).toBeVisible();
-    await expect(page.getByTestId('category-dress')).toBeVisible();
-    await expect(page.getByTestId('category-casual')).toBeVisible();
     // Sized vertical: Step 2 surfaces the size-row input.
     await page.getByTestId('field-name').fill('Sized check');
     await page.getByTestId('continue').click();
@@ -76,15 +85,9 @@ test.describe('Multi-vertical store types', () => {
 
 test.describe('Switching store type from Settings', () => {
   test('select shop in Settings → confirm warning → store_type updates', async ({ page }) => {
-    // Start as a shoes shop (default).
+    // Start as a fashion shop (v0.5.2 default).
     await page.goto('/');
-    await page.getByTestId('lang-en').click();
-    await page.getByTestId('intent-new').click();
-    await expect(page.getByTestId('step-name')).toBeVisible();
-    await page.getByTestId('shop-name-input').fill('Type Switcher');
-    await page.getByTestId('continue').click();
-    await page.getByTestId('got-it').click();
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    await onboardViaUI(page, { lang: 'en', shopName: 'Type Switcher' });
 
     // Settings → Shop profile → store-type select.
     await page.getByTestId('nav-settings').click();
@@ -123,11 +126,7 @@ test.describe('Switching store type from Settings', () => {
 
   test('cancel button on store-type warning leaves type unchanged', async ({ page }) => {
     await page.goto('/');
-    await page.getByTestId('lang-en').click();
-    await page.getByTestId('intent-new').click();
-    await page.getByTestId('shop-name-input').fill('Cancel Test');
-    await page.getByTestId('continue').click();
-    await page.getByTestId('got-it').click();
+    await onboardViaUI(page, { lang: 'en', shopName: 'Cancel Test' });
 
     await page.getByTestId('nav-settings').click();
     await page.getByTestId('settings-store-type').selectOption('shop');
@@ -149,24 +148,20 @@ test.describe('Switching store type from Settings', () => {
         dbReq.onerror = () => reject(dbReq.error);
       });
     });
-    expect(storeType).toBe('shoes');
+    // v0.5.2: default + cancel → store_type stays 'fashion'.
+    expect(storeType).toBe('fashion');
   });
 });
 
 test.describe('Sizeless mode (shop)', () => {
   test('Add Article hides sizes for shop vertical', async ({ page }) => {
     await page.goto('/');
-    await page.getByTestId('lang-en').click();
-    await page.getByTestId('intent-new').click();
-    await expect(page.getByTestId('step-name')).toBeVisible();
-    await page.getByTestId('onb-store-shop').click();
-    await page.getByTestId('shop-name-input').fill('Mini Mart');
-    await page.getByTestId('continue').click();
-    // v0.5 ADR-017: walk the new sub-types step.
-    await page.getByTestId('onb-subtype-food_beverages').click();
-    await page.getByTestId('continue').click();
-    await page.getByTestId('got-it').click();
-    await expect(page.getByTestId('search-screen')).toBeVisible();
+    await onboardViaUI(page, {
+      lang: 'en',
+      shopName: 'Mini Mart',
+      storeType: 'shop',
+      shopSubtypes: ['food_beverages'],
+    });
 
     // v0.5 ADR-018: shop nav replaces Add with Receive; route via
     // /add directly to inspect the Add Article surface for shop.
