@@ -254,7 +254,15 @@
     "inv_low_stock": "مخزون منخفض / نافد",
     "inv_by_category": "المخزون حسب الفئة",
     "inv_low_stock_list_title": "بحاجة إلى إعادة تخزين",
-    "open_stock_report": "تقرير مفصّل"
+    "open_stock_report": "تقرير مفصّل",
+    "widget_today_close": "إغلاق اليوم",
+    "today_close_txn": "{{n}} معاملات",
+    "today_close_top": "الأعلى: {{name}} ({{qty}})",
+    "today_close_empty": "لا مبيعات بعد اليوم",
+    "widget_items_low": "مخزون منخفض",
+    "widget_items_low_hint": "تحت عتبة إعادة الطلب",
+    "widget_expiring": "قاربت الانتهاء",
+    "widget_expiring_hint": "ضمن نافذة التنبيه"
   },
   "expense": {
     "title": "إضافة مصروف",

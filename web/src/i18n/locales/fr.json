@@ -254,7 +254,15 @@
     "inv_low_stock": "Stock bas / épuisé",
     "inv_by_category": "Stock par catégorie",
     "inv_low_stock_list_title": "À réapprovisionner",
-    "open_stock_report": "Rapport détaillé"
+    "open_stock_report": "Rapport détaillé",
+    "widget_today_close": "Clôture du jour",
+    "today_close_txn": "{{n}} transactions",
+    "today_close_top": "Top : {{name}} ({{qty}})",
+    "today_close_empty": "Aucune vente aujourd'hui",
+    "widget_items_low": "Stock bas",
+    "widget_items_low_hint": "Sous votre seuil de réappro",
+    "widget_expiring": "Bientôt périmé",
+    "widget_expiring_hint": "Dans votre fenêtre d'alerte"
   },
   "expense": {
     "title": "Ajouter une dépense",

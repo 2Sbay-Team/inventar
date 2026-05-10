@@ -254,7 +254,15 @@
     "inv_low_stock": "Low / out of stock",
     "inv_by_category": "Stock by category",
     "inv_low_stock_list_title": "Needs restocking",
-    "open_stock_report": "Detailed report"
+    "open_stock_report": "Detailed report",
+    "widget_today_close": "Today's close",
+    "today_close_txn": "{{n}} transactions",
+    "today_close_top": "Top: {{name}} ({{qty}})",
+    "today_close_empty": "No sales yet today",
+    "widget_items_low": "Items running low",
+    "widget_items_low_hint": "Below your reorder threshold",
+    "widget_expiring": "Expiring soon",
+    "widget_expiring_hint": "Within your alert window"
   },
   "expense": {
     "title": "Add expense",
