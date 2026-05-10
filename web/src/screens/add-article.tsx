@@ -130,8 +130,19 @@ export function AddArticleScreen(): JSX.Element {
     }
     return storeCfg.categories;
   }, [storeCfg, storeType, profile?.shop_subtypes]);
-  const hasColors = storeCfg.has_colors;
-  const hasSizes = storeCfg.has_sizes;
+  // v0.5.1: per-article opt-in for shop. The shop vertical defaults
+  // to sizeless + colourless (the right call for groceries / kiosk
+  // stock), but real shops also sell items like towels, notebooks or
+  // T-shirts that have multiple sizes / colours. The two toggles
+  // below let a shop merchant flip just THIS article into the sized
+  // / coloured variant UI without changing the vertical default.
+  // Non-shop verticals follow their built-in defaults — the toggles
+  // are not rendered for shoes / clothes since the answer is always
+  // "yes" there.
+  const [shopWantsSizes, setShopWantsSizes] = useState(false);
+  const [shopWantsColors, setShopWantsColors] = useState(false);
+  const hasColors = storeType === 'shop' ? shopWantsColors : storeCfg.has_colors;
+  const hasSizes = storeType === 'shop' ? shopWantsSizes : storeCfg.has_sizes;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [basics, setBasics] = useState<Basics>(() => ({
@@ -395,6 +406,16 @@ export function AddArticleScreen(): JSX.Element {
           dismissDuplicate={() => setDupDismissed(true)}
           tColor={tColor}
           errors={errors}
+          shopOptIn={
+            storeType === 'shop'
+              ? {
+                  wantsSizes: shopWantsSizes,
+                  wantsColors: shopWantsColors,
+                  setWantsSizes: setShopWantsSizes,
+                  setWantsColors: setShopWantsColors,
+                }
+              : null
+          }
         />
       )}
 
@@ -597,6 +618,14 @@ interface Step2Props {
   dismissDuplicate: () => void;
   tColor: (k: string) => string;
   errors: Record<string, string>;
+  // v0.5.1: shop-only opt-in to sizes / colours per article. Null
+  // for non-shop verticals (which always have the built-in answer).
+  shopOptIn: {
+    wantsSizes: boolean;
+    wantsColors: boolean;
+    setWantsSizes: (v: boolean) => void;
+    setWantsColors: (v: boolean) => void;
+  } | null;
 }
 
 function Step2(props: Step2Props): JSX.Element {
@@ -617,6 +646,7 @@ function Step2(props: Step2Props): JSX.Element {
     dismissDuplicate,
     tColor,
     errors,
+    shopOptIn,
   } = props;
 
   return (
@@ -661,6 +691,43 @@ function Step2(props: Step2Props): JSX.Element {
         <p data-testid="err-stock" className="text-bad text-xs">
           {errors.stock}
         </p>
+      ) : null}
+
+      {shopOptIn ? (
+        <section
+          data-testid="shop-variant-optin"
+          className="border-hair rounded-2xl border bg-white p-3"
+        >
+          <p className="text-ink-3 mb-2 text-[11px] leading-relaxed">{t('shop_optin_hint')}</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-testid="shop-optin-sizes"
+              aria-pressed={shopOptIn.wantsSizes}
+              onClick={() => shopOptIn.setWantsSizes(!shopOptIn.wantsSizes)}
+              className={`flex-1 rounded-xl border px-3 py-2 text-xs ${
+                shopOptIn.wantsSizes
+                  ? 'border-accent bg-accent-soft text-accent-ink'
+                  : 'border-hair bg-white text-ink-2'
+              }`}
+            >
+              {t('shop_optin_sizes')}
+            </button>
+            <button
+              type="button"
+              data-testid="shop-optin-colors"
+              aria-pressed={shopOptIn.wantsColors}
+              onClick={() => shopOptIn.setWantsColors(!shopOptIn.wantsColors)}
+              className={`flex-1 rounded-xl border px-3 py-2 text-xs ${
+                shopOptIn.wantsColors
+                  ? 'border-accent bg-accent-soft text-accent-ink'
+                  : 'border-hair bg-white text-ink-2'
+              }`}
+            >
+              {t('shop_optin_colors')}
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {blocks.map((block, i) => (

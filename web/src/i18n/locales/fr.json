@@ -186,7 +186,10 @@
     "err_stock_required": "Saisissez au moins une quantité",
     "duplicate_warn": "Vous avez déjà un {{name}} ({{count}} couleurs). Ajouter plutôt une nouvelle couleur ?",
     "duplicate_open_existing": "Ouvrir l'article existant",
-    "duplicate_dismiss": "Créer un nouvel article quand même"
+    "duplicate_dismiss": "Créer un nouvel article quand même",
+    "shop_optin_hint": "La plupart des produits d'épicerie n'ont pas besoin de tailles ou de couleurs. Activez ces options si CET article en a besoin — par exemple une serviette en plusieurs tailles ou un cahier en plusieurs couleurs.",
+    "shop_optin_sizes": "A des tailles différentes",
+    "shop_optin_colors": "A des couleurs différentes"
   },
   "color": {
     "white": "blanc",

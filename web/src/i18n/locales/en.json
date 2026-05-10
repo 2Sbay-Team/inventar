@@ -186,7 +186,10 @@
     "err_stock_required": "Set at least one quantity",
     "duplicate_warn": "You already have a {{name}} ({{count}} colours). Add a new colour to it instead?",
     "duplicate_open_existing": "Open existing article",
-    "duplicate_dismiss": "Add a new article anyway"
+    "duplicate_dismiss": "Add a new article anyway",
+    "shop_optin_hint": "Most shop items don't need sizes or colours. Toggle these on if THIS item does — like a towel with sizes, or a notebook in different colours.",
+    "shop_optin_sizes": "Has different sizes",
+    "shop_optin_colors": "Has different colours"
   },
   "color": {
     "white": "white",
