@@ -35,6 +35,9 @@ const ReceiveScreen = lazy(() =>
   import('./screens/receive').then((m) => ({ default: m.ReceiveScreen })),
 );
 const SellScreen = lazy(() => import('./screens/sell').then((m) => ({ default: m.SellScreen })));
+const ExpiryScreen = lazy(() =>
+  import('./screens/expiry').then((m) => ({ default: m.ExpiryScreen })),
+);
 
 // Onboarding gate. SPEC §2.1: a user without a ShopProfile row must complete
 // onboarding before any other screen renders. The gate also protects against
@@ -188,6 +191,20 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <SellScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    // v0.5 ADR-019: list of variants with expiring lots. Reachable from
+    // Search's expiry banner (shop only) and from Settings' threshold
+    // picker. The screen itself is vertical-agnostic — non-shop users
+    // typed /expiry directly would land on an empty list.
+    path: '/expiry',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <ExpiryScreen />
         </OnboardingGate>
       </Lazy>
     ),

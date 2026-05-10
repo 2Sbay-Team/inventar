@@ -13,7 +13,7 @@ import {
   pickAutoBackupFolder,
   setAutoBackupHandle,
 } from '../utils/auto-backup';
-import { getMeta, META_KEYS } from '../repos/meta';
+import { getMeta, META_KEYS, setMeta } from '../repos/meta';
 import { db, resetDatabase } from '../db/db';
 import { getProfile, upsertProfile, markBackedUp } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
@@ -24,6 +24,61 @@ import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { ChevronRight, Download as DownloadIcon, Smartphone } from 'lucide-react';
 import { type CurrencyCode, type Locale, type ShopSubtype, type StoreType } from '../types';
+
+const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
+
+// v0.5 ADR-019: shop-only Settings card. Reads/writes
+// META_KEYS.expiry_threshold_days; default 7 if unset. The picker
+// shows four chips. Saving writes immediately (no Save button) — the
+// merchant's intent is unambiguous.
+function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  const stored = useLive<number>(
+    async () => (await getMeta<number>(db, META_KEYS.expiry_threshold_days)) ?? 7,
+    [profileLoaded],
+    7,
+  );
+  const [pending, setPending] = useState<number | null>(null);
+  const value = pending ?? stored;
+
+  async function pick(n: number): Promise<void> {
+    setPending(n);
+    try {
+      await setMeta(db, META_KEYS.expiry_threshold_days, n);
+    } finally {
+      // Once the meta write resolves, the live read picks up the new
+      // value on the next tick — clear our optimistic override.
+      setPending(null);
+    }
+  }
+
+  if (!profileLoaded) return null;
+  return (
+    <section
+      data-testid="section-expiry-threshold"
+      className="border-hair rounded-2xl border bg-white p-4"
+    >
+      <h3 className="font-display text-base font-medium mb-1">{t('expiry_threshold_title')}</h3>
+      <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('expiry_threshold_hint')}</p>
+      <div data-testid="expiry-threshold-options" className="flex gap-2">
+        {EXPIRY_THRESHOLD_OPTIONS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            data-testid={`expiry-threshold-${n}`}
+            aria-pressed={value === n}
+            onClick={() => void pick(n)}
+            className={`flex-1 rounded-xl border px-3 py-2.5 text-sm ${
+              value === n ? 'border-accent bg-accent-soft text-accent-ink' : 'border-hair bg-white'
+            }`}
+          >
+            {t('expiry_threshold_unit', { n })}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 const APP_VERSION = '1.0.0';
 
@@ -503,6 +558,10 @@ export function SettingsScreen(): JSX.Element {
               </p>
             ) : null}
           </section>
+        ) : null}
+
+        {profile?.store_type === 'shop' ? (
+          <ExpiryThresholdSection profileLoaded={Boolean(profile)} />
         ) : null}
 
         <section
