@@ -487,7 +487,12 @@
     "tab_expiring": "Expiring soon",
     "low_empty": "Nothing's running low. Set a reorder threshold from any article's detail page to get alerts.",
     "low_subtitle": "{{stock}} in stock · alerts under {{threshold}}",
-    "open": "Open"
+    "open": "Open",
+    "banner_count_one": "{{n}} item needs attention",
+    "banner_count_other": "{{n}} items need attention",
+    "banner_count": "{{n}} items need attention",
+    "banner_breakdown": "{{low}} low stock · {{expiring}} expiring",
+    "banner_hide_7d": "Hide for 7 days"
   },
   "migrations": {
     "title": "Confirm what you sell",

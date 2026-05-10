@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { BackupBanner } from '../components/backup-banner';
+import { AlertsBanner } from '../components/alerts-banner';
 import { ExpiryBanner } from '../components/expiry-banner';
 import { InstallBanner } from '../components/install-banner';
 import { MigrationBanner } from '../components/migration-banner';
@@ -71,6 +72,7 @@ export function SearchScreen(): JSX.Element {
       <SearchBar value={query} onChange={setQuery} count={results.length} />
       <InstallBanner />
       <MigrationBanner />
+      <AlertsBanner />
       <ExpiryBanner />
       <BackupBanner />
 

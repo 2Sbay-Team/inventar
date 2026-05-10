@@ -487,7 +487,10 @@
     "tab_expiring": "ينتهي قريباً",
     "low_empty": "لا يوجد شيء قيد النفاد. حدد عتبة إعادة الطلب من صفحة أي منتج لتفعيل التنبيهات.",
     "low_subtitle": "{{stock}} في المخزون · تنبيه تحت {{threshold}}",
-    "open": "فتح"
+    "open": "فتح",
+    "banner_count": "{{n}} عناصر تحتاج انتباه",
+    "banner_breakdown": "{{low}} مخزون منخفض · {{expiring}} ينتهي قريباً",
+    "banner_hide_7d": "إخفاء 7 أيام"
   },
   "migrations": {
     "title": "أكّد ما تبيعه",

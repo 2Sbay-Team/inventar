@@ -67,6 +67,14 @@ export const META_KEYS = {
   // is suppressed. Set when the merchant taps "Hide for 7 days" on
   // the home banner. Re-shows after the timestamp passes.
   migration_v9_banner_hidden_until: 'migration_v9_banner_hidden_until',
+  // v0.5.2 ADR-018: alerts banner suppression. Set when the merchant
+  // taps "Hide for 7 days" on the consolidated alerts banner.
+  alerts_banner_hidden_until: 'alerts_banner_hidden_until',
+  // Companion to alerts_banner_hidden_until: snapshot of the alert
+  // count at the moment of hide. Banner re-shows if current count
+  // exceeds this snapshot (so a new alert arriving mid-suppression
+  // still surfaces).
+  alerts_banner_hidden_count_snapshot: 'alerts_banner_hidden_count_snapshot',
 } as const;
 
 // v0.5 ADR-019: per-variant snooze for the expiry banner. The banner
