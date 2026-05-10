@@ -66,11 +66,51 @@ describe('invoice PDF (ADR-024)', () => {
     expect(doc.getPageCount()).toBe(1);
   });
 
-  it('non-Latin merchant data is replaced with ? rather than crashing', async () => {
-    const arInvoice: Invoice = { ...INVOICE, customer_name: 'زبون عابر' };
-    const bytes = await renderInvoicePdf({ invoice: arInvoice, profile: PROFILE });
-    expect(bytes.byteLength).toBeGreaterThan(500);
-    expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+  it('Arabic customer data triggers Amiri embedding (font present, valid PDF)', async () => {
+    // Stub fetch so the test runs in jsdom without hitting the network.
+    // The Amiri woff2 ships in node_modules; we read it from disk.
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const fontPath = path.resolve(
+      process.cwd(),
+      'node_modules/@fontsource/amiri/files/amiri-arabic-400-normal.woff2',
+    );
+    const fontBytes = fs.readFileSync(fontPath);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array(fontBytes), { status: 200 })) as typeof fetch;
+
+    try {
+      const arInvoice: Invoice = { ...INVOICE, customer_name: 'زبون عابر' };
+      const bytes = await renderInvoicePdf({
+        invoice: arInvoice,
+        profile: PROFILE,
+        locale: 'ar',
+      });
+      expect(bytes.byteLength).toBeGreaterThan(500);
+      expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+      const { PDFDocument } = await import('pdf-lib');
+      const doc = await PDFDocument.load(bytes);
+      expect(doc.getPageCount()).toBe(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('Latin-only invoice with locale=en does NOT load Amiri (no fetch)', async () => {
+    let fetchCalled = false;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      fetchCalled = true;
+      throw new Error('should not fetch font for Latin-only invoice');
+    }) as typeof fetch;
+    try {
+      const bytes = await renderInvoicePdf({ invoice: INVOICE, profile: PROFILE, locale: 'en' });
+      expect(bytes.byteLength).toBeGreaterThan(500);
+      expect(fetchCalled).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('handles a missing profile (uses an empty header)', async () => {

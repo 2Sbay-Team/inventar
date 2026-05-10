@@ -51,7 +51,7 @@ export function InvoiceViewScreen(): JSX.Element | null {
     setShareError(null);
     setSharing(true);
     try {
-      const bytes = await renderInvoicePdf({ invoice: inv, profile });
+      const bytes = await renderInvoicePdf({ invoice: inv, profile, locale });
       const blob = new Blob([bytes], { type: 'application/pdf' });
       const file = new File([blob], invoicePdfFilename(inv), { type: 'application/pdf' });
       const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };

@@ -1,22 +1,35 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import { type Invoice, type ShopProfile } from '../types';
+import fontkit from '@pdf-lib/fontkit';
+import * as ArabicReshaperLib from 'arabic-reshaper';
+import amiriUrl from '@fontsource/amiri/files/amiri-arabic-400-normal.woff2?url';
+import { type Invoice, type Locale, type ShopProfile } from '../types';
 
-// v0.5.2.5 ADR-024 — render an Invoice into a real PDF byte stream so
+// v0.5.2.5+ ADR-024 — render an Invoice into a real PDF byte stream so
 // the merchant can attach it to WhatsApp / email / Drive via the OS
 // share sheet. Browser-print stays as a fallback.
 //
-// Font choice: pdf-lib's StandardFonts.Helvetica is built into every
-// PDF reader (no font embedding, no extra bytes shipped). The trade-off
-// is that Helvetica only covers Latin-1 — Arabic / Cyrillic / CJK glyphs
-// render as boxes. To keep the PDF readable for everyone in this commit
-// we render the labels in English regardless of the app locale; the
-// merchant's data (shop name, customer name, items) prints verbatim and
-// is fine if it uses Latin script. ADR-024 follow-up: embed Noto Sans
-// Arabic for full RTL support.
+// Latin text uses pdf-lib's built-in Helvetica (no embedded font bytes).
+// Arabic text uses the Amiri Naskh font (~107KB woff2, lazy-loaded only
+// when the invoice contains any Arabic codepoint OR locale='ar'); read
+// via fontkit so pdf-lib accepts the woff2 binary. Strings are passed
+// through arabic-reshaper to produce the connected-letter presentation
+// forms (initial / medial / final / isolated) that simple PDF renderers
+// can't compute on their own, then reversed so the visual order
+// matches RTL when drawn left-to-right by pdf-lib.
+//
+// Bidirectional text (a single string containing both Latin and Arabic
+// runs) is handled by detecting which script dominates the field and
+// routing the WHOLE field to that font + alignment. Mixed inline
+// content within one field (e.g. "Order #123 طلب") will render but is
+// not bidi-correct — full BiDi layout is a follow-up if real merchants
+// ask for it.
 
 interface RenderOptions {
   invoice: Invoice;
   profile: ShopProfile | null;
+  // App locale at issue time. Drives label translation (EN/FR/AR) and
+  // header alignment. Optional for back-compat — defaults to 'en'.
+  locale?: Locale;
 }
 
 const PAGE_W = 595; // A4 width in points
@@ -24,11 +37,47 @@ const PAGE_H = 842; // A4 height in points
 const MARGIN = 48;
 const LINE_GAP = 14;
 
-// Helvetica covers Latin-1 only. We strip anything outside that range to
-// avoid pdf-lib's WinAnsi encoder throwing on emoji / Arabic / CJK. The
-// shopkeeper's data still renders as long as they used Latin script;
-// non-Latin runs fall back to '?' rather than crashing the export.
-function safeText(input: string | null | undefined): string {
+// Arabic Unicode block ranges. Defined as numeric ranges (not a regex
+// literal) so the source file stays free of literal Arabic characters
+// that would trip eslint's no-irregular-whitespace rule (U+FEFF lives
+// at the end of the Presentation Forms-B range).
+const ARABIC_RANGES: ReadonlyArray<[number, number]> = [
+  [0x0600, 0x06ff], // Arabic
+  [0x0750, 0x077f], // Arabic Supplement
+  [0xfb50, 0xfdff], // Arabic Presentation Forms-A
+  [0xfe70, 0xfefe], // Arabic Presentation Forms-B (excludes BOM at 0xFEFF)
+];
+
+function containsArabic(text: string | null | undefined): boolean {
+  if (text == null) return false;
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0;
+    for (const [lo, hi] of ARABIC_RANGES) {
+      if (code >= lo && code <= hi) return true;
+    }
+  }
+  return false;
+}
+
+interface Reshaper {
+  convertArabic: (s: string) => string;
+}
+
+function shapeArabic(text: string): string {
+  // arabic-reshaper converts logical-order Unicode to presentation
+  // forms. We then reverse so a naive left-to-right renderer (pdf-lib)
+  // produces visually-correct RTL output.
+  const r = ArabicReshaperLib as unknown as Reshaper | { default: Reshaper };
+  const lib = 'convertArabic' in r ? r : (r as { default: Reshaper }).default;
+  const presentation = lib.convertArabic(text);
+  return [...presentation].reverse().join('');
+}
+
+// Helvetica covers Latin-1 only. We strip anything outside that range
+// when we know the field is Latin-routed, so emoji / CJK fall back to
+// '?' rather than crashing pdf-lib's WinAnsi encoder. Arabic-routed
+// fields use Amiri and don't need stripping.
+function safeLatin(input: string | null | undefined): string {
   if (input == null) return '';
   let out = '';
   for (const ch of input) {
@@ -39,10 +88,6 @@ function safeText(input: string | null | undefined): string {
 }
 
 function formatMoney(minor: number, currency: string): string {
-  // Force English-style formatting for the PDF since the labels are
-  // English anyway. Three fractional digits matches TND millimes
-  // convention; Intl picks the right separator for the requested
-  // currency under the 'en' locale.
   return new Intl.NumberFormat('en', {
     style: 'currency',
     currency,
@@ -51,24 +96,114 @@ function formatMoney(minor: number, currency: string): string {
   }).format(minor / 1000);
 }
 
+interface PdfLabels {
+  invoice: string;
+  number: string; // displayed as "No. {number}" — the prefix label only
+  date: string;
+  bill_to: string;
+  walk_in: string;
+  tax_id: string;
+  description: string;
+  qty: string;
+  unit: string;
+  total_col: string;
+  subtotal: string;
+  vat: string;
+  total: string;
+  notes: string;
+}
+
+const LABELS: Record<Locale, PdfLabels> = {
+  en: {
+    invoice: 'INVOICE',
+    number: 'No.',
+    date: 'Date:',
+    bill_to: 'Bill to:',
+    walk_in: 'Walk-in customer',
+    tax_id: 'Tax ID:',
+    description: 'Description',
+    qty: 'Qty',
+    unit: 'Unit',
+    total_col: 'Total',
+    subtotal: 'Subtotal',
+    vat: 'VAT',
+    total: 'TOTAL',
+    notes: 'Notes:',
+  },
+  fr: {
+    invoice: 'FACTURE',
+    number: 'N°',
+    date: 'Date :',
+    bill_to: 'Client :',
+    walk_in: 'Client de passage',
+    tax_id: 'Matricule fiscal :',
+    description: 'Désignation',
+    qty: 'Qté',
+    unit: 'P.U.',
+    total_col: 'Total',
+    subtotal: 'Sous-total',
+    vat: 'TVA',
+    total: 'TOTAL TTC',
+    notes: 'Notes :',
+  },
+  ar: {
+    invoice: 'فاتورة',
+    number: 'رقم',
+    date: 'التاريخ:',
+    bill_to: 'الزبون:',
+    walk_in: 'زبون عابر',
+    tax_id: 'المعرّف الجبائي:',
+    description: 'الوصف',
+    qty: 'الكمية',
+    unit: 'سعر الوحدة',
+    total_col: 'المجموع',
+    subtotal: 'المجموع الفرعي',
+    vat: 'رسم القيمة المضافة',
+    total: 'المجموع الكلي',
+    notes: 'ملاحظات:',
+  },
+};
+
+let amiriBytesCache: ArrayBuffer | null = null;
+
+// Loads the Amiri Arabic font once per session. Called only when the
+// invoice or its profile contains Arabic content or locale='ar'.
+async function loadAmiriBytes(): Promise<ArrayBuffer> {
+  if (amiriBytesCache) return amiriBytesCache;
+  const res = await fetch(amiriUrl);
+  if (!res.ok) throw new Error(`failed to fetch Amiri font: ${res.status}`);
+  amiriBytesCache = await res.arrayBuffer();
+  return amiriBytesCache;
+}
+
 interface DrawCtx {
   page: PDFPage;
-  font: PDFFont;
-  bold: PDFFont;
+  font: PDFFont; // Helvetica (Latin)
+  bold: PDFFont; // Helvetica-Bold (Latin)
+  arabic: PDFFont | null; // Amiri (Arabic), null if not loaded
   y: number;
   doc: PDFDocument;
   currency: string;
 }
 
-function drawText(
-  ctx: DrawCtx,
-  text: string,
-  opts: { x: number; bold?: boolean; size?: number },
-): void {
+interface DrawOpts {
+  x: number;
+  bold?: boolean;
+  size?: number;
+  // When true, x is treated as the RIGHT edge and the text is drawn
+  // ending at that x. Used for Arabic / right-aligned columns.
+  rightAlign?: boolean;
+}
+
+function drawText(ctx: DrawCtx, text: string, opts: DrawOpts): void {
   const size = opts.size ?? 10;
-  const font = opts.bold ? ctx.bold : ctx.font;
-  ctx.page.drawText(safeText(text), {
-    x: opts.x,
+  const isArabic = containsArabic(text) && ctx.arabic != null;
+  const font = isArabic ? ctx.arabic! : opts.bold ? ctx.bold : ctx.font;
+  const rendered = isArabic ? shapeArabic(text) : safeLatin(text);
+  const width = font.widthOfTextAtSize(rendered, size);
+  const x = opts.rightAlign || isArabic ? opts.x - width : opts.x;
+  ctx.page.drawText(rendered, {
+    x,
     y: ctx.y,
     size,
     font,
@@ -78,7 +213,6 @@ function drawText(
 
 function newLine(ctx: DrawCtx, by: number = LINE_GAP): void {
   ctx.y -= by;
-  // Page break — start a new page if we've fallen below the bottom margin.
   if (ctx.y < MARGIN + 60) {
     ctx.page = ctx.doc.addPage([PAGE_W, PAGE_H]);
     ctx.y = PAGE_H - MARGIN;
@@ -94,27 +228,52 @@ function drawHRule(ctx: DrawCtx): void {
   });
 }
 
-export async function renderInvoicePdf({ invoice, profile }: RenderOptions): Promise<Uint8Array> {
+// Decides whether we need to embed the Arabic font for this invoice:
+// any Arabic codepoint in the data, OR an Arabic-locale render request.
+function needsArabicFont(invoice: Invoice, profile: ShopProfile | null, locale: Locale): boolean {
+  if (locale === 'ar') return true;
+  if (containsArabic(profile?.legal_name) || containsArabic(profile?.name)) return true;
+  if (containsArabic(profile?.legal_address) || containsArabic(profile?.fiscal_id)) return true;
+  if (containsArabic(invoice.customer_name) || containsArabic(invoice.customer_address)) {
+    return true;
+  }
+  if (containsArabic(invoice.customer_fiscal_id) || containsArabic(invoice.notes)) return true;
+  return invoice.lines.some((l) => containsArabic(l.description) || containsArabic(l.reference));
+}
+
+export async function renderInvoicePdf({
+  invoice,
+  profile,
+  locale = 'en',
+}: RenderOptions): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  let arabic: PDFFont | null = null;
+  if (needsArabicFont(invoice, profile, locale)) {
+    doc.registerFontkit(fontkit);
+    const bytes = await loadAmiriBytes();
+    arabic = await doc.embedFont(bytes);
+  }
   const page = doc.addPage([PAGE_W, PAGE_H]);
+  const labels = LABELS[locale];
   const ctx: DrawCtx = {
     page,
     font,
     bold,
+    arabic,
     y: PAGE_H - MARGIN,
     doc,
     currency: invoice.currency,
   };
 
-  // ─── Header: shop info (left) + INVOICE label + number (right) ───
+  // ─── Header: shop info + INVOICE label + number ───────────────────
   drawText(ctx, profile?.legal_name ?? profile?.name ?? '', {
     x: MARGIN,
     bold: true,
     size: 14,
   });
-  drawText(ctx, 'INVOICE', { x: PAGE_W - MARGIN - 80, bold: true, size: 16 });
+  drawText(ctx, labels.invoice, { x: PAGE_W - MARGIN, rightAlign: true, bold: true, size: 16 });
   newLine(ctx, 20);
 
   if (profile?.legal_address) {
@@ -124,33 +283,32 @@ export async function renderInvoicePdf({ invoice, profile }: RenderOptions): Pro
     }
   }
   if (profile?.fiscal_id) {
-    drawText(ctx, `Tax ID: ${profile.fiscal_id}`, { x: MARGIN, size: 9 });
+    drawText(ctx, `${labels.tax_id} ${profile.fiscal_id}`, { x: MARGIN, size: 9 });
     newLine(ctx, 11);
   }
 
-  // Invoice number + issued date in the right column.
-  const headerRight = PAGE_W - MARGIN - 200;
-  ctx.page.drawText(safeText(`No. ${invoice.number}`), {
-    x: headerRight,
-    y: PAGE_H - MARGIN - 28,
-    size: 10,
-    font: bold,
-  });
-  ctx.page.drawText(safeText(`Date: ${invoice.issued_at.slice(0, 10)}`), {
-    x: headerRight,
-    y: PAGE_H - MARGIN - 42,
-    size: 9,
-    font,
-  });
+  // Invoice number + issued date in the right column. We draw these
+  // at fixed y positions (relative to the page top) so they line up
+  // with the shop-name baseline regardless of the address height.
+  const headerRight = PAGE_W - MARGIN;
+  const numberStr = `${labels.number} ${invoice.number}`;
+  const dateStr = `${labels.date} ${invoice.issued_at.slice(0, 10)}`;
+  // Save current y, draw at fixed positions, then restore.
+  const savedY = ctx.y;
+  ctx.y = PAGE_H - MARGIN - 28;
+  drawText(ctx, numberStr, { x: headerRight, rightAlign: true, bold: true, size: 10 });
+  ctx.y = PAGE_H - MARGIN - 42;
+  drawText(ctx, dateStr, { x: headerRight, rightAlign: true, size: 9 });
+  ctx.y = savedY;
 
   newLine(ctx, 16);
   drawHRule(ctx);
   newLine(ctx, 14);
 
-  // ─── Customer block ─────────────────────────────────────────────
-  drawText(ctx, 'Bill to:', { x: MARGIN, bold: true, size: 10 });
+  // ─── Customer block ───────────────────────────────────────────────
+  drawText(ctx, labels.bill_to, { x: MARGIN, bold: true, size: 10 });
   newLine(ctx, 12);
-  drawText(ctx, invoice.customer_name ?? 'Walk-in customer', { x: MARGIN, size: 10 });
+  drawText(ctx, invoice.customer_name ?? labels.walk_in, { x: MARGIN, size: 10 });
   newLine(ctx, 11);
   if (invoice.customer_address) {
     for (const line of invoice.customer_address.split('\n')) {
@@ -159,7 +317,7 @@ export async function renderInvoicePdf({ invoice, profile }: RenderOptions): Pro
     }
   }
   if (invoice.customer_fiscal_id) {
-    drawText(ctx, `Tax ID: ${invoice.customer_fiscal_id}`, { x: MARGIN, size: 9 });
+    drawText(ctx, `${labels.tax_id} ${invoice.customer_fiscal_id}`, { x: MARGIN, size: 9 });
     newLine(ctx, 11);
   }
 
@@ -167,29 +325,31 @@ export async function renderInvoicePdf({ invoice, profile }: RenderOptions): Pro
   drawHRule(ctx);
   newLine(ctx, 14);
 
-  // ─── Line table header ──────────────────────────────────────────
+  // ─── Line table ───────────────────────────────────────────────────
   const COL_DESC = MARGIN;
-  const COL_QTY = MARGIN + 290;
-  const COL_PRICE = MARGIN + 340;
-  const COL_TOTAL = MARGIN + 420;
+  const COL_QTY_R = MARGIN + 320;
+  const COL_PRICE_R = MARGIN + 400;
+  const COL_TOTAL_R = PAGE_W - MARGIN;
 
-  drawText(ctx, 'Description', { x: COL_DESC, bold: true, size: 9 });
-  drawText(ctx, 'Qty', { x: COL_QTY, bold: true, size: 9 });
-  drawText(ctx, 'Unit', { x: COL_PRICE, bold: true, size: 9 });
-  drawText(ctx, 'Total', { x: COL_TOTAL, bold: true, size: 9 });
+  drawText(ctx, labels.description, { x: COL_DESC, bold: true, size: 9 });
+  drawText(ctx, labels.qty, { x: COL_QTY_R, rightAlign: true, bold: true, size: 9 });
+  drawText(ctx, labels.unit, { x: COL_PRICE_R, rightAlign: true, bold: true, size: 9 });
+  drawText(ctx, labels.total_col, { x: COL_TOTAL_R, rightAlign: true, bold: true, size: 9 });
   newLine(ctx, 6);
   drawHRule(ctx);
   newLine(ctx, 12);
 
   for (const line of invoice.lines) {
     drawText(ctx, line.description, { x: COL_DESC, size: 10 });
-    drawText(ctx, String(line.qty), { x: COL_QTY, size: 10 });
+    drawText(ctx, String(line.qty), { x: COL_QTY_R, rightAlign: true, size: 10 });
     drawText(ctx, formatMoney(line.unit_price_minor, invoice.currency), {
-      x: COL_PRICE,
+      x: COL_PRICE_R,
+      rightAlign: true,
       size: 10,
     });
     drawText(ctx, formatMoney(line.qty * line.unit_price_minor, invoice.currency), {
-      x: COL_TOTAL,
+      x: COL_TOTAL_R,
+      rightAlign: true,
       size: 10,
     });
     if (line.reference) {
@@ -203,28 +363,38 @@ export async function renderInvoicePdf({ invoice, profile }: RenderOptions): Pro
   drawHRule(ctx);
   newLine(ctx, 14);
 
-  // ─── Totals ─────────────────────────────────────────────────────
-  drawText(ctx, 'Subtotal', { x: COL_PRICE, size: 10 });
+  // ─── Totals (right-aligned column) ────────────────────────────────
+  drawText(ctx, labels.subtotal, { x: COL_PRICE_R, rightAlign: true, size: 10 });
   drawText(ctx, formatMoney(invoice.subtotal_minor, invoice.currency), {
-    x: COL_TOTAL,
+    x: COL_TOTAL_R,
+    rightAlign: true,
     size: 10,
   });
   newLine(ctx);
-  drawText(ctx, `VAT (${invoice.vat_pct}%)`, { x: COL_PRICE, size: 10 });
-  drawText(ctx, formatMoney(invoice.vat_minor, invoice.currency), { x: COL_TOTAL, size: 10 });
+  drawText(ctx, `${labels.vat} (${invoice.vat_pct}%)`, {
+    x: COL_PRICE_R,
+    rightAlign: true,
+    size: 10,
+  });
+  drawText(ctx, formatMoney(invoice.vat_minor, invoice.currency), {
+    x: COL_TOTAL_R,
+    rightAlign: true,
+    size: 10,
+  });
   newLine(ctx, 6);
   drawHRule(ctx);
   newLine(ctx, 12);
-  drawText(ctx, 'TOTAL', { x: COL_PRICE, bold: true, size: 12 });
+  drawText(ctx, labels.total, { x: COL_PRICE_R, rightAlign: true, bold: true, size: 12 });
   drawText(ctx, formatMoney(invoice.total_minor, invoice.currency), {
-    x: COL_TOTAL,
+    x: COL_TOTAL_R,
+    rightAlign: true,
     bold: true,
     size: 12,
   });
 
   if (invoice.notes) {
     newLine(ctx, 24);
-    drawText(ctx, 'Notes:', { x: MARGIN, bold: true, size: 9 });
+    drawText(ctx, labels.notes, { x: MARGIN, bold: true, size: 9 });
     newLine(ctx, 12);
     for (const ln of invoice.notes.split('\n')) {
       drawText(ctx, ln, { x: MARGIN, size: 9 });
