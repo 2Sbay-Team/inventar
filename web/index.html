@@ -17,9 +17,218 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <title>Inventar</title>
+    <style>
+      /* Inline-only styles — no @font-face / no external CSS — so the
+         loading + boot-failure fallbacks render even when the SW is
+         serving a broken bundle and the chunked CSS never loads. */
+      :root {
+        color-scheme: light;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #fff8f2;
+        color: #2a2a2a;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        -webkit-text-size-adjust: 100%;
+      }
+      #boot-fallback {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+      }
+      #boot-fallback .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #e5ddd2;
+        border-top-color: #b45309;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      #boot-fallback .late {
+        display: none;
+        max-width: 360px;
+      }
+      #boot-fallback.is-late .spinner {
+        display: none;
+      }
+      #boot-fallback.is-late .late {
+        display: block;
+      }
+      #boot-fallback h1 {
+        font-size: 18px;
+        margin: 16px 0 8px;
+        font-weight: 600;
+      }
+      #boot-fallback p {
+        font-size: 14px;
+        line-height: 1.5;
+        color: #6b6b6b;
+        margin: 0 0 16px;
+      }
+      #boot-fallback .btn-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+      }
+      #boot-fallback button {
+        -webkit-appearance: none;
+        appearance: none;
+        font: inherit;
+        cursor: pointer;
+        padding: 12px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        background: white;
+        font-size: 14px;
+        color: #2a2a2a;
+      }
+      #boot-fallback button.primary {
+        background: #b45309;
+        color: white;
+        border-color: transparent;
+      }
+      #boot-fallback small {
+        display: block;
+        font-size: 11px;
+        color: #999;
+        margin-top: 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline loading screen + boot-failure fallback. Lives outside the
+           React tree so it renders even before any JS chunk loads, and it
+           survives a broken SW that serves a stale shell. main.tsx removes
+           this element once createRoot mounts the real App. If React never
+           mounts within ~10 s we swap in the .is-late state with a "Clear
+           cache & reload" button — the user's escape hatch from a stuck
+           service worker. -->
+      <div id="boot-fallback" data-testid="boot-fallback">
+        <div class="spinner" aria-label="Loading"></div>
+        <div class="late">
+          <h1>Loading is taking too long</h1>
+          <p>
+            The app is stuck. This usually means a cached file is broken. Clear the cache and reload
+            — your shop data is safe.
+          </p>
+          <div class="btn-row">
+            <button
+              id="boot-clear-cache"
+              type="button"
+              class="primary"
+              data-testid="boot-clear-cache"
+            >
+              Clear cache &amp; reload
+            </button>
+            <button id="boot-just-reload" type="button" data-testid="boot-just-reload">
+              Just reload
+            </button>
+          </div>
+          <small id="boot-error"></small>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Inline boot watchdog. Runs immediately, stays inline so a missing
+      // chunk can't take it down. main.tsx sets window.__inventarBooted
+      // = true once createRoot has mounted; if that never happens within
+      // 10 s, we swap in the late-state fallback. We also catch any
+      // uncaught error / unhandledrejection that fires before the React
+      // tree exists and surface it in the fallback so the merchant has
+      // something to forward when reporting the problem.
+      (function () {
+        var fb = document.getElementById('boot-fallback');
+        var errSlot = document.getElementById('boot-error');
+        var bootError = null;
+        function showLate(reason) {
+          if (!fb) return;
+          fb.classList.add('is-late');
+          if (errSlot && reason) errSlot.textContent = String(reason).slice(0, 200);
+        }
+        // 10 s gives slow Android devices + the SW install + IndexedDB
+        // upgrade enough headroom on first launch. Any longer and the
+        // merchant assumes the app is dead.
+        var watchdog = setTimeout(function () {
+          if (!window.__inventarBooted) showLate(bootError || 'Timed out after 10 s');
+        }, 10000);
+        window.addEventListener('error', function (e) {
+          bootError = (e && e.message) || 'Unknown error';
+          if (!window.__inventarBooted) showLate(bootError);
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var msg = (e && e.reason && (e.reason.message || e.reason)) || 'Unhandled rejection';
+          bootError = String(msg);
+          if (!window.__inventarBooted) showLate(bootError);
+        });
+        // Buttons. Wired immediately so they work even if React never loads.
+        var clearBtn = document.getElementById('boot-clear-cache');
+        var reloadBtn = document.getElementById('boot-just-reload');
+        function doClear() {
+          if (clearBtn) clearBtn.disabled = true;
+          if (clearBtn) clearBtn.textContent = 'Clearing…';
+          var work = [];
+          if ('serviceWorker' in navigator) {
+            work.push(
+              navigator.serviceWorker
+                .getRegistrations()
+                .then(function (rs) {
+                  return Promise.all(
+                    rs.map(function (r) {
+                      return r.unregister();
+                    }),
+                  );
+                })
+                .catch(function () {}),
+            );
+          }
+          if ('caches' in window) {
+            work.push(
+              caches
+                .keys()
+                .then(function (ks) {
+                  return Promise.all(
+                    ks.map(function (k) {
+                      return caches.delete(k);
+                    }),
+                  );
+                })
+                .catch(function () {}),
+            );
+          }
+          Promise.all(work).then(function () {
+            location.reload();
+          });
+        }
+        if (clearBtn) clearBtn.addEventListener('click', doClear);
+        if (reloadBtn)
+          reloadBtn.addEventListener('click', function () {
+            location.reload();
+          });
+        // When React mounts successfully main.tsx clears the watchdog
+        // and removes the fallback DOM. We expose the cleanup so the
+        // host doesn't have to know about the timer.
+        window.__inventarBootCleanup = function () {
+          window.__inventarBooted = true;
+          clearTimeout(watchdog);
+          if (fb && fb.parentNode) fb.parentNode.removeChild(fb);
+        };
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './app';
+import { ErrorBoundary } from './components/error-boundary';
 import './styles/index.css';
 import { initI18n } from './i18n/i18next';
 import { registerServiceWorker } from './pwa/register-sw';
@@ -21,6 +22,15 @@ function loadFontsAsync(): void {
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('root element not found');
 
+interface BootCleanup {
+  __inventarBootCleanup?: () => void;
+}
+
+function clearBootFallback(): void {
+  const cleanup = (window as unknown as BootCleanup).__inventarBootCleanup;
+  if (typeof cleanup === 'function') cleanup();
+}
+
 async function bootstrap(): Promise<void> {
   mountTestSeed();
   await initI18n();
@@ -30,9 +40,16 @@ async function bootstrap(): Promise<void> {
   const profile = await getProfile(db);
   if (profile) await ensurePersistence(db);
 
+  // Drop the inline boot fallback BEFORE we mount React so the spinner
+  // doesn't briefly flash alongside the App. The fallback DOM lives at
+  // /index.html inside #root and is removed via __inventarBootCleanup.
+  clearBootFallback();
+
   createRoot(rootEl!).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   );
 
@@ -40,4 +57,11 @@ async function bootstrap(): Promise<void> {
   registerServiceWorker();
 }
 
-void bootstrap();
+void bootstrap().catch((e: unknown) => {
+  // bootstrap rejected — i18n / Dexie migration / persistence threw
+  // before React got to mount. The inline fallback (index.html) catches
+  // unhandled rejections too and surfaces its own UI, but we also log
+  // here so DevTools shows a stack trace and the merchant can forward
+  // it via a screenshot.
+  console.error('bootstrap failed', e);
+});
