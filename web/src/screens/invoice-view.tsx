@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Printer } from 'lucide-react';
 
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
@@ -50,8 +51,8 @@ export function InvoiceViewScreen(): JSX.Element | null {
   const cur = invoice.currency;
   return (
     <ScreenLayout hideNav>
-      <main data-testid="invoice-screen" className="flex flex-1 flex-col gap-4 p-4">
-        <header className="flex items-start justify-between">
+      <main data-testid="invoice-screen" className="flex flex-1 flex-col gap-4 p-4 print:p-0">
+        <header className="flex items-start justify-between print:hidden">
           <div>
             <h2 className="font-display text-xl font-semibold">{t('title')}</h2>
             <p data-testid="invoice-number" className="text-ink-3 mt-1 font-mono text-xs" dir="ltr">
@@ -61,15 +62,36 @@ export function InvoiceViewScreen(): JSX.Element | null {
               {new Date(invoice.issued_at).toLocaleString(locale)}
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="invoice-back"
-            onClick={() => navigate('/', { replace: true })}
-            className="border-hair text-ink rounded-xl border px-3 py-1.5 text-xs"
-          >
-            {t('done')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="invoice-print"
+              onClick={() => window.print()}
+              className="bg-accent inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white"
+            >
+              <Printer aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
+              {t('print')}
+            </button>
+            <button
+              type="button"
+              data-testid="invoice-back"
+              onClick={() => navigate('/', { replace: true })}
+              className="border-hair text-ink rounded-xl border px-3 py-1.5 text-xs"
+            >
+              {t('done')}
+            </button>
+          </div>
         </header>
+
+        {/* Print-only header — duplicates the title + invoice number
+            with the issued date, designed for the top of the printed
+            page. The interactive header above is hidden via print:hidden. */}
+        <div className="hidden print:mb-4 print:block">
+          <h1 className="font-display text-2xl font-semibold">{t('title')}</h1>
+          <p className="font-mono text-sm" dir="ltr">
+            {invoice.number} · {new Date(invoice.issued_at).toLocaleDateString(locale)}
+          </p>
+        </div>
 
         <section className="border-hair grid grid-cols-2 gap-4 rounded-2xl border bg-white p-4 text-xs">
           <div>

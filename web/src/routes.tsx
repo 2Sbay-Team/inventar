@@ -33,6 +33,9 @@ const ArticleLabelScreen = lazy(() =>
 const InvoiceViewScreen = lazy(() =>
   import('./screens/invoice-view').then((m) => ({ default: m.InvoiceViewScreen })),
 );
+const InvoicesListScreen = lazy(() =>
+  import('./screens/invoices-list').then((m) => ({ default: m.InvoicesListScreen })),
+);
 const HelpScreen = lazy(() => import('./screens/help').then((m) => ({ default: m.HelpScreen })));
 const StockReportScreen = lazy(() =>
   import('./screens/stock-report').then((m) => ({ default: m.StockReportScreen })),
@@ -155,6 +158,17 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <InvoiceViewScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    // v0.5.2.4 ADR-024 — Past invoices list, reachable from Settings.
+    path: '/invoices',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <InvoicesListScreen />
         </OnboardingGate>
       </Lazy>
     ),

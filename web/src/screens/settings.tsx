@@ -228,6 +228,7 @@ function StockLocationsSection(): JSX.Element | null {
 // override on a per-invoice basis.
 function InvoicingSection(): JSX.Element | null {
   const { t } = useTranslation('settings');
+  const { t: tInvoice } = useTranslation('invoice');
   const profile = useProfile();
   const [legalNameDraft, setLegalNameDraft] = useState<string | null>(null);
   const [legalAddressDraft, setLegalAddressDraft] = useState<string | null>(null);
@@ -355,6 +356,13 @@ function InvoicingSection(): JSX.Element | null {
           />
           <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
         </div>
+        <Link
+          to="/invoices"
+          data-testid="settings-past-invoices"
+          className="text-accent inline-flex items-center text-sm font-medium"
+        >
+          {tInvoice('past_invoices_link')}
+        </Link>
       </div>
     </section>
   );

@@ -656,6 +656,7 @@
   "invoice": {
     "title": "Invoice",
     "done": "Done",
+    "print": "Print",
     "issuer": "From",
     "customer": "Bill to",
     "customer_walkin": "Walk-in customer",
@@ -667,6 +668,9 @@
     "subtotal": "Subtotal",
     "vat": "VAT",
     "total": "Total",
-    "not_found": "Invoice not found."
+    "not_found": "Invoice not found.",
+    "past_invoices_title": "Past invoices",
+    "past_invoices_link": "View past invoices",
+    "past_invoices_empty": "No invoices issued yet."
   }
 }

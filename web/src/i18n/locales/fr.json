@@ -654,6 +654,7 @@
   "invoice": {
     "title": "Facture",
     "done": "Terminer",
+    "print": "Imprimer",
     "issuer": "Émetteur",
     "customer": "Client",
     "customer_walkin": "Client de passage",
@@ -665,6 +666,9 @@
     "subtotal": "Sous-total",
     "vat": "TVA",
     "total": "Total TTC",
-    "not_found": "Facture introuvable."
+    "not_found": "Facture introuvable.",
+    "past_invoices_title": "Factures émises",
+    "past_invoices_link": "Voir les factures émises",
+    "past_invoices_empty": "Aucune facture émise pour l'instant."
   }
 }
