@@ -99,6 +99,8 @@
     "price_sale": "Sale",
     "in_stock_total": "{{n}} in stock",
     "out_of_stock": "Out of stock",
+    "min_stock_label": "Reorder under",
+    "min_stock_placeholder": "off",
     "sizes_title": "Stock by size",
     "sizes_hint": "tap to adjust",
     "activity_title": "Recent activity",
@@ -361,7 +363,9 @@
     "sort_low_stock": "Lowest stock",
     "sort_high_margin": "Highest profit margin",
     "show_archived": "Show archived",
-    "filter_all": "All"
+    "filter_all": "All",
+    "filter_low_active": "Low stock only · clear",
+    "filter_low_empty": "Nothing's running low right now."
   },
   "archive": {
     "title": "Archive bin",
@@ -411,6 +415,7 @@
     "type_instead": "Type instead",
     "search_placeholder": "EAN, internal code, or product name",
     "search_no_match": "Nothing found for \"{{query}}\". Type a 13-digit EAN to add a new product.",
+    "add_manually": "Add as a non-barcoded article",
     "scanner_unsupported_short": "Scanner not supported. Use Type instead to enter codes manually.",
     "scanner_error_short": "Camera unavailable",
     "scan_invalid": "Invalid barcode — must be 12 or 13 digits.",
@@ -452,7 +457,11 @@
     "action_discount": "Discount",
     "action_damaged": "Mark damaged",
     "action_snooze": "Hide 7d",
-    "discount_coming_soon": "Coming soon"
+    "discount_coming_soon": "Coming soon",
+    "discount_title": "Discount {{name}}",
+    "discount_current": "Current sale price: {{price}}",
+    "discount_hint": "Lower the catalogue sale price for this article. The new price applies to every future scan / sale until you change it again.",
+    "discount_new_price": "New sale price ({{currency}})"
   },
   "shop_subtypes": {
     "food_beverages_label": "Food & beverages",

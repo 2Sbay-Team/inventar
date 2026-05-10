@@ -99,6 +99,8 @@
     "price_sale": "Vente",
     "in_stock_total": "{{n}} en stock",
     "out_of_stock": "Épuisé",
+    "min_stock_label": "Réappro sous",
+    "min_stock_placeholder": "off",
     "sizes_title": "Stock par taille",
     "sizes_hint": "appuyez pour ajuster",
     "activity_title": "Activité récente",
@@ -361,7 +363,9 @@
     "sort_low_stock": "Stock le plus bas",
     "sort_high_margin": "Marge la plus élevée",
     "show_archived": "Afficher les archives",
-    "filter_all": "Toutes"
+    "filter_all": "Toutes",
+    "filter_low_active": "Stock bas seulement · effacer",
+    "filter_low_empty": "Aucun article en stock bas pour l'instant."
   },
   "archive": {
     "title": "Corbeille d'archives",
@@ -411,6 +415,7 @@
     "type_instead": "Saisir manuellement",
     "search_placeholder": "EAN, code interne ou nom du produit",
     "search_no_match": "Aucun résultat pour « {{query}} ». Saisissez un EAN à 13 chiffres pour créer un nouveau produit.",
+    "add_manually": "Ajouter sans code-barre",
     "scanner_unsupported_short": "Scanner non supporté. Utilisez « Saisir manuellement » pour entrer un code.",
     "scanner_error_short": "Caméra indisponible",
     "scan_invalid": "Code invalide — doit comporter 12 ou 13 chiffres.",
@@ -452,7 +457,11 @@
     "action_discount": "Remise",
     "action_damaged": "Endommagé",
     "action_snooze": "Masquer 7j",
-    "discount_coming_soon": "Bientôt disponible"
+    "discount_coming_soon": "Bientôt disponible",
+    "discount_title": "Remise sur {{name}}",
+    "discount_current": "Prix de vente actuel : {{price}}",
+    "discount_hint": "Baisse le prix de vente catalogue de cet article. Le nouveau prix s'applique à chaque scan / vente jusqu'à modification.",
+    "discount_new_price": "Nouveau prix de vente ({{currency}})"
   },
   "shop_subtypes": {
     "food_beverages_label": "Alimentation & boissons",

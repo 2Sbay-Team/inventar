@@ -1,15 +1,21 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, EyeOff, TriangleAlert, XOctagon } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { ArrowLeft, EyeOff, Tag, TriangleAlert, X, XOctagon } from 'lucide-react';
 
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
+import { useCurrency } from '../hooks/use-currency';
 import { useLive } from '../hooks/use-live';
+import { useLocale } from '../hooks/use-locale';
+import { updateArticle } from '../repos/articles';
 import { lotsExpiringWithin, softDeleteLot } from '../repos/lots';
 import { recordMovement } from '../repos/movements';
 import { expirySnoozeKey, getMeta, META_KEYS, setMeta } from '../repos/meta';
-import { type Article, type Lot, type UUID, type Variant } from '../types';
+import { formatCurrency } from '../i18n/format-currency';
+import { parseCurrency } from '../i18n/parse-currency';
+import { type Article, type Locale, type Lot, type UUID, type Variant } from '../types';
 
 const DEFAULT_THRESHOLD_DAYS = 7;
 const DEFAULT_SNOOZE_DAYS = 7;
@@ -85,11 +91,20 @@ async function loadRows(filter: FilterKey, now: Date): Promise<ExpiryRow[]> {
 
 export function ExpiryScreen(): JSX.Element {
   const { t } = useTranslation('expiry');
+  const { t: tCommon } = useTranslation('common');
+  const { locale } = useLocale();
+  const currency = useCurrency();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterKey>('week');
   const [now] = useState<Date>(() => new Date());
   const [busyVariantId, setBusyVariantId] = useState<UUID | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  // v0.5 commit-9 (gap fix): Discount sub-sheet. The brief listed the
+  // button without defining semantics; lightest reasonable
+  // interpretation is "lower the article's catalogue sale price to
+  // move stock fast" — does NOT touch the lot or write a movement,
+  // just persists a new sale_price_tnd via updateArticle.
+  const [discountTarget, setDiscountTarget] = useState<ExpiryRow | null>(null);
 
   const rows = useLive<ExpiryRow[]>(() => loadRows(filter, now), [filter, now, refreshTick], []);
 
@@ -191,6 +206,19 @@ export function ExpiryScreen(): JSX.Element {
           ))}
         </div>
 
+        <DiscountSheet
+          target={discountTarget}
+          onClose={() => setDiscountTarget(null)}
+          onSaved={() => {
+            setDiscountTarget(null);
+            setRefreshTick((n) => n + 1);
+          }}
+          t={t}
+          tCommon={tCommon}
+          locale={locale}
+          currency={currency}
+        />
+
         {rows.length === 0 ? (
           <p data-testid="expiry-empty" className="text-ink-3 mt-12 text-center text-sm">
             {t('empty')}
@@ -230,10 +258,11 @@ export function ExpiryScreen(): JSX.Element {
                   <button
                     type="button"
                     data-testid={`expiry-row-${row.article.internal_code}-discount`}
-                    disabled
-                    className="border-hair text-ink-3 cursor-not-allowed rounded-lg border bg-white px-3 py-1.5 text-xs"
-                    title={t('discount_coming_soon') ?? ''}
+                    disabled={busyVariantId === row.variant.id}
+                    onClick={() => setDiscountTarget(row)}
+                    className="border-accent/40 text-accent inline-flex items-center gap-1 rounded-lg border bg-white px-3 py-1.5 text-xs disabled:opacity-50"
                   >
+                    <Tag aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
                     {t('action_discount')}
                   </button>
                   <button
@@ -263,5 +292,115 @@ export function ExpiryScreen(): JSX.Element {
         )}
       </main>
     </ScreenLayout>
+  );
+}
+
+// ─── discount sub-sheet ───────────────────────────────────────────────
+
+function DiscountSheet(props: {
+  target: ExpiryRow | null;
+  onClose: () => void;
+  onSaved: () => void;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+  tCommon: (k: string) => string;
+  locale: Locale;
+  currency: string;
+}): JSX.Element | null {
+  const { target, onClose, onSaved, t, tCommon, locale, currency } = props;
+  const [draftInput, setDraftInput] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Reset the draft each time a new target row is opened. We can't put
+  // this in a useEffect-on-target because the input remounts on each
+  // open via Dialog's conditional render, and the useState initializer
+  // runs once; switching targets would otherwise show stale text.
+  const targetId = target?.article.id ?? null;
+  const [lastTargetId, setLastTargetId] = useState<UUID | null>(null);
+  if (targetId !== lastTargetId) {
+    setLastTargetId(targetId);
+    setDraftInput('');
+  }
+
+  if (!target) return null;
+
+  const currentSale = target.article.sale_price_tnd;
+
+  async function save(): Promise<void> {
+    if (!target) return;
+    const parsed = parseCurrency(draftInput, locale, currency);
+    if (parsed === null || parsed <= 0) return;
+    setSubmitting(true);
+    try {
+      await updateArticle(db, target.article.id, { sale_price_tnd: parsed });
+      onSaved();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog.Root open={true} onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+        <Dialog.Content
+          data-testid="expiry-discount-sheet"
+          className="bg-paper fixed inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-3xl p-5 shadow-xl"
+        >
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div className="flex flex-col">
+              <Dialog.Title className="font-display text-base font-semibold">
+                {t('discount_title', { name: target.article.name })}
+              </Dialog.Title>
+              <span className="text-ink-3 mt-0.5 text-xs">
+                {t('discount_current', { price: formatCurrency(currentSale, locale, currency) })}
+              </span>
+            </div>
+            <Dialog.Close type="button" data-testid="expiry-discount-close" className="text-ink-3">
+              <X aria-hidden className="h-5 w-5" strokeWidth={2} />
+            </Dialog.Close>
+          </div>
+
+          <p className="text-ink-2 text-xs leading-relaxed">{t('discount_hint')}</p>
+
+          <label
+            htmlFor="expiry-discount-input"
+            className="text-ink-2 mt-3 block text-sm font-medium"
+          >
+            {t('discount_new_price', { currency })}
+          </label>
+          <input
+            id="expiry-discount-input"
+            data-testid="expiry-discount-input"
+            type="text"
+            inputMode="decimal"
+            autoFocus
+            value={draftInput}
+            onChange={(e) => setDraftInput(e.target.value)}
+            placeholder={formatCurrency(Math.floor(currentSale * 0.7), locale, currency)}
+            className="border-hair mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
+          />
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              data-testid="expiry-discount-cancel"
+              onClick={onClose}
+              className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
+            >
+              {tCommon('cancel')}
+            </button>
+            <button
+              type="button"
+              data-testid="expiry-discount-save"
+              disabled={submitting || draftInput.trim() === ''}
+              onClick={() => void save()}
+              className="bg-accent flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {tCommon('save')}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

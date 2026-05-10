@@ -32,7 +32,13 @@ export function ArticleDetailScreen(): JSX.Element {
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
-  const needsSizes = STORE_TYPES[profile?.store_type ?? 'shoes'].has_sizes;
+  const storeCfg = STORE_TYPES[profile?.store_type ?? 'shoes'];
+  const needsSizes = storeCfg.has_sizes;
+  // v0.5 ADR-017: shop articles get an inline min-stock-threshold
+  // editor near the price/stock strip. Other verticals don't surface
+  // it (the field still exists on Article and round-trips via backup
+  // import — just no UI to set it).
+  const showMinStockEditor = storeCfg.has_expiry;
 
   const [adjustTarget, setAdjustTarget] = useState<QuickAdjustTarget | null>(null);
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
@@ -40,6 +46,8 @@ export function ArticleDetailScreen(): JSX.Element {
   const [qrOpen, setQrOpen] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [minStockDraft, setMinStockDraft] = useState<string | null>(null);
+  const [minStockSaving, setMinStockSaving] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const variantsById = useMemo(() => {
@@ -300,6 +308,53 @@ export function ArticleDetailScreen(): JSX.Element {
               : t('out_of_stock')}
           </span>
         </div>
+
+        {showMinStockEditor ? (
+          <div data-testid="min-stock-editor" className="mt-3 flex items-center gap-2">
+            <label
+              htmlFor="detail-min-stock"
+              className="text-ink-3 font-mono text-[10.5px] uppercase tracking-widest"
+            >
+              {t('min_stock_label')}
+            </label>
+            <input
+              id="detail-min-stock"
+              data-testid="detail-min-stock"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={
+                minStockDraft ??
+                (article.min_stock_threshold === null ? '' : String(article.min_stock_threshold))
+              }
+              onChange={(e) => setMinStockDraft(e.target.value)}
+              onBlur={async () => {
+                const draft = minStockDraft;
+                if (draft === null) return;
+                const trimmed = draft.trim();
+                const parsed = trimmed === '' ? null : Number.parseInt(trimmed, 10);
+                const next =
+                  parsed === null ? null : Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+                if (next === article.min_stock_threshold) {
+                  setMinStockDraft(null);
+                  return;
+                }
+                setMinStockSaving(true);
+                try {
+                  await updateArticle(db, article.id, { min_stock_threshold: next });
+                } finally {
+                  setMinStockDraft(null);
+                  setMinStockSaving(false);
+                }
+              }}
+              placeholder={t('min_stock_placeholder')}
+              className="border-hair w-20 rounded-lg border bg-white px-2 py-1 text-end font-mono text-xs"
+            />
+            {minStockSaving ? (
+              <span className="text-ink-3 text-[10.5px]">{tCommon('saving')}</span>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {needsSizes ? (

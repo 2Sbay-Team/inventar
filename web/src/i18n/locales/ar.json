@@ -99,6 +99,8 @@
     "price_sale": "البيع",
     "in_stock_total": "{{n}} في المخزون",
     "out_of_stock": "نفد",
+    "min_stock_label": "إعادة الطلب تحت",
+    "min_stock_placeholder": "إيقاف",
     "sizes_title": "المخزون حسب المقاس",
     "sizes_hint": "اضغط للتعديل",
     "activity_title": "النشاط الأخير",
@@ -361,7 +363,9 @@
     "sort_low_stock": "أقل مخزون",
     "sort_high_margin": "أعلى هامش ربح",
     "show_archived": "إظهار المؤرشفة",
-    "filter_all": "الكل"
+    "filter_all": "الكل",
+    "filter_low_active": "المخزون المنخفض فقط · إزالة",
+    "filter_low_empty": "لا منتجات منخفضة المخزون حالياً."
   },
   "archive": {
     "title": "سلة الأرشيف",
@@ -411,6 +415,7 @@
     "type_instead": "إدخال يدوي",
     "search_placeholder": "EAN، الرمز الداخلي، أو اسم المنتج",
     "search_no_match": "لا نتائج لـ «{{query}}». أدخل رمز EAN من 13 رقماً لإنشاء منتج جديد.",
+    "add_manually": "إضافة بدون باركود",
     "scanner_unsupported_short": "الماسح غير مدعوم. استخدم الإدخال اليدوي لإدخال الرمز.",
     "scanner_error_short": "الكاميرا غير متاحة",
     "scan_invalid": "رمز غير صالح — يجب أن يكون 12 أو 13 رقماً.",
@@ -452,7 +457,11 @@
     "action_discount": "خصم",
     "action_damaged": "تلف",
     "action_snooze": "إخفاء 7أ",
-    "discount_coming_soon": "قريباً"
+    "discount_coming_soon": "قريباً",
+    "discount_title": "خصم على {{name}}",
+    "discount_current": "سعر البيع الحالي: {{price}}",
+    "discount_hint": "تخفيض سعر البيع الكتالوجي لهذا المنتج. السعر الجديد يُطبَّق على كل مسح / بيع حتى تغييره.",
+    "discount_new_price": "السعر الجديد ({{currency}})"
   },
   "shop_subtypes": {
     "food_beverages_label": "أطعمة ومشروبات",

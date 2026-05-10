@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
 import { ResultCard } from '../components/result-card';
@@ -9,10 +11,20 @@ import { searchArticles, type SearchResult } from '../query/search';
 
 type Sort = 'recent' | 'az' | 'low_stock' | 'high_margin';
 
+// v0.5 ADR-017: dashboard's Items-running-low widget links to
+// /list?filter=low. The filter scopes the result set to articles with
+// min_stock_threshold set AND total qty below it. Surfaces a clearable
+// chip so the merchant knows why their list is narrowed.
+type FilterKind = null | 'low';
+
 export function ListScreen(): JSX.Element {
   const { t } = useTranslation('list');
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [sort, setSort] = useState<Sort>('recent');
   const [showArchived, setShowArchived] = useState(false);
+
+  const filter: FilterKind = searchParams.get('filter') === 'low' ? 'low' : null;
 
   const results = useLive<SearchResult[]>(
     () => searchArticles('', { includeArchived: showArchived }, db),
@@ -20,8 +32,15 @@ export function ListScreen(): JSX.Element {
     [],
   );
 
+  const filtered = useMemo(() => {
+    if (filter !== 'low') return results;
+    return results.filter(
+      (r) => r.article.min_stock_threshold != null && r.totalQty < r.article.min_stock_threshold,
+    );
+  }, [results, filter]);
+
   const sorted = useMemo(() => {
-    const copy = [...results];
+    const copy = [...filtered];
     switch (sort) {
       case 'az':
         copy.sort((a, b) => a.article.name.localeCompare(b.article.name));
@@ -43,7 +62,11 @@ export function ListScreen(): JSX.Element {
         break;
     }
     return copy;
-  }, [results, sort]);
+  }, [filtered, sort]);
+
+  function clearFilter(): void {
+    navigate('/list', { replace: true });
+  }
 
   return (
     <ScreenLayout>
@@ -52,6 +75,18 @@ export function ListScreen(): JSX.Element {
         data-testid="list-screen"
         className="flex flex-1 flex-col gap-2 px-4 py-3 overflow-y-auto"
       >
+        {filter === 'low' ? (
+          <button
+            type="button"
+            data-testid="list-filter-low-chip"
+            onClick={clearFilter}
+            className="bg-warn-soft text-warn border-warn/30 inline-flex items-center gap-1.5 self-start rounded-full border px-3 py-1.5 text-xs font-medium"
+          >
+            {t('filter_low_active')}
+            <X aria-hidden className="h-3 w-3" strokeWidth={2.25} />
+          </button>
+        ) : null}
+
         <div data-testid="list-controls" className="flex flex-wrap gap-1.5">
           {(['recent', 'az', 'low_stock', 'high_margin'] as const).map((s) => (
             <button
@@ -76,9 +111,13 @@ export function ListScreen(): JSX.Element {
           </label>
         </div>
 
-        {sorted.map((r) => (
-          <ResultCard key={r.article.id} result={r} />
-        ))}
+        {sorted.length === 0 && filter === 'low' ? (
+          <p data-testid="list-low-empty" className="text-ink-3 mt-12 text-center text-sm">
+            {t('filter_low_empty')}
+          </p>
+        ) : (
+          sorted.map((r) => <ResultCard key={r.article.id} result={r} />)
+        )}
       </div>
     </ScreenLayout>
   );

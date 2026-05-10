@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Keyboard, ScanLine, X } from 'lucide-react';
+import { Keyboard, Plus, ScanLine, X } from 'lucide-react';
 
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
@@ -441,12 +441,19 @@ function ManualEntrySheet(props: {
 
           {searched ? (
             results.length === 0 ? (
-              <p
-                data-testid="receive-manual-no-match"
-                className="text-ink-3 mt-3 text-center text-xs"
-              >
-                {t('search_no_match', { query })}
-              </p>
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <p data-testid="receive-manual-no-match" className="text-ink-3 text-center text-xs">
+                  {t('search_no_match', { query })}
+                </p>
+                <Link
+                  to="/add"
+                  data-testid="receive-manual-add-manually"
+                  className="border-hair text-ink-2 inline-flex items-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-xs"
+                >
+                  <Plus aria-hidden className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  {t('add_manually')}
+                </Link>
+              </div>
             ) : (
               <ul data-testid="receive-manual-results" className="mt-3 space-y-2">
                 {results.map((a) => (
