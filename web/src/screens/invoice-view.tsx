@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Printer } from 'lucide-react';
+import { Printer, Share2 } from 'lucide-react';
 
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
@@ -9,7 +9,8 @@ import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
 import { getInvoice } from '../repos/invoices';
-import { type Invoice } from '../types';
+import { invoicePdfFilename, renderInvoicePdf } from '../repos/invoice-pdf';
+import { type Invoice, type ShopProfile } from '../types';
 
 // v0.5.2.4 ADR-024 — minimal invoice view used as the post-issue
 // landing page from /sell. This commit (Facture #2) renders the data
@@ -23,6 +24,8 @@ export function InvoiceViewScreen(): JSX.Element | null {
   const { locale } = useLocale();
   const profile = useProfile();
   const [invoice, setInvoice] = useState<Invoice | null | undefined>(undefined);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +41,49 @@ export function InvoiceViewScreen(): JSX.Element | null {
       cancelled = true;
     };
   }, [id]);
+
+  // v0.5.2.5 — PDF export via Web Share API. The Share button always
+  // generates a real PDF (`INV-YYYY-NNNN.pdf`); on phones with file-
+  // sharing support (Chrome / Safari / most Android browsers) the OS
+  // share sheet opens with WhatsApp / email / Drive as targets. On
+  // desktop / older browsers we fall back to a download trigger.
+  async function handleSharePdf(profile: ShopProfile, inv: Invoice): Promise<void> {
+    setShareError(null);
+    setSharing(true);
+    try {
+      const bytes = await renderInvoicePdf({ invoice: inv, profile });
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const file = new File([blob], invoicePdfFilename(inv), { type: 'application/pdf' });
+      const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+      if (typeof navigator.share === 'function' && nav.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: inv.number,
+          text: `${inv.number} — ${profile.legal_name ?? profile.name ?? ''}`,
+        });
+        return;
+      }
+      // Fallback: trigger a download. The merchant can then attach
+      // manually from the Files app.
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = invoicePdfFilename(inv);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      // AbortError comes from the user dismissing the share sheet —
+      // not an error worth surfacing.
+      const err = e as { name?: string; message?: string };
+      if (err?.name !== 'AbortError') {
+        setShareError(err?.message ?? String(e));
+      }
+    } finally {
+      setSharing(false);
+    }
+  }
 
   if (invoice === undefined || profile === undefined) return null;
   if (!invoice) {
@@ -62,24 +108,41 @@ export function InvoiceViewScreen(): JSX.Element | null {
               {new Date(invoice.issued_at).toLocaleString(locale)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              data-testid="invoice-print"
-              onClick={() => window.print()}
-              className="bg-accent inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white"
-            >
-              <Printer aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
-              {t('print')}
-            </button>
-            <button
-              type="button"
-              data-testid="invoice-back"
-              onClick={() => navigate('/', { replace: true })}
-              className="border-hair text-ink rounded-xl border px-3 py-1.5 text-xs"
-            >
-              {t('done')}
-            </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="invoice-share"
+                disabled={sharing || !profile}
+                onClick={() => profile && void handleSharePdf(profile, invoice)}
+                className="bg-accent inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              >
+                <Share2 aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
+                {sharing ? t('sharing') : t('share_pdf')}
+              </button>
+              <button
+                type="button"
+                data-testid="invoice-print"
+                onClick={() => window.print()}
+                className="border-hair text-ink inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs"
+              >
+                <Printer aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('print')}
+              </button>
+              <button
+                type="button"
+                data-testid="invoice-back"
+                onClick={() => navigate('/', { replace: true })}
+                className="border-hair text-ink rounded-xl border px-3 py-1.5 text-xs"
+              >
+                {t('done')}
+              </button>
+            </div>
+            {shareError ? (
+              <p data-testid="invoice-share-error" className="text-bad text-xs">
+                {t('share_error', { msg: shareError })}
+              </p>
+            ) : null}
           </div>
         </header>
 
