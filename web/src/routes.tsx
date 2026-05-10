@@ -41,6 +41,11 @@ const SellScreen = lazy(() => import('./screens/sell').then((m) => ({ default: m
 const AlertsScreen = lazy(() =>
   import('./screens/alerts').then((m) => ({ default: m.AlertsScreen })),
 );
+const ConfirmSubtypesScreen = lazy(() =>
+  import('./screens/migrations/confirm-subtypes').then((m) => ({
+    default: m.ConfirmSubtypesScreen,
+  })),
+);
 
 // Onboarding gate. SPEC §2.1: a user without a ShopProfile row must complete
 // onboarding before any other screen renders. The gate also protects against
@@ -217,6 +222,19 @@ export const routes: RouteObject[] = [
     // deep links from pre-v0.5.2 installs.
     path: '/expiry',
     element: <Navigate to="/alerts?tab=expiring" replace />,
+  },
+  {
+    // v0.5.2 ADR-021: one-time post-migration confirmation. The
+    // ConfirmSubtypesScreen self-redirects to / if either no
+    // migration ran or the merchant already confirmed.
+    path: '/migrations/confirm-subtypes',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <ConfirmSubtypesScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
   },
   { path: '*', element: <Navigate to="/" replace /> },
 ];

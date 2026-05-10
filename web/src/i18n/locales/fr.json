@@ -489,6 +489,14 @@
     "low_subtitle": "{{stock}} en stock · alerte sous {{threshold}}",
     "open": "Ouvrir"
   },
+  "migrations": {
+    "title": "Confirmez vos catégories",
+    "subtitle": "Nous avons simplifié les catégories. Sélectionnez celles qui correspondent à votre boutique — modifiable plus tard.",
+    "save": "Confirmer",
+    "banner_title": "Confirmez vos catégories",
+    "banner_body": "Nous avons simplifié les catégories — vérifiez que votre sélection vous convient toujours.",
+    "banner_hide_7d": "Masquer 7 jours"
+  },
   "expiry": {
     "title": "Stock à péremption",
     "back": "Retour",

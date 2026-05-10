@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { BackupBanner } from '../components/backup-banner';
 import { ExpiryBanner } from '../components/expiry-banner';
 import { InstallBanner } from '../components/install-banner';
+import { MigrationBanner } from '../components/migration-banner';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
 import { SearchBar } from '../components/search-bar';
@@ -69,6 +70,7 @@ export function SearchScreen(): JSX.Element {
       <ShopHeader articles={counts.articles} items={counts.items} />
       <SearchBar value={query} onChange={setQuery} count={results.length} />
       <InstallBanner />
+      <MigrationBanner />
       <ExpiryBanner />
       <BackupBanner />
 

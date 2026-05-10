@@ -489,6 +489,14 @@
     "low_subtitle": "{{stock}} in stock · alerts under {{threshold}}",
     "open": "Open"
   },
+  "migrations": {
+    "title": "Confirm what you sell",
+    "subtitle": "We've simplified the categories. Pick the ones that match your shop — you can change this later.",
+    "save": "Confirm",
+    "banner_title": "Confirm your shop categories",
+    "banner_body": "We simplified the categories — tap to make sure your selection still fits.",
+    "banner_hide_7d": "Hide for 7 days"
+  },
   "expiry": {
     "title": "Expiring stock",
     "back": "Back",

@@ -20,6 +20,7 @@ import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
 import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
 import { db } from '../db/db';
+import { META_KEYS, setMeta } from '../repos/meta';
 import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
@@ -291,6 +292,11 @@ export function OnboardingScreen(): JSX.Element {
       location_back_label: finalBackLabel,
       logo_photo_id: logoPhotoId,
     });
+    // v0.5.2 ADR-021: a fresh-onboarded profile picked its own
+    // subtypes — the migration confirmation banner should never show
+    // for them. Stamp confirmed_at so the banner-detection logic
+    // skips this profile.
+    await setMeta(db, META_KEYS.migration_v9_subtypes_confirmed_at, new Date().toISOString());
     await ensurePersistence(db);
     setSubmitting(false);
     navigate('/', { replace: true });

@@ -58,6 +58,15 @@ export const META_KEYS = {
   // whether to surface the "We've simplified your shop categories"
   // prompt.
   migration_v9_completed_at: 'migration_v9_completed_at',
+  // v0.5.2 ADR-021: set when the merchant confirms their subtypes via
+  // the /migrations/confirm-subtypes screen (post-migration), OR when
+  // a brand-new profile completes onboarding (so the banner never
+  // shows for fresh installs that picked their subtypes themselves).
+  migration_v9_subtypes_confirmed_at: 'migration_v9_subtypes_confirmed_at',
+  // v0.5.2 ADR-021: ISO timestamp through which the migration banner
+  // is suppressed. Set when the merchant taps "Hide for 7 days" on
+  // the home banner. Re-shows after the timestamp passes.
+  migration_v9_banner_hidden_until: 'migration_v9_banner_hidden_until',
 } as const;
 
 // v0.5 ADR-019: per-variant snooze for the expiry banner. The banner
