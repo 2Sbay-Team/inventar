@@ -35,8 +35,11 @@ const ReceiveScreen = lazy(() =>
   import('./screens/receive').then((m) => ({ default: m.ReceiveScreen })),
 );
 const SellScreen = lazy(() => import('./screens/sell').then((m) => ({ default: m.SellScreen })));
-const ExpiryScreen = lazy(() =>
-  import('./screens/expiry').then((m) => ({ default: m.ExpiryScreen })),
+// v0.5.2 ADR-018: ExpiryScreen is no longer routed directly — the
+// /expiry route redirects to /alerts?tab=expiring. Kept lazy-importable
+// so that AlertsScreen (which embeds it as Tab 2) can still load it.
+const AlertsScreen = lazy(() =>
+  import('./screens/alerts').then((m) => ({ default: m.AlertsScreen })),
 );
 
 // Onboarding gate. SPEC §2.1: a user without a ShopProfile row must complete
@@ -196,18 +199,24 @@ export const routes: RouteObject[] = [
     ),
   },
   {
-    // v0.5 ADR-019: list of variants with expiring lots. Reachable from
-    // Search's expiry banner (shop only) and from Settings' threshold
-    // picker. The screen itself is vertical-agnostic — non-shop users
-    // typed /expiry directly would land on an empty list.
-    path: '/expiry',
+    // v0.5.2 ADR-018: consolidated alerts screen with two tabs.
+    // Replaces the standalone /expiry as the canonical entry point
+    // for both stock-low and expiring-soon notifications.
+    path: '/alerts',
     element: (
       <Lazy>
         <OnboardingGate>
-          <ExpiryScreen />
+          <AlertsScreen />
         </OnboardingGate>
       </Lazy>
     ),
+  },
+  {
+    // v0.5.2: legacy /expiry route → permanent redirect to the
+    // expiring tab of /alerts. Preserves any external bookmarks /
+    // deep links from pre-v0.5.2 installs.
+    path: '/expiry',
+    element: <Navigate to="/alerts?tab=expiring" replace />,
   },
   { path: '*', element: <Navigate to="/" replace /> },
 ];

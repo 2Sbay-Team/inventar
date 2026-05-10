@@ -477,6 +477,15 @@
     "session_summary_title": "Session de réception",
     "back": "Retour au scan"
   },
+  "alerts": {
+    "title": "Alertes",
+    "back": "Retour",
+    "tab_low": "Stock faible",
+    "tab_expiring": "Bientôt périmé",
+    "low_empty": "Rien n'est en rupture imminente. Définissez un seuil de réapprovisionnement depuis la page d'un article pour activer les alertes.",
+    "low_subtitle": "{{stock}} en stock · alerte sous {{threshold}}",
+    "open": "Ouvrir"
+  },
   "expiry": {
     "title": "Stock à péremption",
     "back": "Retour",

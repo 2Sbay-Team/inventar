@@ -477,6 +477,15 @@
     "session_summary_title": "Receiving session",
     "back": "Back to scanning"
   },
+  "alerts": {
+    "title": "Alerts",
+    "back": "Back",
+    "tab_low": "Stock running low",
+    "tab_expiring": "Expiring soon",
+    "low_empty": "Nothing's running low. Set a reorder threshold from any article's detail page to get alerts.",
+    "low_subtitle": "{{stock}} in stock · alerts under {{threshold}}",
+    "open": "Open"
+  },
   "expiry": {
     "title": "Expiring stock",
     "back": "Back",
