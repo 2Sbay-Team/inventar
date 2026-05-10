@@ -48,6 +48,11 @@ export function ArticleDetailScreen(): JSX.Element {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [minStockDraft, setMinStockDraft] = useState<string | null>(null);
   const [minStockSaving, setMinStockSaving] = useState(false);
+  // v0.5.2 ADR-023: per-article expiry-alert override. Same shape as
+  // the min_stock editor: shop only, optional integer ≥1, null = use
+  // the global ShopProfile.expiry_warning_days.
+  const [expiryAlertDraft, setExpiryAlertDraft] = useState<string | null>(null);
+  const [expiryAlertSaving, setExpiryAlertSaving] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const variantsById = useMemo(() => {
@@ -354,6 +359,57 @@ export function ArticleDetailScreen(): JSX.Element {
               className="border-hair w-20 rounded-lg border bg-white px-2 py-1 text-end font-mono text-xs"
             />
             {minStockSaving ? (
+              <span className="text-ink-3 text-[10.5px]">{tCommon('saving')}</span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* v0.5.2 ADR-023: per-article expiry-alert threshold override.
+            Shop articles with at least one Lot fire alerts on this
+            value when set; null falls back to the global expiry_warning_
+            days from ShopProfile. */}
+        {showMinStockEditor ? (
+          <div data-testid="expiry-alert-editor" className="mt-2 flex items-center gap-2">
+            <label
+              htmlFor="detail-expiry-alert"
+              className="text-ink-3 font-mono text-[10.5px] uppercase tracking-widest"
+            >
+              {t('expiry_alert_label')}
+            </label>
+            <input
+              id="detail-expiry-alert"
+              data-testid="detail-expiry-alert"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={
+                expiryAlertDraft ??
+                (article.expiry_alert_days === null ? '' : String(article.expiry_alert_days))
+              }
+              onChange={(e) => setExpiryAlertDraft(e.target.value)}
+              onBlur={async () => {
+                const draft = expiryAlertDraft;
+                if (draft === null) return;
+                const trimmed = draft.trim();
+                const parsed = trimmed === '' ? null : Number.parseInt(trimmed, 10);
+                const next =
+                  parsed === null ? null : Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+                if (next === article.expiry_alert_days) {
+                  setExpiryAlertDraft(null);
+                  return;
+                }
+                setExpiryAlertSaving(true);
+                try {
+                  await updateArticle(db, article.id, { expiry_alert_days: next });
+                } finally {
+                  setExpiryAlertDraft(null);
+                  setExpiryAlertSaving(false);
+                }
+              }}
+              placeholder={t('expiry_alert_placeholder')}
+              className="border-hair w-20 rounded-lg border bg-white px-2 py-1 text-end font-mono text-xs"
+            />
+            {expiryAlertSaving ? (
               <span className="text-ink-3 text-[10.5px]">{tCommon('saving')}</span>
             ) : null}
           </div>

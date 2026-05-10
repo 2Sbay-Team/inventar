@@ -114,6 +114,8 @@
     "out_of_stock": "نفد",
     "min_stock_label": "إعادة الطلب تحت",
     "min_stock_placeholder": "إيقاف",
+    "expiry_alert_label": "تنبيه الصلاحية (أيام)",
+    "expiry_alert_placeholder": "افتراضي",
     "sizes_title": "المخزون حسب المقاس",
     "sizes_hint": "اضغط للتعديل",
     "activity_title": "النشاط الأخير",

@@ -114,6 +114,8 @@
     "out_of_stock": "Épuisé",
     "min_stock_label": "Réappro sous",
     "min_stock_placeholder": "off",
+    "expiry_alert_label": "Alerte péremption (jours)",
+    "expiry_alert_placeholder": "défaut",
     "sizes_title": "Stock par taille",
     "sizes_hint": "appuyez pour ajuster",
     "activity_title": "Activité récente",

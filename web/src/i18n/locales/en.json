@@ -114,6 +114,8 @@
     "out_of_stock": "Out of stock",
     "min_stock_label": "Reorder under",
     "min_stock_placeholder": "off",
+    "expiry_alert_label": "Expiry alert (days)",
+    "expiry_alert_placeholder": "default",
     "sizes_title": "Stock by size",
     "sizes_hint": "tap to adjust",
     "activity_title": "Recent activity",
