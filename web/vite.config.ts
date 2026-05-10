@@ -57,7 +57,15 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // v0.5.2.1: production builds NEVER ship source maps. Without
+    // this, the deployed dist/ contained .js.map files that let any
+    // user reconstruct the original TypeScript via DevTools — i.e.
+    // the source code was effectively public. Local dev is unaffected
+    // (Vite's dev server provides sourcemaps via its own pipeline,
+    // independent of build.sourcemap). To debug a deployed bundle,
+    // build locally with VITE_DEBUG=1 (toggle below) and serve via
+    // npm run preview.
+    sourcemap: process.env.VITE_DEBUG === '1',
     cssCodeSplit: true,
     assetsInlineLimit: 0,
     rollupOptions: {
