@@ -89,7 +89,28 @@ web/e2e/
 │   ├── 40_expiry_banner.spec.ts
 │   ├── 41_min_stock_threshold_data.spec.ts    ← + UI badge in commit 7
 │   ├── 42_manual_fallback.spec.ts
-│   └── 43_dashboard_shop_widgets.spec.ts
+│   ├── 43_dashboard_shop_widgets.spec.ts
+│   │
+│   ├── 44_return_reverses_revenue.spec.ts     ← v0.5.1 specs
+│   ├── 45_scan_qr_and_internal_code.spec.ts
+│   ├── 46_maintenance_clear_cache.spec.ts
+│   ├── 47_boot_fallback.spec.ts
+│   ├── 48_add_article_shop_optin.spec.ts
+│   ├── 49_clothes_smoke.spec.ts
+│   │
+│   ├── 50_v8_v9_migration.spec.ts             ← v0.5.2 specs start here
+│   ├── 51_internal_codes_per_prefix.spec.ts
+│   ├── 52_onboarding_fashion_subtypes.spec.ts
+│   ├── 53_custom_subtypes.spec.ts
+│   ├── 54_location_labels_onboarding.spec.ts
+│   ├── 55_settings_stock_locations.spec.ts
+│   ├── 56_per_article_expiry_alert.spec.ts
+│   ├── 57_alerts_consolidation.spec.ts
+│   ├── 58_quick_adjust_lot_override.spec.ts
+│   ├── 59_subtypes_localized.spec.ts
+│   ├── 60_migration_banner.spec.ts
+│   ├── 61_size_hints_per_subtype.spec.ts
+│   └── 62_alerts_banner_snapshot.spec.ts
 └── helpers/
     ├── offline.ts          ← context.setOffline wrappers
     ├── time.ts             ← clock manipulation

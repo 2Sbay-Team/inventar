@@ -92,6 +92,25 @@ This document is the firewall against scope creep. Anything listed here is **del
 - **Public marketing site.** A simple `/about` page is the maximum.
 - **Telemetry, analytics tracking, error reporting back to the code owner.** No data ever leaves the device. The user's phone is the entire system.
 
+### v0.5.2 follow-up: drop in v0.7+
+
+- **`meta.expiry_threshold_days`.** Replaced by
+  `ShopProfile.expiry_warning_days` in v0.5.2 (ADR-023). Kept
+  readable for one release so v0.5 backups can be restored and the
+  v8→v9 migration kernel can copy the value forward. Drop the meta
+  key + the migration's read of it in v0.7+.
+- **Legacy StoreType values 'shoes' / 'clothes'.** Kept in the
+  union for back-compat with v8-shape IDBs during the v0.5.2
+  upgrade window (ADR-021). After v0.7, every install has run the
+  v9 migration; remove the legacy union members + their
+  STORE_TYPES entries + their lucide icons + their store_types
+  i18n labels.
+- **Legacy ShopSubtype keys 'tobacco_lottery' / 'parapharmaceutique'.**
+  Kept in `SHOP_SUBTYPE_CONFIG` as `legacy: true` for
+  back-compat label rendering on profiles that still have them
+  (ADR-018). Drop when no install in the wild has them set —
+  realistically v0.8+.
+
 ---
 
 ## Things that *sound* in scope but aren't

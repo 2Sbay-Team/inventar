@@ -322,3 +322,108 @@ threshold (3 / 7 / 14 / 30 days) is a Settings card.
 **Consequences:** The merchant who never opens the app misses
 expiring stock. Documented at install. Acceptable trade-off given
 the architecture and ADR-007's tone.
+
+## ADR-021: Vertical consolidation (shoes + clothes → fashion)
+
+**v0.5.2.** ADR-017 already merged kiosk + grocery into shop. This
+consolidation merges shoes + clothes into a single 'fashion'
+vertical. Both store_types had identical config (sized + colored,
+add-first flow) and forced the merchant to misclassify themselves
+when they sold both. Sub-categorisation moves to per-merchant
+`fashion_subtypes` (multi-select), parallel to ADR-017's
+`shop_subtypes`.
+
+**Migration v8→v9** (idempotent, gated on
+`migration_v9_completed_at`):
+
+- `store_type='shoes'` → `'fashion'`, `fashion_subtypes=['shoes']`
+- `store_type='clothes'` → `'fashion'`,
+  `fashion_subtypes=['clothing_men', 'clothing_women']`
+- `store_type='shop'` and existing `'fashion'` unchanged
+- All migrated profiles get a one-time confirmation banner on the
+  home screen; `migration_v9_subtypes_confirmed_at` dismisses it
+  permanently. `migration_v9_banner_hidden_until` allows a 7-day
+  snooze without confirming.
+
+**StoreType union** keeps 'shoes' and 'clothes' as legacy values
+for one release so reads from a v8-shape IDB during the upgrade
+window don't crash. STORE_TYPES still has entries for them
+(sku_prefix SH/CL). Removed in v0.7+.
+
+## ADR-022: Stock location labels are merchant-customisable
+
+**v0.5.2.** The internal `Movement.location` enum stays
+'floor' / 'back' for storage and indexing — this is a pure display
+alias. ShopProfile gains `location_floor_label` and
+`location_back_label` (strings, max 30 chars). Defaults are
+locale-aware AND vertical-aware:
+
+|        | EN              | FR                  | AR              |
+|--------|-----------------|---------------------|-----------------|
+| Fashion floor | Shop floor     | Boutique          | المحل           |
+| Fashion back  | Stockroom      | Réserve           | المخزن          |
+| Shop floor    | Shelf          | Rayon             | الرف            |
+| Shop back     | Stockroom      | Réserve           | المخزن          |
+
+Onboarding pre-fills the inputs; merchant can override. Settings →
+Stock locations exposes the same editor post-onboarding. Clearing a
+field reverts to the locale + vertical default (NOT the merchant's
+own customised value, so "clear to restore" works as expected).
+
+**Read path**: `useLocationLabels()` returns `{ floor, back }`.
+Every UI surface that displays a location reads via this hook.
+
+**Why customisable strings instead of pre-shipped translations**:
+the merchant's vocabulary is theirs (a Naili merchant might call
+the back zone "le dépôt" or "le magasin de derrière"); freezing it
+to one phrase per locale would feel like Inventar telling them how
+to talk about their own shop.
+
+## ADR-023: Per-article alert thresholds override global defaults
+
+**v0.5.2.** Two per-article fields supplement the global expiry +
+low-stock thresholds:
+
+- `Article.min_stock_threshold` (already existed in v7) — when set,
+  triggers a low-stock alert for THIS article. There is no global
+  low-stock default per ADR-018; alerts only fire when the merchant
+  explicitly opted in.
+- `Article.expiry_alert_days` (NEW in v9) — overrides
+  `ShopProfile.expiry_warning_days` for THIS article. Null = use
+  the global. Only meaningful for shop articles with at least one
+  Lot; ignored for fashion articles (no expiry tracking).
+
+**Why per-article**: a merchant who sells fresh bread (1-day
+expiry) and canned tuna (years) wants different alert thresholds
+for each. A single global threshold either spams the merchant
+about tuna or misses the bread.
+
+## ADR-024: Internal code prefixes use independent per-prefix counters
+
+**v0.5.2.** Pre-v9, `nextInternalCode` scanned ALL articles and
+returned `max(tail) + 1` regardless of prefix. Switching store_type
+left the new prefix continuing the old prefix's max — a kiosk that
+had reached `GR-0156` would allocate `FN-0157` as the first fashion
+code. Confusing for the merchant ("why does my first fashion item
+have number 157?") and breaks the "labels printed for `SH-*` still
+map to a meaningful sequence" assumption.
+
+**New behaviour**: per-prefix `max + 1`, anchored on `${prefix}-`.
+`SH-0042` + `FN-0008` → next FN code is `FN-0009`. Empty per-prefix
+history → starts at `PFX-0001`. Legacy SH/CL/KI/GR codes stay in
+place untouched; new fashion / shop articles use FN / SP going
+forward.
+
+## ADR-025: New predefined sub-types in future versions never auto-assigned
+
+**v0.5.2.** When Inventar adds new predefined sub-types in v0.6+,
+they appear as new options in the picker. **Existing profiles are
+NEVER auto-assigned new sub-types** — the merchant must opt in via
+Settings → Categories. Migration logic only runs once per major
+version (gated on `migration_vN_completed_at` meta keys).
+
+**Why**: a merchant who's already classified themselves shouldn't
+suddenly find their dashboard widgets shifting because Inventar
+shipped a new predefined. The category list is the merchant's
+declaration about THEIR shop, not a rolling inventory of
+Inventar's taxonomy.
