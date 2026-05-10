@@ -1,0 +1,168 @@
+import { useEffect, useRef, useState } from 'react';
+import { normalizeEan } from '../utils/ean';
+
+// v0.5 ADR-018: shared barcode-stream hook used by /receive and /sell.
+//
+// Both screens want the same camera + BarcodeDetector + RAF loop with
+// the same cooldown semantics: a code is emitted at most once per
+// SAME_VALUE_COOLDOWN_MS window, and the caller can gate emissions
+// dynamically via an `isBlocked` predicate (e.g. "sheet is open right
+// now"). The hook also installs a parallel CustomEvent listener gated
+// on import.meta.env.VITE_E2E so headless playwright can drive scans
+// through `__inventarSeed.simulateScan` without faking BarcodeDetector.
+//
+// The hook RETURNS a videoRef the caller binds to its own <video>
+// element. It owns nothing of the page layout — that stays with the
+// screen so /receive's camera-fullscreen vs /sell's camera-fullscreen-
+// with-cart-peek can render however they like.
+//
+// Closure handling: `onDetect` and `isBlocked` are kept in refs that
+// are updated on every render. Without that, the camera loop (started
+// once, deps=[supported]) would call the mount-time closures and miss
+// state updates the screen does between scans.
+
+interface DetectedBarcode {
+  rawValue: string;
+  format: string;
+}
+
+interface BarcodeDetectorCtor {
+  new (opts?: { formats?: string[] }): {
+    detect: (source: ImageBitmapSource) => Promise<DetectedBarcode[]>;
+  };
+}
+
+function getBarcodeDetector(): BarcodeDetectorCtor | null {
+  const w = window as unknown as { BarcodeDetector?: BarcodeDetectorCtor };
+  return w.BarcodeDetector ?? null;
+}
+
+const SAME_VALUE_COOLDOWN_MS = 1500;
+
+const SCAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] as const;
+
+export interface UseBarcodeStreamOptions {
+  // Called for each fresh detection that passed the cooldown gate.
+  // The caller is expected to do its own EAN validation; the hook
+  // only normalises whitespace before dispatching.
+  onDetect: (value: string) => void;
+  // Optional predicate that suppresses dispatches without tearing
+  // down the camera. Typical use: `() => sheetOpenRef.current`.
+  isBlocked?: () => boolean;
+}
+
+export interface UseBarcodeStreamResult {
+  // Bind to your <video> element. The hook attaches a MediaStream and
+  // calls play() once getUserMedia resolves.
+  videoRef: React.RefObject<HTMLVideoElement>;
+  // false on Firefox / Safari versions without BarcodeDetector. The
+  // caller should render an "unsupported" UI instead of the video.
+  supported: boolean;
+  // getUserMedia rejection (camera busy, permission denied, etc.).
+  // null on success.
+  error: string | null;
+}
+
+export function useBarcodeStream(opts: UseBarcodeStreamOptions): UseBarcodeStreamResult {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const supported = getBarcodeDetector() !== null;
+
+  // Refs so the camera loop reads the latest closures without
+  // re-initialising the camera on every render.
+  const onDetectRef = useRef(opts.onDetect);
+  const isBlockedRef = useRef(opts.isBlocked);
+  onDetectRef.current = opts.onDetect;
+  isBlockedRef.current = opts.isBlocked;
+
+  // Tracks the most recent emission for the cooldown.
+  const lastEmittedRef = useRef<{ value: string; at: number } | null>(null);
+
+  // Try to dispatch a candidate value. The cooldown is camera-only —
+  // the camera lingers on a barcode for many frames per second and
+  // would otherwise spam the caller; e2e dispatches are intentional
+  // user-triggered events that shouldn't be deduplicated.
+  function tryDispatch(rawValue: string, source: 'camera' | 'e2e'): void {
+    const value = normalizeEan(rawValue);
+    if (value.length === 0) return;
+    if (source === 'camera') {
+      const now = Date.now();
+      const dup =
+        lastEmittedRef.current &&
+        lastEmittedRef.current.value === value &&
+        now - lastEmittedRef.current.at < SAME_VALUE_COOLDOWN_MS;
+      if (dup) return;
+      lastEmittedRef.current = { value, at: now };
+    }
+    if (isBlockedRef.current?.()) return;
+    onDetectRef.current(value);
+  }
+
+  // Camera + BarcodeDetector loop. Runs once at mount when supported.
+  useEffect(() => {
+    if (!supported) return;
+    let cancelled = false;
+    let rafId: number | null = null;
+    let stream: MediaStream | null = null;
+
+    const Detector = getBarcodeDetector();
+    if (!Detector) return;
+    const detector = new Detector({ formats: [...SCAN_FORMATS] });
+
+    void (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        const v = videoRef.current;
+        if (!v) return;
+        v.srcObject = stream;
+        await v.play();
+
+        const tick = async (): Promise<void> => {
+          if (cancelled || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes.length > 0 && codes[0]) {
+              tryDispatch(codes[0].rawValue, 'camera');
+            }
+          } catch {
+            // Detector occasionally throws on a black frame.
+          }
+          rafId = requestAnimationFrame(() => void tick());
+        };
+        await tick();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'camera unavailable';
+        setError(msg);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (stream) stream.getTracks().forEach((tr) => tr.stop());
+    };
+  }, [supported]);
+
+  // e2e CustomEvent listener — only mounted when VITE_E2E. Routes
+  // through the same cooldown + isBlocked path as a real scan so test
+  // runs see identical semantics. Document-level so seed.ts can
+  // dispatch without holding a ref to the screen.
+  useEffect(() => {
+    if (!import.meta.env.VITE_E2E) return;
+    function onE2eScan(ev: Event): void {
+      const detail = (ev as CustomEvent<{ value: string }>).detail;
+      if (!detail?.value) return;
+      tryDispatch(detail.value, 'e2e');
+    }
+    document.addEventListener('inventar:e2e-scan', onE2eScan);
+    return () => document.removeEventListener('inventar:e2e-scan', onE2eScan);
+  }, []);
+
+  return { videoRef, supported, error };
+}

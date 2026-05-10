@@ -7,7 +7,9 @@ import { Keyboard, Plus, ScanLine, X } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
 import { useProfile } from '../hooks/use-profile';
+import { useBarcodeStream } from '../hooks/use-barcode-stream';
 import { useCurrency } from '../hooks/use-currency';
+import { useEanValidator } from '../hooks/use-ean-validator';
 import { useLocale } from '../hooks/use-locale';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
 import { STORE_TYPES } from '../config/store-types';
@@ -17,7 +19,7 @@ import { createLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
 import { storePhoto } from '../repos/photos';
 import { compressPhoto } from '../utils/compress-photo';
-import { isPlausibleScannableCode, normalizeEan } from '../utils/ean';
+import { isPlausibleScannableCode } from '../utils/ean';
 import { newUUID } from '../utils/uuid';
 import { parseCurrency } from '../i18n/parse-currency';
 import { type Article, type Category, type UUID } from '../types';
@@ -30,38 +32,11 @@ import { type Article, type Category, type UUID } from '../types';
 // product name. Per-session UUID groups every Movement created in this
 // receiving session so the activity feed can collapse the batch.
 //
-// Implementation notes
-//   - The camera + BarcodeDetector wiring is inlined here rather than
-//     using <BarcodeScanner /> because the latter is a Radix Dialog and
-//     stacking another Dialog (the bottom sheet) above an open Dialog
-//     gets fiddly. This screen is large enough to own the camera surface
-//     directly. If /sell ends up duplicating most of this, extract a
-//     shared useBarcodeStream hook.
-//   - During detection, if the bottom sheet is already showing one
-//     scan's contents, further detections are ignored — the cooldown in
-//     the scanner only suppresses the SAME value within a window; here
-//     we suppress ALL values until the sheet closes.
-//   - The e2e seed surface dispatches 'inventar:e2e-scan' so headless
-//     playwright can drive this screen without faking the BarcodeDetector
-//     API. Same listener pattern as src/components/barcode-scanner.tsx.
-
-interface DetectedBarcode {
-  rawValue: string;
-  format: string;
-}
-
-interface BarcodeDetectorCtor {
-  new (opts?: { formats?: string[] }): {
-    detect: (source: ImageBitmapSource) => Promise<DetectedBarcode[]>;
-  };
-}
-
-function getBarcodeDetector(): BarcodeDetectorCtor | null {
-  const w = window as unknown as { BarcodeDetector?: BarcodeDetectorCtor };
-  return w.BarcodeDetector ?? null;
-}
-
-const SAME_VALUE_COOLDOWN_MS = 1500;
+// The camera + BarcodeDetector wiring lives in useBarcodeStream so
+// /receive and /sell share the same loop and cooldown semantics. The
+// hook also installs the e2e CustomEvent listener — playwright drives
+// scans through `__inventarSeed.simulateScan` without faking
+// BarcodeDetector.
 
 type SheetState =
   | null
@@ -78,30 +53,22 @@ export function ReceiveScreen(): JSX.Element {
 
   const [sessionCount, setSessionCount] = useState(0);
   const [sheet, setSheet] = useState<SheetState>(null);
-  const [scannerError, setScannerError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const supported = getBarcodeDetector() !== null;
+  const validate = useEanValidator();
 
-  // Refs that the camera-loop closure needs. We don't want to re-init
-  // the camera every time React re-renders, so the loop reads its
-  // "should I ignore this detection?" guard from a ref instead of
-  // closing over the sheet state directly.
+  // Mirror sheet state in a ref so the camera/e2e loop's blocked
+  // predicate reads the latest value without re-initialising.
   const sheetOpenRef = useRef(false);
   useEffect(() => {
     sheetOpenRef.current = sheet !== null;
   }, [sheet]);
 
-  const lastEmittedRef = useRef<{ value: string; at: number } | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  // Shared dispatcher: any path that produces a candidate barcode (real
-  // scan, e2e injected event, manual entry) lands here.
-  function ingestBarcode(rawValue: string): void {
-    if (sheetOpenRef.current) return;
-    const value = normalizeEan(rawValue);
-    if (!isPlausibleScannableCode(value)) {
+  // Shared dispatcher: any path that produces a candidate barcode
+  // (camera, e2e event, manual entry) lands here. The active validator
+  // is loose (12 or 13 digits) by default; merchants can opt in to
+  // strict EAN-13 checksum validation in Settings.
+  function ingestBarcode(value: string): void {
+    if (!validate(value)) {
       setScanError(t('scan_invalid'));
       return;
     }
@@ -124,82 +91,14 @@ export function ReceiveScreen(): JSX.Element {
     }
   }
 
-  // ─── camera + BarcodeDetector ───────────────────────────────────────
-  useEffect(() => {
-    if (!supported) return;
-
-    let cancelled = false;
-    const Detector = getBarcodeDetector();
-    if (!Detector) return;
-    const detector = new Detector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
-    });
-
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((tr) => tr.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const v = videoRef.current;
-        if (!v) return;
-        v.srcObject = stream;
-        await v.play();
-
-        const tick = async (): Promise<void> => {
-          if (cancelled || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0]) {
-              const value = codes[0].rawValue;
-              const now = Date.now();
-              const dup =
-                lastEmittedRef.current &&
-                lastEmittedRef.current.value === value &&
-                now - lastEmittedRef.current.at < SAME_VALUE_COOLDOWN_MS;
-              if (!dup && !sheetOpenRef.current) {
-                lastEmittedRef.current = { value, at: now };
-                ingestBarcode(value);
-              }
-            }
-          } catch {
-            // Detector occasionally throws on a black frame.
-          }
-          rafRef.current = requestAnimationFrame(() => void tick());
-        };
-        await tick();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'camera unavailable';
-        setScannerError(msg);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      const stream = streamRef.current;
-      if (stream) stream.getTracks().forEach((tr) => tr.stop());
-      streamRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supported]);
-
-  // ─── e2e scan injection ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!import.meta.env.VITE_E2E) return;
-    function onE2eScan(ev: Event): void {
-      const detail = (ev as CustomEvent<{ value: string }>).detail;
-      if (!detail?.value) return;
-      ingestBarcode(detail.value);
-    }
-    document.addEventListener('inventar:e2e-scan', onE2eScan);
-    return () => document.removeEventListener('inventar:e2e-scan', onE2eScan);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const {
+    videoRef,
+    supported,
+    error: scannerError,
+  } = useBarcodeStream({
+    onDetect: ingestBarcode,
+    isBlocked: () => sheetOpenRef.current,
+  });
 
   function handleSheetClose(): void {
     setSheet(null);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ean13Checksum, isPlausibleScannableCode, normalizeEan } from './ean';
+import { ean13Checksum, isPlausibleScannableCode, isValidStrictEan13, normalizeEan } from './ean';
 
 describe('normalizeEan', () => {
   it('strips ASCII whitespace from both ends', () => {
@@ -66,16 +66,60 @@ describe('ean13Checksum', () => {
     expect(ean13Checksum('978020137962')).toBe(4);
   });
 
-  it('returns 5 (not 9) for the brief fixture, confirming it would fail strict validation', () => {
-    // First 12 digits of 5449000000996 are "544900000009" — the
-    // canonical checksum for those is 5, while the brief's value
-    // claims 9 in the 13th position. That mismatch is exactly what
-    // motivates the loose-validation default for v0.5.
+  it('returns 5 for "544900000009" (independent fixture)', () => {
+    // Earlier comments (and earlier commit messages) claimed the v0.5
+    // brief's test EAN 5449000000996 had a wrong check digit. That
+    // was a miscount: the brief value has 6 zeros and is a fully
+    // valid EAN-13 (checksum = 6 — see strict tests below). The
+    // string here is a different sequence ("544900000009", 12 digits
+    // ending in a single 9) chosen because its computed checksum (5)
+    // is a stable independent fixture for the algorithm.
     expect(ean13Checksum('544900000009')).toBe(5);
   });
 
   it('throws on non-12-digit input', () => {
     expect(() => ean13Checksum('1234567890123')).toThrow();
     expect(() => ean13Checksum('abc')).toThrow();
+  });
+});
+
+describe('isValidStrictEan13', () => {
+  it('accepts 5901234123457 (real EAN, checksum 7)', () => {
+    expect(isValidStrictEan13('5901234123457')).toBe(true);
+  });
+
+  it('accepts the ISBN-13 9780201379624 (checksum 4)', () => {
+    expect(isValidStrictEan13('9780201379624')).toBe(true);
+  });
+
+  it('accepts the v0.5 brief fixture 5449000000996 (it IS a valid EAN-13)', () => {
+    // The earlier "loose only because the brief fixture is invalid"
+    // narrative was wrong — careful counting shows 5449000000996 has
+    // 6 zeros (not 7) and computes to checksum 6, which matches its
+    // 13th digit. Loose validation is still the v0.5 default for the
+    // OTHER reason: many real Tunisian retail barcodes (UPC-A,
+    // in-house codes) wouldn't pass strict.
+    expect(isValidStrictEan13('5449000000996')).toBe(true);
+  });
+
+  it('rejects a checksum-invalid 13-digit string (5901234123450 — last digit should be 7)', () => {
+    expect(isValidStrictEan13('5901234123450')).toBe(false);
+  });
+
+  it('rejects UPC-A length (12 digits)', () => {
+    // UPC-A is valid in loose mode; strict only accepts EAN-13.
+    expect(isValidStrictEan13('012345678905')).toBe(false);
+  });
+
+  it('rejects empty / non-digit / wrong length', () => {
+    expect(isValidStrictEan13('')).toBe(false);
+    expect(isValidStrictEan13('abc')).toBe(false);
+    expect(isValidStrictEan13('123')).toBe(false);
+    expect(isValidStrictEan13('12345678901234')).toBe(false);
+  });
+
+  it('strips whitespace before validating', () => {
+    expect(isValidStrictEan13('  5901234123457  ')).toBe(true);
+    expect(isValidStrictEan13('590 123 412 3457')).toBe(true);
   });
 });

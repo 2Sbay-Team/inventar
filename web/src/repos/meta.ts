@@ -45,6 +45,13 @@ export const META_KEYS = {
   // picker (3 / 7 / 14 / 30) — the value is read on every dashboard
   // mount.
   expiry_threshold_days: 'expiry_threshold_days',
+  // v0.5 ADR-018 (gap-fix opt-in): when true, /receive and /sell use
+  // strict EAN-13 checksum validation instead of the loose 12-or-13-
+  // digit check. Default false (matches the v0.5 plan's loose-only
+  // decision). The merchant turns it on in Settings only if their
+  // catalogue is exclusively real EAN-13s — UPC-A or in-house codes
+  // would be rejected otherwise.
+  ean_strict: 'ean_strict',
 } as const;
 
 // v0.5 ADR-019: per-variant snooze for the expiry banner. The banner

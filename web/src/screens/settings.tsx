@@ -27,6 +27,53 @@ import { type CurrencyCode, type Locale, type ShopSubtype, type StoreType } from
 
 const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 
+// v0.5 ADR-018 (gap-fix opt-in): shop-only EAN strictness toggle.
+// Default off — loose validation (12/13 digits, no checksum) covers
+// the brief's test fixtures and most real Tunisian retail barcodes.
+// On = strict EAN-13 checksum required (UPC-A is rejected too); the
+// merchant flips this only if they're confident every item in their
+// catalogue is a real EAN-13.
+function EanStrictSection({ profileLoaded }: { profileLoaded: boolean }): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  const stored = useLive<boolean>(
+    async () => Boolean(await getMeta<boolean>(db, META_KEYS.ean_strict)),
+    [profileLoaded],
+    false,
+  );
+  async function toggle(): Promise<void> {
+    await setMeta(db, META_KEYS.ean_strict, !stored);
+  }
+  if (!profileLoaded) return null;
+  return (
+    <section
+      data-testid="section-ean-strict"
+      className="border-hair rounded-2xl border bg-white p-4"
+    >
+      <h3 className="font-display text-base font-medium mb-1">{t('ean_strict_title')}</h3>
+      <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('ean_strict_hint')}</p>
+      <button
+        type="button"
+        data-testid="ean-strict-toggle"
+        aria-pressed={stored}
+        onClick={() => void toggle()}
+        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
+          stored ? 'border-accent bg-accent-soft text-accent-ink' : 'border-hair bg-white'
+        }`}
+      >
+        <span
+          aria-hidden
+          className={`flex h-4 w-4 items-center justify-center rounded border-2 ${
+            stored ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
+          }`}
+        >
+          {stored ? '✓' : ''}
+        </span>
+        {t('ean_strict_label')}
+      </button>
+    </section>
+  );
+}
+
 // v0.5 ADR-019: shop-only Settings card. Reads/writes
 // META_KEYS.expiry_threshold_days; default 7 if unset. The picker
 // shows four chips. Saving writes immediately (no Save button) — the
@@ -562,6 +609,10 @@ export function SettingsScreen(): JSX.Element {
 
         {profile?.store_type === 'shop' ? (
           <ExpiryThresholdSection profileLoaded={Boolean(profile)} />
+        ) : null}
+
+        {profile?.store_type === 'shop' ? (
+          <EanStrictSection profileLoaded={Boolean(profile)} />
         ) : null}
 
         <section

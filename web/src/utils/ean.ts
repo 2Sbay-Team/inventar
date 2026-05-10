@@ -34,8 +34,8 @@ export function isPlausibleScannableCode(input: string): boolean {
 }
 
 // Computes the EAN-13 checksum digit for the first 12 digits of the
-// input. Exported for the (future) strict-validation path; commit 3
-// only uses it indirectly via tests. Throws if input isn't 12 digits.
+// input. Exported for the strict-validation path. Throws if input
+// isn't 12 digits.
 //
 // Algorithm: weight = 1 for odd positions (1-indexed), 3 for even.
 // Sum the weighted first-12 digits, then checksum = (10 − sum mod 10) mod 10.
@@ -49,4 +49,19 @@ export function ean13Checksum(twelveDigits: string): number {
     sum += i % 2 === 0 ? d : d * 3;
   }
   return (10 - (sum % 10)) % 10;
+}
+
+// Strict EAN-13 validator. Used by /receive and /sell when the
+// merchant has opted in via Settings. UPC-A (12 digits) is REJECTED
+// under strict mode — a merchant who stocks UPC-A items should leave
+// the toggle off and rely on loose validation. Strict means: 13 ASCII
+// digits, the 13th matches the EAN-13 checksum computed from the
+// first 12.
+export function isValidStrictEan13(input: string): boolean {
+  const v = normalizeEan(input);
+  if (v.length !== 13) return false;
+  if (!DIGIT_ONLY.test(v)) return false;
+  const expected = ean13Checksum(v.slice(0, 12));
+  const actual = v.charCodeAt(12) - 48;
+  return expected === actual;
 }

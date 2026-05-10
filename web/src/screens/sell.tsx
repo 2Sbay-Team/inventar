@@ -6,7 +6,9 @@ import { Keyboard, ShoppingCart, Trash2, X } from 'lucide-react';
 
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
+import { useBarcodeStream } from '../hooks/use-barcode-stream';
 import { useCurrency } from '../hooks/use-currency';
+import { useEanValidator } from '../hooks/use-ean-validator';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { STORE_TYPES } from '../config/store-types';
@@ -14,7 +16,7 @@ import { findArticleByEAN } from '../repos/articles';
 import { recordMovement } from '../repos/movements';
 import { pickFifoLot } from '../repos/lots';
 import { quantityFor } from '../repos/quantity';
-import { isPlausibleScannableCode, normalizeEan } from '../utils/ean';
+import { isPlausibleScannableCode } from '../utils/ean';
 import { newUUID } from '../utils/uuid';
 import { formatCurrency } from '../i18n/format-currency';
 import { type Article, type Locale, type UUID } from '../types';
@@ -49,26 +51,10 @@ import { type Article, type Locale, type UUID } from '../types';
 // the merchant should open the article via Search and use Quick Adjust,
 // which already handles per-(colour, size) sale.
 //
-// Camera + BarcodeDetector wiring is inlined here (same reasoning as
-// /receive). If a third caller appears, extract a useBarcodeStream hook.
-
-interface DetectedBarcode {
-  rawValue: string;
-  format: string;
-}
-
-interface BarcodeDetectorCtor {
-  new (opts?: { formats?: string[] }): {
-    detect: (source: ImageBitmapSource) => Promise<DetectedBarcode[]>;
-  };
-}
-
-function getBarcodeDetector(): BarcodeDetectorCtor | null {
-  const w = window as unknown as { BarcodeDetector?: BarcodeDetectorCtor };
-  return w.BarcodeDetector ?? null;
-}
-
-const SAME_VALUE_COOLDOWN_MS = 1500;
+// Camera + BarcodeDetector wiring lives in useBarcodeStream — shared
+// with /receive. The hook handles the cooldown + e2e CustomEvent
+// listener; this screen just calls into it with its own onDetect +
+// isBlocked predicate.
 
 interface CartRow {
   variant_id: UUID;
@@ -95,19 +81,14 @@ export function SellScreen(): JSX.Element {
   const [cart, setCart] = useState<CartRow[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [manual, setManual] = useState<ManualState>(null);
-  const [scannerError, setScannerError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const supported = getBarcodeDetector() !== null;
-
-  // Refs the camera loop reads (same pattern as /receive).
-  const lastEmittedRef = useRef<{ value: string; at: number } | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const validate = useEanValidator();
 
   // Suppress further detections while the manual sheet is open OR the
-  // expanded cart drawer is up — prevents accidental adds.
+  // expanded cart drawer is up — prevents accidental adds. Mirrored
+  // into a ref so the hook's blocked predicate reads the latest value
+  // without re-mounting the camera.
   const dispatchBlockedRef = useRef(false);
   useEffect(() => {
     dispatchBlockedRef.current = manual !== null || cartOpen;
@@ -132,9 +113,11 @@ export function SellScreen(): JSX.Element {
     processBarcode(rawValue);
   }
 
-  function processBarcode(rawValue: string): void {
-    const value = normalizeEan(rawValue);
-    if (!isPlausibleScannableCode(value)) {
+  function processBarcode(value: string): void {
+    // Hook already normalises whitespace before dispatching; the
+    // manual-entry path also pre-trims via runSearch's
+    // isPlausibleScannableCode check, so we can validate directly.
+    if (!validate(value)) {
       setScanError(t('scan_invalid'));
       return;
     }
@@ -217,79 +200,14 @@ export function SellScreen(): JSX.Element {
     ]);
   }
 
-  // ─── camera ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!supported) return;
-    let cancelled = false;
-    const Detector = getBarcodeDetector();
-    if (!Detector) return;
-    const detector = new Detector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'],
-    });
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((tr) => tr.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const v = videoRef.current;
-        if (!v) return;
-        v.srcObject = stream;
-        await v.play();
-
-        const tick = async (): Promise<void> => {
-          if (cancelled || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0]) {
-              const value = codes[0].rawValue;
-              const now = Date.now();
-              const dup =
-                lastEmittedRef.current &&
-                lastEmittedRef.current.value === value &&
-                now - lastEmittedRef.current.at < SAME_VALUE_COOLDOWN_MS;
-              if (!dup && !dispatchBlockedRef.current) {
-                lastEmittedRef.current = { value, at: now };
-                ingestBarcode(value);
-              }
-            }
-          } catch {
-            // Detector occasionally throws on a black frame.
-          }
-          rafRef.current = requestAnimationFrame(() => void tick());
-        };
-        await tick();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'camera unavailable';
-        setScannerError(msg);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      const stream = streamRef.current;
-      if (stream) stream.getTracks().forEach((tr) => tr.stop());
-      streamRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supported]);
-
-  // ─── e2e scan injection ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!import.meta.env.VITE_E2E) return;
-    function onE2eScan(ev: Event): void {
-      const detail = (ev as CustomEvent<{ value: string }>).detail;
-      if (!detail?.value) return;
-      ingestBarcode(detail.value);
-    }
-    document.addEventListener('inventar:e2e-scan', onE2eScan);
-    return () => document.removeEventListener('inventar:e2e-scan', onE2eScan);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const {
+    videoRef,
+    supported,
+    error: scannerError,
+  } = useBarcodeStream({
+    onDetect: ingestBarcode,
+    isBlocked: () => dispatchBlockedRef.current,
+  });
 
   // ─── cart actions ───────────────────────────────────────────────────
   function removeRow(variantId: UUID): void {
