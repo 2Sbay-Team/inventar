@@ -64,8 +64,10 @@ test.describe('Multi-vertical store types', () => {
     await expect(page.getByTestId('category-sport')).toBeVisible();
     await expect(page.getByTestId('category-dress')).toBeVisible();
     await expect(page.getByTestId('category-casual')).toBeVisible();
-    // Sizes input should also be visible (sized store).
-    await expect(page.getByTestId('field-sizes')).toBeVisible();
+    // Sized vertical: Step 2 surfaces the size-row input.
+    await page.getByTestId('field-name').fill('Sized check');
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('block-0-size-0-input')).toBeVisible();
   });
 });
 
@@ -106,9 +108,13 @@ test.describe('Switching store type from Settings', () => {
     });
     expect(storeType).toBe('shop');
 
-    // Add Article should now hide sizes (shop is sizeless).
+    // Add Article should now hide sizes (shop is sizeless): Step 2 renders
+    // the sizeless floor/back pair, no size-row input.
     await page.getByTestId('nav-add').click();
-    await expect(page.getByTestId('field-sizes')).toHaveCount(0);
+    await page.getByTestId('field-name').fill('Sizeless check');
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('block-0-sizeless')).toBeVisible();
+    await expect(page.getByTestId('block-0-size-0-input')).toHaveCount(0);
   });
 
   test('cancel button on store-type warning leaves type unchanged', async ({ page }) => {
@@ -157,10 +163,14 @@ test.describe('Sizeless mode (shop)', () => {
 
     await page.getByTestId('nav-add').click();
 
-    // Sizes input must be gone for shop.
-    await expect(page.getByTestId('field-sizes')).toHaveCount(0);
-
-    // Shoe categories must NOT be present.
+    // Shoe categories must NOT be present (Step 1 chips reflect the shop
+    // category list).
     await expect(page.getByTestId('category-sport')).toHaveCount(0);
+
+    // Step 2: sizeless floor/back pair, no size-row input.
+    await page.getByTestId('field-name').fill('Sizeless check');
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('block-0-sizeless')).toBeVisible();
+    await expect(page.getByTestId('block-0-size-0-input')).toHaveCount(0);
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { ScanLine } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, ScanLine, Trash2 } from 'lucide-react';
 import { BarcodeScanner } from '../components/barcode-scanner';
 import { ScreenLayout } from '../components/screen-layout';
 import { STORE_TYPES } from '../config/store-types';
@@ -15,47 +15,84 @@ import { useLive } from '../hooks/use-live';
 import { useProfile } from '../hooks/use-profile';
 import { nextInternalCode } from '../repos/internal-code';
 import { parseCurrency } from '../i18n/parse-currency';
-import { type Category, type UUID } from '../types';
+import { type Article, type Category, type UUID } from '../types';
 import { CANONICAL_COLOURS } from '../query/colour-aliases';
 
-// Default fallback while profile is loading. Replaced by per-store-type
-// list from STORE_TYPES once we have the profile.
-const DEFAULT_CATEGORIES: ReadonlyArray<Category> = [
-  'sport',
-  'dress',
-  'casual',
-  'kids',
-  'women',
-  'men',
-];
+// SPEC §2.5 + ADR-011: a two-step flow. Step 1 collects article basics
+// (brand, name, category, prices, notes); Step 2 collects the per-colour
+// breakdown for sized + coloured verticals (shoes, clothes), or a single
+// floor + back quantity for sizeless verticals (kiosk, grocery). Saving
+// the form commits one Article + N Variants + M Movements in a single
+// Dexie transaction via createArticle's v2 shape.
+//
+// Soft duplicate detection runs on the Continue click: if there's already
+// an article in the catalogue with the same (lowercased) brand + name,
+// the user gets a dismissible banner above Step 2 with a link to the
+// existing article so they can add a new colour to it instead. The
+// warning never blocks save — it's a nudge, not a guard.
 
-interface FormState {
-  photoId: UUID | null;
-  photoPreviewUrl: string | null;
-  name: string;
-  color: string;
+interface Basics {
   brand: string;
+  name: string;
   category: Category;
-  sizes: string;
-  qty: number;
   costInput: string;
   saleInput: string;
   notes: string;
 }
 
-const INITIAL: FormState = {
-  photoId: null,
-  photoPreviewUrl: null,
-  name: '',
-  color: '',
-  brand: '',
-  category: 'sport',
-  sizes: '',
-  qty: 1,
-  costInput: '',
-  saleInput: '',
-  notes: '',
-};
+interface SizeRow {
+  size: string;
+  floor: number;
+  back: number;
+}
+
+interface ColorBlock {
+  // Colour the user picked from the chip palette. For sizeless verticals
+  // (kiosk / grocery) this stays empty and is stored as null on the
+  // resulting variant.
+  color: string;
+  // Optional override the user typed under the chips. Wins over `color`
+  // when non-empty (mirrors the v1.x custom-colour behaviour).
+  customColor: string;
+  // Optional manufacturer / supplier code per colour. Free text, stored
+  // on Article.notes today (a per-colour field would need a schema bump
+  // we're not doing yet — flagged as a future improvement).
+  manufacturerCode: string;
+  // Per-colour photo. The first block's photo also doubles as the
+  // article-level Article.photo_id at save time so single-colour and
+  // sizeless verticals carry one photo through both pointers without
+  // duplication. ADR-013.
+  photoId: UUID | null;
+  photoPreviewUrl: string | null;
+  // Size rows. For sizeless verticals this stays a single-element array
+  // with size='' so the storage shape is uniform.
+  sizes: SizeRow[];
+}
+
+function emptySizeRow(): SizeRow {
+  return { size: '', floor: 0, back: 0 };
+}
+
+function emptyBlock(): ColorBlock {
+  return {
+    color: '',
+    customColor: '',
+    manufacturerCode: '',
+    photoId: null,
+    photoPreviewUrl: null,
+    sizes: [emptySizeRow()],
+  };
+}
+
+// Resolves the effective colour for a block: custom input wins if set,
+// otherwise the chip selection, otherwise null (sizeless verticals).
+function effectiveColor(block: ColorBlock): string | null {
+  const custom = block.customColor.trim();
+  if (custom !== '') return custom.toLowerCase();
+  const chip = block.color.trim();
+  if (chip === '') return null;
+  return chip.toLowerCase();
+}
 
 export function AddArticleScreen(): JSX.Element {
   const { t } = useTranslation('add');
@@ -68,20 +105,26 @@ export function AddArticleScreen(): JSX.Element {
   const profile = useProfile();
   const storeType = profile?.store_type ?? 'shoes';
   const storeCfg = STORE_TYPES[storeType];
-  const categories = useMemo(
-    () => (storeCfg.categories.length > 0 ? storeCfg.categories : DEFAULT_CATEGORIES),
-    [storeCfg],
-  );
-  const needsSizes = storeCfg.has_sizes;
+  const categories = useMemo(() => storeCfg.categories, [storeCfg]);
+  const hasColors = storeCfg.has_colors;
+  const hasSizes = storeCfg.has_sizes;
 
-  const [form, setForm] = useState<FormState>(() => ({
-    ...INITIAL,
-    category: storeCfg.categories[0] ?? 'sport',
+  const [step, setStep] = useState<1 | 2>(1);
+  const [basics, setBasics] = useState<Basics>(() => ({
+    brand: '',
+    name: '',
+    category: storeCfg.categories[0] ?? '',
+    costInput: '',
+    saleInput: '',
+    notes: '',
   }));
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [blocks, setBlocks] = useState<ColorBlock[]>(() => [emptyBlock()]);
+  const [duplicate, setDuplicate] = useState<Article | null>(null);
+  const [dupDismissed, setDupDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [scannerOpen, setScannerOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const skuPrefix = storeCfg.sku_prefix;
   const previewedCode = useLive<string>(
     () => nextInternalCode(db, skuPrefix),
@@ -89,18 +132,57 @@ export function AddArticleScreen(): JSX.Element {
     `${skuPrefix}-0001`,
   );
 
-  function patch(patch: Partial<FormState>): void {
-    setForm((s) => ({ ...s, ...patch }));
-  }
-
+  // Object-URL cleanup so the photo previews don't leak when the user
+  // navigates away or replaces a photo.
   useEffect(
     () => () => {
-      if (form.photoPreviewUrl) URL.revokeObjectURL(form.photoPreviewUrl);
+      blocks.forEach((b) => {
+        if (b.photoPreviewUrl) URL.revokeObjectURL(b.photoPreviewUrl);
+      });
     },
-    [form.photoPreviewUrl],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
-  async function handlePhoto(file: File): Promise<void> {
+  function patchBlock(i: number, patch: Partial<ColorBlock>): void {
+    setBlocks((arr) => arr.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
+  }
+
+  function patchBlockSize(i: number, j: number, patch: Partial<SizeRow>): void {
+    setBlocks((arr) =>
+      arr.map((b, idx) =>
+        idx === i
+          ? { ...b, sizes: b.sizes.map((s, sj) => (sj === j ? { ...s, ...patch } : s)) }
+          : b,
+      ),
+    );
+  }
+
+  function addSizeRow(i: number): void {
+    setBlocks((arr) =>
+      arr.map((b, idx) => (idx === i ? { ...b, sizes: [...b.sizes, emptySizeRow()] } : b)),
+    );
+  }
+
+  function removeSizeRow(i: number, j: number): void {
+    setBlocks((arr) =>
+      arr.map((b, idx) => (idx === i ? { ...b, sizes: b.sizes.filter((_, sj) => sj !== j) } : b)),
+    );
+  }
+
+  function addColorBlock(): void {
+    setBlocks((arr) => [...arr, emptyBlock()]);
+  }
+
+  function removeColorBlock(i: number): void {
+    setBlocks((arr) => {
+      const target = arr[i];
+      if (target?.photoPreviewUrl) URL.revokeObjectURL(target.photoPreviewUrl);
+      return arr.filter((_, idx) => idx !== i);
+    });
+  }
+
+  async function handleBlockPhoto(i: number, file: File): Promise<void> {
     const compressed = await compressPhoto(file);
     const stored = await storePhoto(db, {
       blob: compressed.blob,
@@ -108,96 +190,141 @@ export function AddArticleScreen(): JSX.Element {
       height: compressed.height,
       mime: compressed.mime,
     });
-    if (form.photoPreviewUrl) URL.revokeObjectURL(form.photoPreviewUrl);
+    const previousUrl = blocks[i]?.photoPreviewUrl ?? null;
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
     const url = URL.createObjectURL(compressed.blob);
-    patch({ photoId: stored.id, photoPreviewUrl: url });
+    patchBlock(i, { photoId: stored.id, photoPreviewUrl: url });
   }
 
-  function parseSizes(input: string): string[] {
-    return input
-      .split(/[,\s]+/u)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-  }
-
-  function validate(): Record<string, string> {
+  function validateStep1(): Record<string, string> {
     const e: Record<string, string> = {};
-    if (!form.photoId) e.photo = t('err_photo_required');
-    if (form.name.trim().length < 2) e.name = t('err_name_required');
-    if (needsSizes) {
-      const parsed = parseSizes(form.sizes);
-      if (parsed.length === 0) e.sizes = t('err_invalid_sizes');
-      if (!parsed.every((s) => /^[A-Za-z0-9]+$/.test(s))) e.sizes = t('err_invalid_sizes');
-    }
+    if (basics.name.trim().length < 2) e.name = t('err_name_required');
     return e;
   }
 
-  async function save(addAnother: boolean): Promise<void> {
-    const e = validate();
-    setErrors(e);
-    if (Object.keys(e).length > 0) return;
-    setSubmitting(true);
-    const cost = Math.max(0, parseCurrency(form.costInput, locale, currency) ?? 0);
-    const sale = Math.max(0, parseCurrency(form.saleInput, locale, currency) ?? 0);
-    // Sized stores: use the user-typed size list. Sizeless stores: create
-    // a single placeholder variant with size '' so the rest of the schema
-    // stays uniform.
-    const sizes = needsSizes
-      ? parseSizes(form.sizes).map((size) => ({ size, initial_qty: form.qty }))
-      : [{ size: '', initial_qty: form.qty }];
-    await createArticle(db, {
-      name: form.name.trim(),
-      photo_id: form.photoId,
-      category: form.category,
-      colors: form.color ? [form.color] : [],
-      brand: form.brand.trim() === '' ? null : form.brand.trim(),
-      cost_price_tnd: cost,
-      sale_price_tnd: sale,
-      notes: form.notes.trim() === '' ? null : form.notes.trim(),
-      sizes,
-      sku_prefix: skuPrefix,
-    });
-    setSubmitting(false);
-    if (addAnother) {
-      // Keep colour/brand/category as defaults; reset photo + name + sizes.
-      setForm((s) => ({
-        ...INITIAL,
-        color: s.color,
-        brand: s.brand,
-        category: s.category,
-      }));
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setErrors({});
-    } else {
-      navigate('/', { replace: true });
+  function validateStep2(): Record<string, string> {
+    const e: Record<string, string> = {};
+    let hasAnyPhoto = false;
+    let hasAnyStock = false;
+    for (let i = 0; i < blocks.length; i += 1) {
+      const b = blocks[i]!;
+      if (b.photoId) hasAnyPhoto = true;
+      if (hasColors && effectiveColor(b) === null) {
+        e[`block-${i}-color`] = t('err_color_required');
+      }
+      for (let j = 0; j < b.sizes.length; j += 1) {
+        const s = b.sizes[j]!;
+        if (hasSizes && s.size.trim() === '') {
+          e[`block-${i}-size-${j}`] = t('err_size_required');
+        }
+        if (s.floor > 0 || s.back > 0) hasAnyStock = true;
+      }
     }
+    if (!hasAnyPhoto) e.photo = t('err_photo_required');
+    if (!hasAnyStock) e.stock = t('err_stock_required');
+    return e;
   }
 
-  const canSave = form.photoId !== null && form.name.trim().length >= 2 && !submitting;
+  async function continueToStep2(): Promise<void> {
+    const stepErrors = validateStep1();
+    setErrors(stepErrors);
+    if (Object.keys(stepErrors).length > 0) return;
+
+    // Soft duplicate check. Lookup by lowercased (brand, name) pair against
+    // alive, non-archived articles. Brand can be empty; that's fine — many
+    // shops don't track brand.
+    const brand = basics.brand.trim().toLowerCase();
+    const name = basics.name.trim().toLowerCase();
+    const candidates = await db.articles
+      .filter(
+        (a) =>
+          a.deleted_at === null &&
+          a.archived_at === null &&
+          a.name.toLowerCase() === name &&
+          (a.brand ?? '').toLowerCase() === brand,
+      )
+      .toArray();
+    setDuplicate(candidates[0] ?? null);
+    setDupDismissed(false);
+    setStep(2);
+  }
+
+  async function save(): Promise<void> {
+    const stepErrors = validateStep2();
+    setErrors(stepErrors);
+    if (Object.keys(stepErrors).length > 0) return;
+    setSubmitting(true);
+    try {
+      const cost = Math.max(0, parseCurrency(basics.costInput, locale, currency) ?? 0);
+      const sale = Math.max(0, parseCurrency(basics.saleInput, locale, currency) ?? 0);
+
+      const variantSpecs = blocks.flatMap((b) =>
+        b.sizes.map((s) => ({
+          color: hasColors ? effectiveColor(b) : null,
+          size: hasSizes ? (s.size.trim() === '' ? null : s.size.trim()) : null,
+          floor_qty: Math.max(0, Math.floor(s.floor)),
+          back_qty: Math.max(0, Math.floor(s.back)),
+          photo_id: b.photoId ?? null,
+        })),
+      );
+
+      // Article-level photo: the first block that carries one. Falls back
+      // to null for the (impossible-given-validation) edge case where no
+      // block has a photo.
+      const articlePhotoId = blocks.find((b) => b.photoId)?.photoId ?? null;
+
+      // Manufacturer code blob: append per-colour codes to the notes
+      // field for now. A dedicated Variant.manufacturer_code field is a
+      // future schema bump.
+      const noteParts: string[] = [];
+      if (basics.notes.trim()) noteParts.push(basics.notes.trim());
+      for (const b of blocks) {
+        const code = b.manufacturerCode.trim();
+        if (code !== '') {
+          const c = effectiveColor(b);
+          noteParts.push(c !== null ? `${c}: ${code}` : code);
+        }
+      }
+      const notes = noteParts.length === 0 ? null : noteParts.join(' · ');
+
+      await createArticle(db, {
+        name: basics.name.trim(),
+        photo_id: articlePhotoId,
+        category: basics.category,
+        brand: basics.brand.trim() === '' ? null : basics.brand.trim(),
+        cost_price_tnd: cost,
+        sale_price_tnd: sale,
+        notes,
+        variants: variantSpecs,
+        sku_prefix: skuPrefix,
+      });
+      navigate('/', { replace: true });
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <ScreenLayout hideNav>
       <header className="border-hair grid grid-cols-3 items-center border-b px-4 py-3">
         <button
           type="button"
-          data-testid="add-cancel"
-          onClick={() => navigate(-1)}
+          data-testid={step === 1 ? 'add-cancel' : 'add-back'}
+          onClick={() => (step === 1 ? navigate(-1) : setStep(1))}
           className="text-ink-3 justify-self-start text-xs"
         >
-          {tCommon('cancel')}
+          {step === 1 ? tCommon('cancel') : tCommon('back')}
         </button>
         <h3 className="font-display justify-self-center text-sm font-semibold tracking-tight">
           {t('title')}
         </h3>
-        <button
-          type="button"
-          data-testid="add-scan"
-          onClick={() => setScannerOpen(true)}
-          className="text-accent justify-self-end inline-flex items-center gap-1 text-xs font-medium"
+        <span
+          data-testid="add-step-indicator"
+          className="text-ink-3 justify-self-end font-mono text-[11px]"
+          dir="ltr"
         >
-          <ScanLine aria-hidden className="h-4 w-4" strokeWidth={2.25} />
-          {t('scan_button')}
-        </button>
+          {step} / 2
+        </span>
       </header>
 
       <BarcodeScanner
@@ -205,291 +332,569 @@ export function AddArticleScreen(): JSX.Element {
         onClose={() => setScannerOpen(false)}
         onDetected={(value) => {
           setScannerOpen(false);
-          // Drop the scanned code into the Notes field. For shop verticals
-          // this becomes "exp. <expiry> · <UPC>"-style; for others it's
-          // just a SKU note that survives in the article record.
-          patch({ notes: form.notes ? `${form.notes} · ${value}` : value });
+          setBasics((b) => ({ ...b, notes: b.notes ? `${b.notes} · ${value}` : value }));
         }}
       />
 
-      <label
-        data-testid="photo-cta"
-        htmlFor="add-photo-input"
-        className={`mx-4 mt-4 aspect-[16/11] flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-ink-2 ${form.photoId ? 'border-ok bg-ok-soft/30' : 'border-ink-4/40 bg-paper-deep/40'}`}
+      {step === 1 ? (
+        <Step1
+          basics={basics}
+          setBasics={setBasics}
+          previewedCode={previewedCode}
+          categories={categories}
+          tCategory={tCategory}
+          errors={errors}
+          locale={locale}
+          currency={currency}
+          onScan={() => setScannerOpen(true)}
+        />
+      ) : (
+        <Step2
+          blocks={blocks}
+          patchBlock={patchBlock}
+          patchBlockSize={patchBlockSize}
+          addSizeRow={addSizeRow}
+          removeSizeRow={removeSizeRow}
+          addColorBlock={addColorBlock}
+          removeColorBlock={removeColorBlock}
+          handleBlockPhoto={handleBlockPhoto}
+          hasColors={hasColors}
+          hasSizes={hasSizes}
+          duplicate={duplicate}
+          dupDismissed={dupDismissed}
+          dismissDuplicate={() => setDupDismissed(true)}
+          tColor={tColor}
+          errors={errors}
+        />
+      )}
+
+      <div className="border-hair flex flex-shrink-0 gap-2 border-t bg-white px-3 py-3 pb-5">
+        {step === 1 ? (
+          <button
+            type="button"
+            data-testid="continue"
+            onClick={() => void continueToStep2()}
+            disabled={basics.name.trim().length < 2}
+            className="bg-accent flex-1 rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {tCommon('continue')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="save"
+            disabled={submitting}
+            onClick={() => void save()}
+            className="bg-accent flex-1 rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {tCommon('save')}
+          </button>
+        )}
+      </div>
+    </ScreenLayout>
+  );
+}
+
+interface Step1Props {
+  basics: Basics;
+  setBasics: React.Dispatch<React.SetStateAction<Basics>>;
+  previewedCode: string;
+  categories: readonly string[];
+  tCategory: (k: string) => string;
+  errors: Record<string, string>;
+  locale: string;
+  currency: string;
+  onScan: () => void;
+}
+
+function Step1({
+  basics,
+  setBasics,
+  previewedCode,
+  categories,
+  tCategory,
+  errors,
+  locale: _locale,
+  currency,
+  onScan,
+}: Step1Props): JSX.Element {
+  const { t } = useTranslation('add');
+  const { t: tCommon } = useTranslation('common');
+  return (
+    <div data-testid="step-1" className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4">
+      <button
+        type="button"
+        data-testid="add-scan"
+        onClick={onScan}
+        className="text-accent self-end inline-flex items-center gap-1 text-xs font-medium"
       >
-        {form.photoPreviewUrl ? (
+        <ScanLine aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+        {t('scan_button')}
+      </button>
+
+      <section
+        data-testid="add-section-identity"
+        className="border-hair space-y-3 rounded-2xl border bg-white p-4"
+      >
+        <Field label={t('field_code')}>
+          <span
+            data-testid="field-code"
+            className="bg-paper border-hair font-mono rounded-xl border px-3 py-2.5 font-medium"
+            dir="ltr"
+          >
+            {previewedCode}
+          </span>
+        </Field>
+        <Field label={t('field_name')}>
+          <input
+            data-testid="field-name"
+            type="text"
+            value={basics.name}
+            onChange={(e) => setBasics((b) => ({ ...b, name: e.target.value }))}
+            placeholder={t('field_name_placeholder')}
+            className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
+          />
+        </Field>
+        {errors.name ? (
+          <p data-testid="err-name" className="text-bad text-xs">
+            {errors.name}
+          </p>
+        ) : null}
+        <Field label={t('field_brand')} hint={tCommon('optional')}>
+          <input
+            data-testid="field-brand"
+            type="text"
+            value={basics.brand}
+            onChange={(e) => setBasics((b) => ({ ...b, brand: e.target.value }))}
+            placeholder={t('field_brand_placeholder')}
+            className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
+          />
+        </Field>
+        <Field label={t('field_category')}>
+          <div data-testid="category-chips" className="flex flex-wrap gap-1.5">
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                data-testid={`category-${c}`}
+                onClick={() => setBasics((b) => ({ ...b, category: c }))}
+                aria-pressed={basics.category === c}
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  basics.category === c
+                    ? 'border-accent bg-accent-soft text-accent-ink'
+                    : 'border-hair text-ink-2 bg-white'
+                }`}
+              >
+                {tCategory(c)}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </section>
+
+      <section
+        data-testid="add-section-pricing"
+        className="border-hair space-y-3 rounded-2xl border bg-white p-4"
+      >
+        <div className="grid grid-cols-2 gap-2">
+          <Field label={t('field_cost', { currency })} hint={tCommon('optional')}>
+            <input
+              data-testid="field-cost"
+              type="text"
+              inputMode="decimal"
+              value={basics.costInput}
+              onChange={(e) => setBasics((b) => ({ ...b, costInput: e.target.value }))}
+              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
+            />
+          </Field>
+          <Field label={t('field_sale', { currency })} hint={tCommon('optional')}>
+            <input
+              data-testid="field-sale"
+              type="text"
+              inputMode="decimal"
+              value={basics.saleInput}
+              onChange={(e) => setBasics((b) => ({ ...b, saleInput: e.target.value }))}
+              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
+            />
+          </Field>
+        </div>
+        <Field label={t('field_notes')} hint={tCommon('optional')}>
+          <input
+            data-testid="field-notes"
+            type="text"
+            value={basics.notes}
+            onChange={(e) => setBasics((b) => ({ ...b, notes: e.target.value }))}
+            placeholder={t('field_notes_placeholder')}
+            className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
+          />
+        </Field>
+      </section>
+    </div>
+  );
+}
+
+interface Step2Props {
+  blocks: ColorBlock[];
+  patchBlock: (i: number, patch: Partial<ColorBlock>) => void;
+  patchBlockSize: (i: number, j: number, patch: Partial<SizeRow>) => void;
+  addSizeRow: (i: number) => void;
+  removeSizeRow: (i: number, j: number) => void;
+  addColorBlock: () => void;
+  removeColorBlock: (i: number) => void;
+  handleBlockPhoto: (i: number, file: File) => Promise<void>;
+  hasColors: boolean;
+  hasSizes: boolean;
+  duplicate: Article | null;
+  dupDismissed: boolean;
+  dismissDuplicate: () => void;
+  tColor: (k: string) => string;
+  errors: Record<string, string>;
+}
+
+function Step2(props: Step2Props): JSX.Element {
+  const { t } = useTranslation('add');
+  const {
+    blocks,
+    patchBlock,
+    patchBlockSize,
+    addSizeRow,
+    removeSizeRow,
+    addColorBlock,
+    removeColorBlock,
+    handleBlockPhoto,
+    hasColors,
+    hasSizes,
+    duplicate,
+    dupDismissed,
+    dismissDuplicate,
+    tColor,
+    errors,
+  } = props;
+
+  return (
+    <div data-testid="step-2" className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 pt-4">
+      {duplicate && !dupDismissed ? (
+        <div
+          data-testid="duplicate-warning"
+          className="bg-warn-soft border-warn rounded-xl border p-3 text-xs"
+        >
+          <p className="text-ink">
+            {t('duplicate_warn', {
+              name: duplicate.name,
+              count: duplicate.colors.length,
+            })}
+          </p>
+          <div className="mt-2 flex items-center justify-between">
+            <Link
+              data-testid="duplicate-link"
+              to={`/article/${duplicate.id}`}
+              className="text-accent font-medium"
+            >
+              {t('duplicate_open_existing')}
+            </Link>
+            <button
+              type="button"
+              data-testid="duplicate-dismiss"
+              onClick={dismissDuplicate}
+              className="text-ink-3"
+            >
+              {t('duplicate_dismiss')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {errors.photo ? (
+        <p data-testid="err-photo" className="text-bad text-xs">
+          {errors.photo}
+        </p>
+      ) : null}
+      {errors.stock ? (
+        <p data-testid="err-stock" className="text-bad text-xs">
+          {errors.stock}
+        </p>
+      ) : null}
+
+      {blocks.map((block, i) => (
+        <BlockEditor
+          key={i}
+          index={i}
+          block={block}
+          isOnly={blocks.length === 1}
+          hasColors={hasColors}
+          hasSizes={hasSizes}
+          tColor={tColor}
+          errors={errors}
+          patchBlock={patchBlock}
+          patchBlockSize={patchBlockSize}
+          addSizeRow={addSizeRow}
+          removeSizeRow={removeSizeRow}
+          removeColorBlock={removeColorBlock}
+          handleBlockPhoto={handleBlockPhoto}
+        />
+      ))}
+
+      {hasColors ? (
+        <button
+          type="button"
+          data-testid="add-color-block"
+          onClick={addColorBlock}
+          className="border-hair text-ink-2 inline-flex items-center justify-center gap-1.5 rounded-xl border bg-white py-2.5 text-sm"
+        >
+          <Plus aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+          {t('add_color_block')}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+interface BlockEditorProps {
+  index: number;
+  block: ColorBlock;
+  isOnly: boolean;
+  hasColors: boolean;
+  hasSizes: boolean;
+  tColor: (k: string) => string;
+  errors: Record<string, string>;
+  patchBlock: (i: number, patch: Partial<ColorBlock>) => void;
+  patchBlockSize: (i: number, j: number, patch: Partial<SizeRow>) => void;
+  addSizeRow: (i: number) => void;
+  removeSizeRow: (i: number, j: number) => void;
+  removeColorBlock: (i: number) => void;
+  handleBlockPhoto: (i: number, file: File) => Promise<void>;
+}
+
+function BlockEditor(props: BlockEditorProps): JSX.Element {
+  const { t } = useTranslation('add');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    index,
+    block,
+    isOnly,
+    hasColors,
+    hasSizes,
+    tColor,
+    errors,
+    patchBlock,
+    patchBlockSize,
+    addSizeRow,
+    removeSizeRow,
+    removeColorBlock,
+    handleBlockPhoto,
+  } = props;
+  return (
+    <section
+      data-testid={`block-${index}`}
+      className="border-hair space-y-3 rounded-2xl border bg-white p-4"
+    >
+      {hasColors && !isOnly ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            data-testid={`block-${index}-remove`}
+            onClick={() => removeColorBlock(index)}
+            className="text-ink-3 inline-flex items-center gap-1 text-[11px]"
+          >
+            <Trash2 aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
+            {t('remove_color_block')}
+          </button>
+        </div>
+      ) : null}
+
+      <label
+        data-testid={`block-${index}-photo-cta`}
+        htmlFor={`block-${index}-photo-input`}
+        className={`aspect-[16/11] flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-ink-2 ${
+          block.photoId ? 'border-ok bg-ok-soft/30' : 'border-ink-4/40 bg-paper-deep/40'
+        }`}
+      >
+        {block.photoPreviewUrl ? (
           <img
-            src={form.photoPreviewUrl}
+            src={block.photoPreviewUrl}
             alt=""
-            className="h-full w-full rounded-2xl object-cover"
-            data-testid="photo-preview"
+            className="h-full w-full rounded-xl object-cover"
+            data-testid={`block-${index}-photo-preview`}
           />
         ) : (
-          <>
-            <svg
-              data-testid="photo-cta-icon"
-              aria-hidden="true"
-              width="30"
-              height="30"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-ink-2"
-            >
-              <rect x="3" y="6" width="18" height="14" rx="2" />
-              <circle cx="12" cy="13" r="3" />
-              <path d="M8 6l1-2h6l1 2" />
-            </svg>
-            <span className="font-display text-[13px] font-medium text-ink">{t('photo_cta')}</span>
-            <span className="text-accent font-mono text-[9.5px] uppercase tracking-widest">
-              {t('photo_required')}
-            </span>
-          </>
+          <span className="font-display text-[13px] font-medium text-ink">{t('photo_cta')}</span>
         )}
       </label>
       <input
         ref={fileInputRef}
-        id="add-photo-input"
-        data-testid="photo-input"
+        id={`block-${index}-photo-input`}
+        data-testid={`block-${index}-photo-input`}
         type="file"
         accept="image/*"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void handlePhoto(file);
+          if (file) void handleBlockPhoto(index, file);
         }}
       />
-      {errors.photo ? <p className="text-bad px-5 text-xs">{errors.photo}</p> : null}
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4">
-        <section
-          data-testid="add-section-identity"
-          className="border-hair space-y-3 rounded-2xl border bg-white p-4"
-        >
-          <Field label={t('field_code')}>
-            <span
-              data-testid="field-code"
-              className="bg-paper border-hair font-mono rounded-xl border px-3 py-2.5 font-medium"
-              dir="ltr"
+      {hasColors ? (
+        <div data-testid={`block-${index}-color-chips`} className="flex flex-wrap gap-1.5">
+          {CANONICAL_COLOURS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              data-testid={`block-${index}-color-${c}`}
+              onClick={() => patchBlock(index, { color: c, customColor: '' })}
+              aria-pressed={block.color === c && block.customColor === ''}
+              className={`rounded-full border px-3 py-1.5 text-xs ${
+                block.color === c && block.customColor === ''
+                  ? 'border-accent bg-accent-soft text-accent-ink'
+                  : 'border-hair text-ink-2 bg-white'
+              }`}
             >
-              {previewedCode}
-            </span>
-          </Field>
+              {tColor(c)}
+            </button>
+          ))}
+          <input
+            data-testid={`block-${index}-color-custom`}
+            type="text"
+            value={block.customColor}
+            onChange={(e) => patchBlock(index, { customColor: e.target.value, color: '' })}
+            placeholder={tColor('custom_placeholder')}
+            maxLength={30}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-xs"
+          />
+        </div>
+      ) : null}
+      {errors[`block-${index}-color`] ? (
+        <p data-testid={`err-block-${index}-color`} className="text-bad text-xs">
+          {errors[`block-${index}-color`]}
+        </p>
+      ) : null}
 
-          <Field label={t('field_name')}>
-            <input
-              data-testid="field-name"
-              type="text"
-              value={form.name}
-              onChange={(e) => patch({ name: e.target.value })}
-              placeholder={t('field_name_placeholder')}
-              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
-            />
-          </Field>
-          {errors.name ? (
-            <p data-testid="err-name" className="text-bad text-xs">
-              {errors.name}
-            </p>
-          ) : null}
-        </section>
+      {hasColors ? (
+        <input
+          data-testid={`block-${index}-mfr-code`}
+          type="text"
+          value={block.manufacturerCode}
+          onChange={(e) => patchBlock(index, { manufacturerCode: e.target.value })}
+          placeholder={t('field_mfr_code_placeholder')}
+          className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-xs"
+        />
+      ) : null}
 
-        <section
-          data-testid="add-section-description"
-          className="border-hair space-y-3 rounded-2xl border bg-white p-4"
-        >
-          <Field label={t('field_color')}>
-            <div data-testid="color-chips" className="flex flex-wrap gap-1.5">
-              {CANONICAL_COLOURS.map((c) => (
+      {hasSizes ? (
+        <div data-testid={`block-${index}-sizes`} className="space-y-2">
+          {block.sizes.map((row, j) => (
+            <div key={j} className="flex items-center gap-2">
+              <input
+                data-testid={`block-${index}-size-${j}-input`}
+                type="text"
+                value={row.size}
+                onChange={(e) => patchBlockSize(index, j, { size: e.target.value })}
+                placeholder={t('size_placeholder')}
+                className="border-hair w-16 rounded-lg border bg-white px-2 py-1.5 font-mono text-sm"
+                inputMode="numeric"
+              />
+              <Stepper
+                testId={`block-${index}-size-${j}-floor`}
+                label={t('floor_label')}
+                value={row.floor}
+                onChange={(v) => patchBlockSize(index, j, { floor: v })}
+              />
+              <Stepper
+                testId={`block-${index}-size-${j}-back`}
+                label={t('back_label')}
+                value={row.back}
+                onChange={(v) => patchBlockSize(index, j, { back: v })}
+              />
+              {block.sizes.length > 1 ? (
                 <button
-                  key={c}
                   type="button"
-                  data-testid={`color-${c}`}
-                  onClick={() => patch({ color: c })}
-                  aria-pressed={form.color === c}
-                  className={`rounded-full border px-3 py-1.5 text-xs ${form.color === c ? 'border-accent bg-accent-soft text-accent-ink' : 'border-hair text-ink-2 bg-white'}`}
+                  data-testid={`block-${index}-size-${j}-remove`}
+                  onClick={() => removeSizeRow(index, j)}
+                  className="text-ink-3"
+                  aria-label={t('remove_size_row')}
                 >
-                  {tColor(c)}
+                  <Trash2 aria-hidden className="h-4 w-4" strokeWidth={2} />
                 </button>
-              ))}
-            </div>
-            {/* Free-text color input — for cases the curated chip list
-                doesn't cover (e.g., "olive", "burgundy", a brand-specific
-                shade). Anything typed here lands in form.color verbatim
-                and gets stored on the article. The chips above unselect
-                visually but the typed value wins. */}
-            <input
-              data-testid="color-custom"
-              type="text"
-              value={
-                CANONICAL_COLOURS.includes(form.color as (typeof CANONICAL_COLOURS)[number])
-                  ? ''
-                  : form.color
-              }
-              onChange={(e) => patch({ color: e.target.value })}
-              placeholder={tColor('custom_placeholder')}
-              maxLength={30}
-              className="border-hair mt-2 w-full rounded-xl border bg-white px-3 py-2 text-xs"
-            />
-          </Field>
-
-          <Field label={t('field_brand')}>
-            <input
-              data-testid="field-brand"
-              type="text"
-              value={form.brand}
-              onChange={(e) => patch({ brand: e.target.value })}
-              placeholder={t('field_brand_placeholder')}
-              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
-            />
-          </Field>
-
-          <Field label={t('field_category')}>
-            <div data-testid="category-chips" className="flex flex-wrap gap-1.5">
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  data-testid={`category-${c}`}
-                  onClick={() => patch({ category: c })}
-                  aria-pressed={form.category === c}
-                  className={`rounded-full border px-3 py-1.5 text-xs ${form.category === c ? 'border-accent bg-accent-soft text-accent-ink' : 'border-hair text-ink-2 bg-white'}`}
-                >
-                  {tCategory(c)}
-                </button>
-              ))}
-            </div>
-          </Field>
-        </section>
-
-        <section
-          data-testid="add-section-stock"
-          className="border-hair space-y-3 rounded-2xl border bg-white p-4"
-        >
-          {needsSizes ? (
-            <>
-              <Field label={t('field_sizes')}>
-                <input
-                  data-testid="field-sizes"
-                  type="text"
-                  value={form.sizes}
-                  onChange={(e) => patch({ sizes: e.target.value })}
-                  placeholder={t('field_sizes_placeholder')}
-                  className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
-                  inputMode="numeric"
-                />
-              </Field>
-              {errors.sizes ? (
-                <p data-testid="err-sizes" className="text-bad text-xs">
-                  {errors.sizes}
-                </p>
               ) : null}
-            </>
-          ) : null}
-
-          <Field label={t('field_qty')}>
-            <div className="border-hair flex items-center rounded-xl border bg-white p-1.5">
-              <button
-                type="button"
-                data-testid="qty-minus"
-                onClick={() => patch({ qty: Math.max(0, form.qty - 1) })}
-                className="bg-paper border-hair h-8 w-8 rounded-lg border"
-              >
-                −
-              </button>
-              <span data-testid="qty-value" className="flex-1 text-center font-mono tabular-nums">
-                {form.qty}
-              </span>
-              <button
-                type="button"
-                data-testid="qty-plus"
-                onClick={() => patch({ qty: form.qty + 1 })}
-                className="bg-paper border-hair h-8 w-8 rounded-lg border"
-              >
-                +
-              </button>
             </div>
-          </Field>
-        </section>
-
-        <section
-          data-testid="add-section-pricing"
-          className="border-hair space-y-3 rounded-2xl border bg-white p-4"
-        >
-          <div className="grid grid-cols-2 gap-2">
-            <Field label={t('field_cost', { currency })} hint={t('optional')}>
-              <input
-                data-testid="field-cost"
-                type="text"
-                inputMode="decimal"
-                value={form.costInput}
-                onChange={(e) => patch({ costInput: e.target.value })}
-                className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
-              />
-            </Field>
-            <Field label={t('field_sale', { currency })} hint={t('optional')}>
-              <input
-                data-testid="field-sale"
-                type="text"
-                inputMode="decimal"
-                value={form.saleInput}
-                onChange={(e) => patch({ saleInput: e.target.value })}
-                className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
-              />
-            </Field>
-          </div>
-          {errors.cost ? (
-            <p data-testid="err-cost" className="text-bad text-xs">
-              {errors.cost}
-            </p>
-          ) : null}
-          {errors.sale ? (
-            <p data-testid="err-sale" className="text-bad text-xs">
-              {errors.sale}
-            </p>
-          ) : null}
-
-          <Field
-            label={t(storeCfg.has_expiry ? 'field_expiry_label' : 'field_notes')}
-            hint={t('optional')}
+          ))}
+          <button
+            type="button"
+            data-testid={`block-${index}-add-size`}
+            onClick={() => addSizeRow(index)}
+            className="border-hair text-ink-2 inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs"
           >
-            <input
-              data-testid="field-notes"
-              type="text"
-              value={form.notes}
-              onChange={(e) => patch({ notes: e.target.value })}
-              placeholder={t(
-                storeCfg.has_expiry ? 'field_expiry_placeholder' : 'field_notes_placeholder',
-              )}
-              className="border-hair rounded-xl border bg-white px-3 py-2.5 text-sm"
-            />
-          </Field>
-        </section>
-      </div>
+            <Plus aria-hidden className="h-3.5 w-3.5" strokeWidth={2.25} />
+            {t('add_size_row')}
+          </button>
+        </div>
+      ) : (
+        // Sizeless verticals get a single floor + back row with no size
+        // input. The single SizeRow stays under the same array shape so
+        // saving doesn't have to special-case the storage path.
+        <div data-testid={`block-${index}-sizeless`} className="flex items-center gap-3">
+          <Stepper
+            testId={`block-${index}-floor`}
+            label={t('floor_label')}
+            value={block.sizes[0]?.floor ?? 0}
+            onChange={(v) => patchBlockSize(index, 0, { floor: v })}
+          />
+          <Stepper
+            testId={`block-${index}-back`}
+            label={t('back_label')}
+            value={block.sizes[0]?.back ?? 0}
+            onChange={(v) => patchBlockSize(index, 0, { back: v })}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
 
-      <div className="border-hair flex flex-shrink-0 gap-2 border-t bg-white px-3 py-3 pb-5">
-        <button
-          type="button"
-          data-testid="save-and-add"
-          disabled={!canSave}
-          onClick={() => void save(true)}
-          className="border-hair flex-1 rounded-xl border bg-white py-3 text-sm font-medium disabled:opacity-50"
-        >
-          {t('save_and_add')}
-        </button>
-        <button
-          type="button"
-          data-testid="save"
-          disabled={!canSave}
-          onClick={() => void save(false)}
-          className="bg-accent flex-1 rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {tCommon('save')}
-        </button>
-      </div>
-    </ScreenLayout>
+function Stepper({
+  testId,
+  label,
+  value,
+  onChange,
+}: {
+  testId: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}): JSX.Element {
+  return (
+    <div className="border-hair flex flex-1 items-center rounded-lg border bg-white">
+      <span className="text-ink-3 px-2 text-[10px] font-mono uppercase tracking-wider">
+        {label}
+      </span>
+      <button
+        type="button"
+        data-testid={`${testId}-minus`}
+        onClick={() => onChange(Math.max(0, value - 1))}
+        className="bg-paper border-hair h-7 w-7 rounded border-l text-base"
+      >
+        −
+      </button>
+      <input
+        data-testid={testId}
+        type="number"
+        inputMode="numeric"
+        min={0}
+        value={value}
+        onChange={(e) => {
+          const n = Number.parseInt(e.target.value, 10);
+          onChange(Number.isFinite(n) && n >= 0 ? n : 0);
+        }}
+        className="w-12 bg-transparent text-center font-mono text-sm tabular-nums"
+      />
+      <button
+        type="button"
+        data-testid={`${testId}-plus`}
+        onClick={() => onChange(value + 1)}
+        className="bg-paper border-hair h-7 w-7 rounded border-l text-base"
+      >
+        +
+      </button>
+    </div>
   );
 }
 

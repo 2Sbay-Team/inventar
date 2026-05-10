@@ -19,13 +19,17 @@ test.describe('Persistence', () => {
 
   test('photo survives a full reload and is ≤ 200 KB', async ({ page }) => {
     await page.getByTestId('nav-add').click();
-    await page.setInputFiles('[data-testid="photo-input"]', SAMPLE);
-    await expect(page.getByTestId('photo-preview')).toBeVisible({ timeout: 10_000 });
-
+    // v0.3: Add Article is two steps — basics on Step 1, photo + variants
+    // on Step 2. Photo lives inside the first colour block.
     await page.getByTestId('field-name').fill('Persistence shoe');
-    await page.getByTestId('field-sizes').fill('42');
     await page.getByTestId('field-cost').fill('40');
     await page.getByTestId('field-sale').fill('70');
+    await page.getByTestId('continue').click();
+    await page.setInputFiles('[data-testid="block-0-photo-input"]', SAMPLE);
+    await expect(page.getByTestId('block-0-photo-preview')).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('block-0-color-white').click();
+    await page.getByTestId('block-0-size-0-input').fill('42');
+    await page.getByTestId('block-0-size-0-back-plus').click();
     await page.getByTestId('save').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
 
