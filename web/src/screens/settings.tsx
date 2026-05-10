@@ -21,8 +21,9 @@ import { exportBackupBlob, backupFilename } from '../backup/export';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
+import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { ChevronRight, Download as DownloadIcon, Smartphone } from 'lucide-react';
-import { type CurrencyCode, type Locale, type StoreType } from '../types';
+import { type CurrencyCode, type Locale, type ShopSubtype, type StoreType } from '../types';
 
 const APP_VERSION = '1.0.0';
 
@@ -36,6 +37,7 @@ export function SettingsScreen(): JSX.Element {
   const { t } = useTranslation('settings');
   const { t: tCommon } = useTranslation('common');
   const { t: tStoreTypes } = useTranslation('store_types');
+  const { t: tShopSubtypes } = useTranslation('shop_subtypes');
   const { locale, setLocale } = useLocale();
   const profile = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,11 @@ export function SettingsScreen(): JSX.Element {
   const [logoError, setLogoError] = useState<string | null>(null);
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
   const [pendingStoreType, setPendingStoreType] = useState<StoreType | null>(null);
+  // v0.5 ADR-017: shop sub-types editor. Draft is null until the user
+  // toggles something — falling back to profile.shop_subtypes for render.
+  // After Save, draft clears so the chips reflect the saved state again.
+  const [subtypesDraft, setSubtypesDraft] = useState<ShopSubtype[] | null>(null);
+  const [subtypesSavedAt, setSubtypesSavedAt] = useState<number | null>(null);
   const currencies = useMemo(() => listSupportedCurrencies(), []);
   const installState = useInstallPrompt();
   const autoBackupSupported = useMemo(() => isAutoBackupSupported(), []);
@@ -212,6 +219,26 @@ export function SettingsScreen(): JSX.Element {
       store_type: pendingStoreType,
     });
     setPendingStoreType(null);
+  }
+
+  function toggleSubtype(st: ShopSubtype): void {
+    const current = subtypesDraft ?? profile?.shop_subtypes ?? [];
+    const next = current.includes(st) ? current.filter((s) => s !== st) : [...current, st];
+    setSubtypesDraft(next);
+    setSubtypesSavedAt(null);
+  }
+
+  async function saveSubtypes(): Promise<void> {
+    if (!profile) return;
+    const next = subtypesDraft ?? profile.shop_subtypes;
+    if (next.length === 0) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      shop_subtypes: next,
+    });
+    setSubtypesDraft(null);
+    setSubtypesSavedAt(Date.now());
   }
 
   return (
@@ -400,6 +427,83 @@ export function SettingsScreen(): JSX.Element {
             </div>
           ) : null}
         </section>
+
+        {profile?.store_type === 'shop' ? (
+          <section
+            data-testid="section-shop-subtypes"
+            className="border-hair rounded-2xl border bg-white p-4"
+          >
+            <h3 className="font-display text-base font-medium mb-1">{t('shop_subtypes_title')}</h3>
+            <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('shop_subtypes_hint')}</p>
+
+            <div data-testid="settings-subtypes" className="space-y-2">
+              {SHOP_SUBTYPE_ORDER.map((st) => {
+                const cfg = SHOP_SUBTYPE_CONFIG[st];
+                const current = subtypesDraft ?? profile.shop_subtypes;
+                const active = current.includes(st);
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    data-testid={`settings-subtype-${st}`}
+                    onClick={() => toggleSubtype(st)}
+                    aria-pressed={active}
+                    className={`active:scale-[0.99] flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-all duration-200 ${
+                      active
+                        ? 'border-accent bg-accent-soft/40'
+                        : 'border-hair bg-white hover:border-accent/40'
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 ${
+                        active ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
+                      }`}
+                    >
+                      {active ? '✓' : ''}
+                    </span>
+                    <span className="flex flex-1 flex-col">
+                      <span className="text-ink text-sm font-medium leading-tight">
+                        {tShopSubtypes(cfg.label_key)}
+                      </span>
+                      <span className="text-ink-3 mt-0.5 text-[11px] leading-snug">
+                        {tShopSubtypes(cfg.desc_key)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {(subtypesDraft ?? profile.shop_subtypes).length === 0 ? (
+              <p
+                data-testid="settings-subtypes-min-one"
+                className="text-bad mt-2 text-xs"
+                role="alert"
+              >
+                {t('shop_subtypes_min_one')}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              data-testid="settings-subtypes-save"
+              onClick={() => void saveSubtypes()}
+              disabled={
+                (subtypesDraft ?? profile.shop_subtypes).length === 0 || subtypesDraft === null
+              }
+              className="bg-ink mt-3 w-full rounded-xl py-2.5 text-sm text-white disabled:opacity-50"
+            >
+              {t('shop_subtypes_save')}
+            </button>
+
+            {subtypesSavedAt ? (
+              <p data-testid="settings-subtypes-saved" className="text-ok mt-2 text-center text-xs">
+                ✓ {t('shop_subtypes_saved')}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section
           data-testid="section-install"

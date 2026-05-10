@@ -135,22 +135,28 @@ test.describe('feature smoke — buttons that other specs miss', () => {
     await expect(page).toHaveURL(/\/$/);
   });
 
-  test('add article: qty stepper + brand field + save-and-add resets photo + name', async ({
-    page,
-  }) => {
+  test('add article: brand field on step 1 + per-cell back stepper on step 2', async ({ page }) => {
+    // v0.3 ADR-011: Add Article is two steps. Step 1 carries brand
+    // (and the rest of the basics); Step 2 carries the per-(colour, size)
+    // floor + back steppers. The legacy qty-plus/qty-minus controls were
+    // removed when the multi-block form landed.
     await seedFresh(page, { articles: [] });
     await page.getByTestId('nav-add').click();
+    await expect(page.getByTestId('step-1')).toBeVisible();
 
-    // qty stepper
-    await page.getByTestId('qty-plus').click();
-    await page.getByTestId('qty-plus').click();
-    await page.getByTestId('qty-plus').click();
-    await page.getByTestId('qty-minus').click();
-    await expect(page.getByTestId('qty-value')).toHaveText('3'); // 1 + 3 - 1
-
-    // brand field is writable
+    // Brand field on Step 1 is writable.
     await page.getByTestId('field-brand').fill('Adidas');
     await expect(page.getByTestId('field-brand')).toHaveValue('Adidas');
+
+    // Step 2: block-0 stepper. 3 plus, 1 minus → 2.
+    await page.getByTestId('field-name').fill('Stepper Check');
+    await page.getByTestId('continue').click();
+    await expect(page.getByTestId('step-2')).toBeVisible();
+    await page.getByTestId('block-0-size-0-back-plus').click();
+    await page.getByTestId('block-0-size-0-back-plus').click();
+    await page.getByTestId('block-0-size-0-back-plus').click();
+    await page.getByTestId('block-0-size-0-back-minus').click();
+    await expect(page.getByTestId('block-0-size-0-back')).toHaveValue('2');
   });
 
   test('onboarding: French path lands on Search with FR locale', async ({ page }) => {

@@ -6,7 +6,7 @@ import { storePhoto } from '../repos/photos';
 import { recordMovement } from '../repos/movements';
 import { addExpense } from '../repos/expenses';
 import { exportBackupBlob } from '../backup/export';
-import { type Locale } from '../types';
+import { type Locale, type ShopSubtype, type StoreType } from '../types';
 import { setLocale } from '../i18n/i18next';
 
 // Test-only seed surface. Mounted on `window` ONLY when the bundle was built
@@ -34,6 +34,15 @@ interface SeedArticleInput {
 interface SeedInput {
   shopName?: string;
   locale?: Locale;
+  // v0.5 ADR-017: optional store-type override for tests that need a
+  // shop profile without walking the UI. Defaults to 'shoes' (matches
+  // upsertProfile's DEFAULT_STORE_TYPE).
+  storeType?: StoreType;
+  // v0.5 ADR-017: only meaningful when storeType === 'shop'. Passed
+  // through to upsertProfile so the seeded profile has the right
+  // sub-types for tests that exercise the shop dashboard widgets,
+  // category-list union, etc. Defaults to [].
+  shopSubtypes?: ShopSubtype[];
   articles?: SeedArticleInput[];
   expenses?: Array<{ category: string; amount_tnd: number; at?: string }>;
   // Force-clear IndexedDB before applying. Default true.
@@ -62,7 +71,12 @@ function decodeBase64(b64: string): Uint8Array {
 async function applySeed(input: SeedInput): Promise<void> {
   if (input.reset !== false) await clearAllTables();
   const locale: Locale = input.locale ?? 'fr';
-  await upsertProfile(db, { name: input.shopName ?? 'Test Shop', locale });
+  await upsertProfile(db, {
+    name: input.shopName ?? 'Test Shop',
+    locale,
+    store_type: input.storeType,
+    shop_subtypes: input.shopSubtypes,
+  });
   await setMeta(db, META_KEYS.locale, locale);
   await setMeta(db, META_KEYS.persistence_requested, true);
   await setLocale(locale);

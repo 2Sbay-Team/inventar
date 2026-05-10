@@ -70,7 +70,10 @@
     "intent_import_desc": "Restaurez vos articles, photos et historique depuis un fichier JSON.",
     "import_busy": "Restauration en cours…",
     "import_invalid": "Impossible de lire cette sauvegarde. Vérifiez qu'il s'agit du fichier JSON exporté par Inventar.",
-    "import_failed": "Une erreur s'est produite pendant la restauration. Réessayez."
+    "import_failed": "Une erreur s'est produite pendant la restauration. Réessayez.",
+    "subtypes_title": "Que vend votre boutique ?",
+    "subtypes_subtitle": "Sélectionnez tout ce qui s'applique. Modifiable plus tard dans Réglages.",
+    "subtypes_min_hint": "Choisissez au moins une option"
   },
   "search": {
     "placeholder": "Rechercher…",
@@ -275,6 +278,11 @@
     "currency_change_warning": "Changer de devise ne convertit pas vos prix existants — leur valeur numérique stockée reste la même, simplement affichée dans la nouvelle devise. Continuer ?",
     "store_type": "Type de boutique",
     "store_type_change_warning": "Changer le type de boutique ne migre pas vos articles existants — ils gardent leurs catégories et leurs tailles. Les nouveaux articles utiliseront les valeurs par défaut du nouveau type. Continuer ?",
+    "shop_subtypes_title": "Sous-types de boutique",
+    "shop_subtypes_hint": "Activez chaque sous-type que votre boutique vend. Détermine la liste des catégories par défaut dans Ajouter un article et façonne les widgets du tableau de bord.",
+    "shop_subtypes_save": "Enregistrer les sous-types",
+    "shop_subtypes_saved": "Enregistré",
+    "shop_subtypes_min_one": "Choisissez au moins un sous-type",
     "shop_profile": "Profil de la boutique",
     "shop_name": "Nom de la boutique",
     "shop_logo": "Logo de la boutique",
@@ -359,6 +367,24 @@
     "clothes_desc": "Habillement — stock par taille",
     "shop_label": "Boutique",
     "shop_desc": "Minimarket, kiosque, épicerie — flux par scan"
+  },
+  "shop_subtypes": {
+    "food_beverages_label": "Alimentation & boissons",
+    "food_beverages_desc": "fruits & légumes, laitiers, épicerie sèche, surgelés, boissons",
+    "tobacco_lottery_label": "Tabac & loterie",
+    "tobacco_lottery_desc": "cigarettes, billets de loterie, cartes à gratter",
+    "snacks_confectionery_label": "Snacks & confiserie",
+    "snacks_confectionery_desc": "chips, bonbons, chocolat, biscuits",
+    "personal_care_label": "Soins personnels",
+    "personal_care_desc": "savon, shampoing, déodorant, dentifrice",
+    "household_cleaning_label": "Maison & entretien",
+    "household_cleaning_desc": "lessive, javel, éponges",
+    "parapharmaceutique_label": "Parapharmaceutique",
+    "parapharmaceutique_desc": "vitamines, écran solaire, cosmétiques",
+    "stationery_label": "Papeterie",
+    "stationery_desc": "cahiers, stylos, fournitures scolaires",
+    "other_label": "Autre",
+    "other_desc": "tout le reste"
   },
   "help": {
     "title": "Guide rapide",

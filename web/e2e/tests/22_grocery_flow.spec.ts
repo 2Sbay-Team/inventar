@@ -16,6 +16,11 @@ test('shop: add spaghetti, sell some, see stock + today profit', async ({ page }
   await page.getByTestId('onb-store-shop').click();
   await page.getByTestId('shop-name-input').fill('Mini Mart');
   await page.getByTestId('continue').click();
+  // v0.5 ADR-017: shop vertical now has a sub-types step before the
+  // backup card. Pick food_beverages so dry_goods is in the default
+  // category list (matches the seeded article below).
+  await page.getByTestId('onb-subtype-food_beverages').click();
+  await page.getByTestId('continue').click();
   await page.getByTestId('got-it').click();
   await expect(page.getByTestId('search-screen')).toBeVisible();
 

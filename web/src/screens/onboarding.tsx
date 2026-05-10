@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
+import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { db } from '../db/db';
 import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
@@ -23,7 +24,7 @@ import { listSupportedCurrencies } from '../i18n/currency';
 import { setLocale } from '../i18n/i18next';
 import { useLocale } from '../hooks/use-locale';
 import { ensurePersistence } from '../pwa/persistence';
-import { type CurrencyCode, type Locale, type StoreType } from '../types';
+import { type CurrencyCode, type Locale, type ShopSubtype, type StoreType } from '../types';
 
 // Lucide replacements for the per-store-type emoji flags. Onboarding owns
 // this mapping (rather than the data-only STORE_TYPES config) so the
@@ -59,10 +60,15 @@ export function OnboardingScreen(): JSX.Element {
   const { locale } = useLocale();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<'language' | 'intent' | 'name' | 'backup_card'>('language');
+  const [step, setStep] = useState<
+    'language' | 'intent' | 'name' | 'shop_subtypes' | 'backup_card'
+  >('language');
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
   const [storeType, setStoreType] = useState<StoreType>(DEFAULT_STORE_TYPE);
+  // v0.5 ADR-017: only consulted when storeType === 'shop'. Onboarding's
+  // shop_subtypes step requires ≥1 selection before Continue enables.
+  const [shopSubtypes, setShopSubtypes] = useState<ShopSubtype[]>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -166,6 +172,22 @@ export function OnboardingScreen(): JSX.Element {
     // would yank the user off onto Search before they see the backup card.
     // Profile + persistence land on `confirmBackupCard` instead.
     if (shopName.trim().length < 2) return;
+    // v0.5 ADR-017: shop vertical needs the merchant to pick ≥1 sub-type
+    // before continuing — drives the default category list and the
+    // dashboard widgets. Other verticals jump straight to the backup card.
+    if (storeType === 'shop') {
+      setStep('shop_subtypes');
+    } else {
+      setStep('backup_card');
+    }
+  }
+
+  function toggleSubtype(st: ShopSubtype): void {
+    setShopSubtypes((prev) => (prev.includes(st) ? prev.filter((s) => s !== st) : [...prev, st]));
+  }
+
+  function confirmShopSubtypes(): void {
+    if (shopSubtypes.length === 0) return;
     setStep('backup_card');
   }
 
@@ -191,6 +213,9 @@ export function OnboardingScreen(): JSX.Element {
       locale,
       currency,
       store_type: storeType,
+      // Empty array for non-shop verticals; shop merchants always have
+      // ≥1 because the previous step required it.
+      shop_subtypes: storeType === 'shop' ? shopSubtypes : [],
       logo_photo_id: logoPhotoId,
     });
     await ensurePersistence(db);
@@ -511,6 +536,80 @@ export function OnboardingScreen(): JSX.Element {
               data-testid="continue"
               disabled={shopName.trim().length < 2 || submitting}
               onClick={submitName}
+              className="bg-accent w-full rounded-xl py-3 font-medium text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              {t('common:continue')}
+            </button>
+          </section>
+        ) : null}
+
+        {step === 'shop_subtypes' ? (
+          <section data-testid="step-shop-subtypes" className="space-y-6">
+            <div className="text-center">
+              <button
+                type="button"
+                data-testid="back-to-name"
+                onClick={() => setStep('name')}
+                className="text-ink-3 hover:text-accent mb-2 text-xs font-medium transition-colors"
+              >
+                ← {t('common:back')}
+              </button>
+              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
+                {t('onboarding:subtypes_title')}
+              </h1>
+              <p className="text-ink-2 mt-3 text-[15px] leading-relaxed">
+                {t('onboarding:subtypes_subtitle')}
+              </p>
+            </div>
+
+            <div data-testid="onb-subtypes" className="space-y-2">
+              {SHOP_SUBTYPE_ORDER.map((st, i) => {
+                const cfg = SHOP_SUBTYPE_CONFIG[st];
+                const active = shopSubtypes.includes(st);
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    data-testid={`onb-subtype-${st}`}
+                    onClick={() => toggleSubtype(st)}
+                    aria-pressed={active}
+                    style={{ animationDelay: `${80 + i * 40}ms` }}
+                    className={`animate-onb-in active:scale-[0.99] flex w-full items-start gap-3 rounded-2xl border p-3.5 text-start shadow-[0_2px_6px_rgba(0,0,0,0.03)] transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                      active
+                        ? 'border-accent bg-accent-soft/40 shadow-[0_4px_14px_rgba(255,107,53,0.12)]'
+                        : 'border-hair bg-white hover:border-accent/40 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.05)]'
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 ${
+                        active ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
+                      }`}
+                    >
+                      {active ? '✓' : ''}
+                    </span>
+                    <span className="flex flex-1 flex-col">
+                      <span className="text-ink text-sm font-semibold leading-tight">
+                        {t(`shop_subtypes:${cfg.label_key}`)}
+                      </span>
+                      <span className="text-ink-3 mt-0.5 text-[11px] leading-snug">
+                        {t(`shop_subtypes:${cfg.desc_key}`)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-ink-3 text-center text-[11px]">
+              {t('onboarding:subtypes_min_hint')}
+            </p>
+
+            <button
+              type="button"
+              data-testid="continue"
+              disabled={shopSubtypes.length === 0}
+              onClick={confirmShopSubtypes}
               className="bg-accent w-full rounded-xl py-3 font-medium text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               {t('common:continue')}

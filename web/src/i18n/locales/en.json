@@ -70,7 +70,10 @@
     "intent_import_desc": "Restore your articles, photos, and history from a JSON file.",
     "import_busy": "Restoring backup…",
     "import_invalid": "We couldn't read this backup. Make sure it's the JSON file Inventar exported.",
-    "import_failed": "Something went wrong while restoring. Please try again."
+    "import_failed": "Something went wrong while restoring. Please try again.",
+    "subtypes_title": "What does your shop sell?",
+    "subtypes_subtitle": "Pick all that apply. You can change this later in Settings.",
+    "subtypes_min_hint": "Pick at least one"
   },
   "search": {
     "placeholder": "Search…",
@@ -275,6 +278,11 @@
     "currency_change_warning": "Switching currency does not convert your existing prices — they keep their stored numeric value, just shown in the new currency. Continue?",
     "store_type": "Store type",
     "store_type_change_warning": "Switching store type does not migrate your existing articles — they keep their categories and sizes. New articles will use the new store-type defaults. Continue?",
+    "shop_subtypes_title": "Shop sub-types",
+    "shop_subtypes_hint": "Toggle each sub-type your shop sells. Drives the default category list in Add Article and shapes the dashboard widgets.",
+    "shop_subtypes_save": "Save sub-types",
+    "shop_subtypes_saved": "Saved",
+    "shop_subtypes_min_one": "Pick at least one sub-type",
     "shop_profile": "Shop profile",
     "shop_name": "Shop name",
     "shop_logo": "Shop logo",
@@ -359,6 +367,24 @@
     "clothes_desc": "Apparel — sized stock",
     "shop_label": "Shop",
     "shop_desc": "Minimarket, kiosk, grocery — scan-driven"
+  },
+  "shop_subtypes": {
+    "food_beverages_label": "Food & beverages",
+    "food_beverages_desc": "produce, dairy, dry goods, frozen, drinks",
+    "tobacco_lottery_label": "Tobacco & lottery",
+    "tobacco_lottery_desc": "cigarettes, lottery tickets, scratch cards",
+    "snacks_confectionery_label": "Snacks & confectionery",
+    "snacks_confectionery_desc": "chips, candy, chocolate, biscuits",
+    "personal_care_label": "Personal care",
+    "personal_care_desc": "soap, shampoo, deodorant, toothpaste",
+    "household_cleaning_label": "Household & cleaning",
+    "household_cleaning_desc": "detergent, bleach, sponges",
+    "parapharmaceutique_label": "Parapharmaceutique",
+    "parapharmaceutique_desc": "vitamins, sunscreen, cosmetics",
+    "stationery_label": "Stationery",
+    "stationery_desc": "notebooks, pens, school supplies",
+    "other_label": "Other",
+    "other_desc": "everything else"
   },
   "help": {
     "title": "Quick guide",

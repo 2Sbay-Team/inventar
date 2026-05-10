@@ -70,7 +70,10 @@
     "intent_import_desc": "استعد مقالاتك وصورك وسجلك من ملف JSON.",
     "import_busy": "جارٍ الاستعادة…",
     "import_invalid": "تعذرت قراءة هذه النسخة. تأكد من أنه ملف JSON الذي صدّره Inventar.",
-    "import_failed": "حدث خطأ أثناء الاستعادة. يُرجى المحاولة مرة أخرى."
+    "import_failed": "حدث خطأ أثناء الاستعادة. يُرجى المحاولة مرة أخرى.",
+    "subtypes_title": "ماذا يبيع متجرك؟",
+    "subtypes_subtitle": "اختر كل ما ينطبق. يمكنك تغيير ذلك لاحقاً في الإعدادات.",
+    "subtypes_min_hint": "اختر خياراً واحداً على الأقل"
   },
   "search": {
     "placeholder": "ابحث…",
@@ -275,6 +278,11 @@
     "currency_change_warning": "تغيير العملة لا يحوّل أسعارك الحالية — تبقى قيمها الرقمية المخزنة كما هي، تُعرض فقط بالعملة الجديدة. متابعة؟",
     "store_type": "نوع المتجر",
     "store_type_change_warning": "تغيير نوع المتجر لا يُهاجِر مقالاتك الحالية — تحتفظ بفئاتها ومقاساتها. ستستخدم المقالات الجديدة الإعدادات الافتراضية للنوع الجديد. متابعة؟",
+    "shop_subtypes_title": "أنواع المتجر الفرعية",
+    "shop_subtypes_hint": "فعّل كل نوع فرعي يبيعه متجرك. يحدد قائمة الفئات الافتراضية في إضافة منتج ويشكّل عناصر لوحة التحكم.",
+    "shop_subtypes_save": "حفظ الأنواع الفرعية",
+    "shop_subtypes_saved": "تم الحفظ",
+    "shop_subtypes_min_one": "اختر نوعاً فرعياً واحداً على الأقل",
     "shop_profile": "ملف المتجر",
     "shop_name": "اسم المتجر",
     "shop_logo": "شعار المتجر",
@@ -359,6 +367,24 @@
     "clothes_desc": "ملابس — مخزون بمقاسات",
     "shop_label": "متجر",
     "shop_desc": "بقالة، كشك، سوبرماركت صغير — تدفق بالمسح الضوئي"
+  },
+  "shop_subtypes": {
+    "food_beverages_label": "أطعمة ومشروبات",
+    "food_beverages_desc": "خضروات، ألبان، بقالة جافة، مجمدات، مشروبات",
+    "tobacco_lottery_label": "تبغ ويانصيب",
+    "tobacco_lottery_desc": "سجائر، بطاقات يانصيب، بطاقات خدش",
+    "snacks_confectionery_label": "وجبات خفيفة وحلويات",
+    "snacks_confectionery_desc": "شيبس، حلوى، شوكولاتة، بسكويت",
+    "personal_care_label": "العناية الشخصية",
+    "personal_care_desc": "صابون، شامبو، مزيل عرق، معجون أسنان",
+    "household_cleaning_label": "منزل وتنظيف",
+    "household_cleaning_desc": "منظفات، مبيّض، إسفنج",
+    "parapharmaceutique_label": "شبه صيدلانيات",
+    "parapharmaceutique_desc": "فيتامينات، واقي شمس، مستحضرات تجميل",
+    "stationery_label": "قرطاسية",
+    "stationery_desc": "دفاتر، أقلام، مستلزمات مدرسية",
+    "other_label": "أخرى",
+    "other_desc": "كل شيء آخر"
   },
   "help": {
     "title": "دليل سريع",

@@ -5,6 +5,7 @@ import { Plus, ScanLine, Trash2 } from 'lucide-react';
 import { BarcodeScanner } from '../components/barcode-scanner';
 import { ScreenLayout } from '../components/screen-layout';
 import { STORE_TYPES } from '../config/store-types';
+import { categoriesForSubtypes } from '../config/shop-subtypes';
 import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
@@ -105,7 +106,16 @@ export function AddArticleScreen(): JSX.Element {
   const profile = useProfile();
   const storeType = profile?.store_type ?? 'shoes';
   const storeCfg = STORE_TYPES[storeType];
-  const categories = useMemo(() => storeCfg.categories, [storeCfg]);
+  // v0.5 ADR-017: for shop with ≥1 sub-type, the suggested categories
+  // come from the union of selected sub-types. Falls back to the static
+  // STORE_TYPES.shop.categories list when no sub-types are set (legacy
+  // pre-v7 rows where the migration left shop_subtypes=[]).
+  const categories = useMemo(() => {
+    if (storeType === 'shop' && profile?.shop_subtypes && profile.shop_subtypes.length > 0) {
+      return categoriesForSubtypes(profile.shop_subtypes);
+    }
+    return storeCfg.categories;
+  }, [storeCfg, storeType, profile?.shop_subtypes]);
   const hasColors = storeCfg.has_colors;
   const hasSizes = storeCfg.has_sizes;
 

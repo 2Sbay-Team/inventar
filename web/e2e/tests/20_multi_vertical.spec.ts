@@ -35,6 +35,9 @@ test.describe('Multi-vertical store types', () => {
     await page.getByTestId('onb-store-shop').click();
     await page.getByTestId('shop-name-input').fill('Shop Test');
     await page.getByTestId('continue').click();
+    // v0.5 ADR-017: walk the new sub-types step.
+    await page.getByTestId('onb-subtype-food_beverages').click();
+    await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
 
@@ -157,6 +160,9 @@ test.describe('Sizeless mode (shop)', () => {
     await expect(page.getByTestId('step-name')).toBeVisible();
     await page.getByTestId('onb-store-shop').click();
     await page.getByTestId('shop-name-input').fill('Mini Mart');
+    await page.getByTestId('continue').click();
+    // v0.5 ADR-017: walk the new sub-types step.
+    await page.getByTestId('onb-subtype-food_beverages').click();
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
