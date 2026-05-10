@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
+import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
 import { parseCurrency } from '../i18n/parse-currency';
 import { db } from '../db/db';
@@ -17,6 +18,10 @@ export interface QuickAdjustTarget {
   size: string | null;
   articleName: string;
   currentQty: number;
+  // Article catalogue sale_price_tnd (millimes). Used to preview the
+  // sale / refund total when reason is sale or return; required so the
+  // sheet doesn't have to fetch the article on its own.
+  unitPriceTnd: number;
 }
 
 interface QuickAdjustSheetProps {
@@ -67,19 +72,31 @@ export function QuickAdjustSheet({
 
   if (!target) return null;
 
+  // Override applies to sales + returns. Sales: "this customer paid X
+  // instead of the catalogue price." Returns: "we refunded X instead
+  // of the original sale price" (e.g. minus a restocking fee).
+  const showPriceOverride = reason === 'sale' || reason === 'return';
+
+  // Effective per-unit amount = override (if non-empty + parseable +
+  // non-negative) ??  catalogue price. Live as the merchant types so
+  // the preview line below stays accurate.
+  function parsedOverride(): number | null {
+    if (discountInput.trim() === '') return null;
+    const parsed = parseCurrency(discountInput, locale, currency);
+    if (parsed === null || parsed < 0) return null;
+    return parsed;
+  }
+  const effectiveUnit = target && showPriceOverride ? (parsedOverride() ?? target.unitPriceTnd) : 0;
+  const previewTotal = step * effectiveUnit;
+
   async function confirm(): Promise<void> {
     if (!target) return;
     setSubmitting(true);
     const sign = REASONS.find((r) => r.key === reason)?.sign ?? -1;
-    // Discount only applies to sales. Parse the typed value via the
-    // shared parseCurrency so it follows the same locale rules as Add
-    // Article — comma vs dot decimals, NBSP grouping, etc. Empty / bad
-    // input falls back to null = no override.
-    let unitPriceOverride: number | null = null;
-    if (reason === 'sale' && discountInput.trim() !== '') {
-      const parsed = parseCurrency(discountInput, locale, currency);
-      if (parsed !== null && parsed >= 0) unitPriceOverride = parsed;
-    }
+    // Per-unit override on sales OR returns — see comment above. Empty
+    // / bad input falls back to null (= use article.sale_price_tnd at
+    // dashboard read time).
+    const unitPriceOverride = showPriceOverride ? parsedOverride() : null;
     // ADR-012: location is required for non-transfer movement types.
     // Quick Adjust doesn't expose a location picker (the v0.3 long-form
     // adjust does), so default to the most common case per reason:
@@ -162,13 +179,15 @@ export function QuickAdjustSheet({
             ))}
           </RadioGroup.Root>
 
-          {reason === 'sale' ? (
+          {showPriceOverride ? (
             <div className="mt-4">
               <label
                 htmlFor="adjust-discount"
                 className="text-ink-2 mb-1 block text-xs font-medium"
               >
-                {t('discount_label', { currency })}
+                {reason === 'return'
+                  ? t('refund_label', { currency })
+                  : t('discount_label', { currency })}
               </label>
               <input
                 id="adjust-discount"
@@ -180,7 +199,19 @@ export function QuickAdjustSheet({
                 placeholder={t('discount_placeholder')}
                 className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-end font-mono text-sm"
               />
-              <p className="text-ink-3 mt-1 text-[10.5px] leading-snug">{t('discount_hint')}</p>
+              <p className="text-ink-3 mt-1 text-[10.5px] leading-snug">
+                {reason === 'return' ? t('refund_hint') : t('discount_hint')}
+              </p>
+              <p
+                data-testid="adjust-preview-total"
+                className={`mt-2 text-end font-mono text-[13px] font-semibold tabular-nums ${
+                  reason === 'return' ? 'text-bad' : 'text-ink'
+                }`}
+                dir="ltr"
+              >
+                {reason === 'return' ? '−' : ''}
+                {formatCurrency(previewTotal, locale, currency)}
+              </p>
             </div>
           ) : null}
 

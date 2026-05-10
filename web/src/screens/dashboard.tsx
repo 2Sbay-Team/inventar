@@ -71,6 +71,17 @@ async function computeMetrics(period: Period): Promise<PeriodMetrics> {
         revenue += sold * unitPrice;
         grossProfit += sold * (unitPrice - article.cost_price_tnd);
         pairsSold += sold;
+      } else if (m.type === 'return') {
+        // Returns reverse a prior sale's cash impact. Same per-unit
+        // override semantics as sale: m.unit_price_tnd is what was
+        // actually refunded; null falls back to the catalogue price.
+        // Subtract from revenue, gross profit, and the units-sold
+        // counter so the merchant sees NET activity.
+        const refunded = Math.abs(m.delta);
+        const unitPrice = m.unit_price_tnd ?? article.sale_price_tnd;
+        revenue -= refunded * unitPrice;
+        grossProfit -= refunded * (unitPrice - article.cost_price_tnd);
+        pairsSold -= refunded;
       } else if (m.type === 'purchase' && m.delta > 0) {
         purchases += m.delta * article.cost_price_tnd;
       }

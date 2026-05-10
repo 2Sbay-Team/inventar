@@ -133,7 +133,9 @@
     "note_placeholder": "Optional note",
     "discount_label": "Sale price ({{currency}})",
     "discount_placeholder": "Use article price",
-    "discount_hint": "Leave empty to use the article's normal price. Set a special amount only if this customer paid a different price."
+    "discount_hint": "Leave empty to use the article's normal price. Set a special amount only if this customer paid a different price.",
+    "refund_label": "Refund per unit ({{currency}})",
+    "refund_hint": "Leave empty to refund the article's normal price. Set a different amount if a partial refund (restocking fee, damaged packaging) applies."
   },
   "add": {
     "title": "Add article",

@@ -47,10 +47,15 @@ async function computeTodayClose(): Promise<TodayClose> {
   startOfDay.setHours(0, 0, 0, 0);
   const startIso = startOfDay.toISOString();
 
-  // Pull today's sale movements; filter alive in memory because Dexie
-  // can't combine the time-range index with a deleted_at predicate.
+  // Pull today's sale + return movements; filter alive in memory
+  // because Dexie can't combine the time-range index with a deleted_at
+  // predicate. Returns reverse the sale's cash impact and decrement
+  // the units-sold counter so the displayed totals are NET.
   const movements = (await db.movements.toArray()).filter(
-    (m) => m.deleted_at === null && m.type === 'sale' && m.created_at >= startIso,
+    (m) =>
+      m.deleted_at === null &&
+      (m.type === 'sale' || m.type === 'return') &&
+      m.created_at >= startIso,
   );
 
   // Articles + variants for join. Catalogues are bounded so reading
@@ -70,17 +75,26 @@ async function computeTodayClose(): Promise<TodayClose> {
   const qtyByArticle = new Map<string, { name: string; qty: number }>();
 
   for (const m of movements) {
-    const sold = Math.abs(m.delta);
+    const units = Math.abs(m.delta);
     const articleId = variantToArticle.get(m.variant_id);
     if (!articleId) continue;
     const article = articleById.get(articleId);
     if (!article) continue;
     const unit = m.unit_price_tnd ?? article.sale_price_tnd;
-    revenue += sold * unit;
+    // Sale adds, return subtracts. transaction_id is grouped together
+    // either way (a /sell session that includes both a sale and a
+    // return shares one transaction_id).
+    const signed = m.type === 'return' ? -units : units;
+    revenue += signed * unit;
     if (m.transaction_id) txnIds.add(m.transaction_id);
     const cur = qtyByArticle.get(articleId);
-    if (cur) cur.qty += sold;
-    else qtyByArticle.set(articleId, { name: article.name, qty: sold });
+    if (cur) cur.qty += signed;
+    else qtyByArticle.set(articleId, { name: article.name, qty: signed });
+  }
+  // Drop articles that net to zero / negative qty from the top-sellers
+  // ranking — a customer who bought-and-returned shouldn't appear.
+  for (const [id, row] of qtyByArticle) {
+    if (row.qty <= 0) qtyByArticle.delete(id);
   }
 
   const topSellers = [...qtyByArticle.values()].sort((a, b) => b.qty - a.qty).slice(0, 3);

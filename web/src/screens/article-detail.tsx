@@ -100,6 +100,9 @@ export function ArticleDetailScreen(): JSX.Element {
       size: cell.size,
       articleName: article.name,
       currentQty: cell.qty,
+      // Pass the catalogue price so the sheet can preview sale / refund
+      // totals without a separate fetch.
+      unitPriceTnd: article.sale_price_tnd,
     });
   }
 

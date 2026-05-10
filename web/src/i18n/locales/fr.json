@@ -133,7 +133,9 @@
     "note_placeholder": "Note (facultatif)",
     "discount_label": "Prix de vente ({{currency}})",
     "discount_placeholder": "Prix de l'article",
-    "discount_hint": "Laissez vide pour utiliser le prix normal de l'article. Indiquez un montant uniquement si ce client a payé un prix différent."
+    "discount_hint": "Laissez vide pour utiliser le prix normal de l'article. Indiquez un montant uniquement si ce client a payé un prix différent.",
+    "refund_label": "Remboursement par unité ({{currency}})",
+    "refund_hint": "Laissez vide pour rembourser le prix normal. Indiquez un montant différent si remboursement partiel (frais de gestion, emballage abîmé)."
   },
   "add": {
     "title": "Ajouter un article",
