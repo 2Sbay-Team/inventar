@@ -34,6 +34,7 @@ const StockReportScreen = lazy(() =>
 const ReceiveScreen = lazy(() =>
   import('./screens/receive').then((m) => ({ default: m.ReceiveScreen })),
 );
+const SellScreen = lazy(() => import('./screens/sell').then((m) => ({ default: m.SellScreen })));
 
 // Onboarding gate. SPEC §2.1: a user without a ShopProfile row must complete
 // onboarding before any other screen renders. The gate also protects against
@@ -174,6 +175,19 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <ReceiveScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    // v0.5 ADR-018: scan-driven checkout. Shop's other primary entry
+    // alongside /receive. Other verticals don't expose this in the nav
+    // but the route stays accessible if needed.
+    path: '/sell',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <SellScreen />
         </OnboardingGate>
       </Lazy>
     ),

@@ -7,6 +7,7 @@ import {
   ScanLine,
   Search as SearchIcon,
   Settings as SettingsIcon,
+  ShoppingCart,
   type LucideIcon,
 } from 'lucide-react';
 import { useProfile } from '../hooks/use-profile';
@@ -16,14 +17,15 @@ import { STORE_TYPES } from '../config/store-types';
 // Active tab gets a soft accent pill behind icon + label.
 //
 // v0.5 ADR-018: when the active store_type's primary_flow is 'scan'
-// (currently only 'shop'), the Add slot is replaced by Receive.
-// Merchants in scan-first verticals reach Add Article through
-// /receive's manual fallback when they need a non-barcoded item.
+// (currently only 'shop'), the Add and List slots are replaced by
+// Receive and Sell — the two scan-driven flows. Merchants in scan-first
+// verticals can still reach List + Add Article via direct URL or via
+// /receive's manual fallback.
 
 interface NavItem {
   to: string;
   testId: string;
-  i18nKey: 'search' | 'list' | 'add' | 'dashboard' | 'settings' | 'receive';
+  i18nKey: 'search' | 'list' | 'add' | 'dashboard' | 'settings' | 'receive' | 'sell';
   Icon: LucideIcon;
 }
 
@@ -37,8 +39,8 @@ const ADD_ITEMS: readonly NavItem[] = [
 
 const SCAN_ITEMS: readonly NavItem[] = [
   { to: '/', testId: 'nav-search', i18nKey: 'search', Icon: SearchIcon },
-  { to: '/list', testId: 'nav-list', i18nKey: 'list', Icon: LayoutGrid },
   { to: '/receive', testId: 'nav-receive', i18nKey: 'receive', Icon: ScanLine },
+  { to: '/sell', testId: 'nav-sell', i18nKey: 'sell', Icon: ShoppingCart },
   { to: '/dashboard', testId: 'nav-dashboard', i18nKey: 'dashboard', Icon: LayoutDashboard },
   { to: '/settings', testId: 'nav-settings', i18nKey: 'settings', Icon: SettingsIcon },
 ];

@@ -64,10 +64,23 @@ export async function lotsForVariant(db: InventarDB, variantId: UUID): Promise<L
 
 // Lot remaining quantity. Sale movements with lot_id pointing at this
 // lot are summed (their delta is negative, so we negate to get a count).
+//
+// v0.5 fix (commit 4): we cannot use `where('lot_id').equals(lotId)`
+// because the v7 schema deliberately does NOT index lot_id (the
+// original commit-1 reasoning that lot queries are always single-lot
+// scoped turned out to be wrong — pickFifoLot iterates lots calling
+// remainingForLot, and the unindexed where() throws "KeyPath lot_id
+// on object store movements is not indexed"). Scope by variant_id
+// (which IS indexed) and filter by lot_id in memory; the inner set is
+// small (one variant's movements).
 export async function remainingForLot(db: InventarDB, lotId: UUID): Promise<number> {
   const lot = await db.lots.get(lotId);
   if (!lot || lot.deleted_at !== null) return 0;
-  const sales = await db.movements.where('lot_id').equals(lotId).toArray();
+  const sales = await db.movements
+    .where('variant_id')
+    .equals(lot.variant_id)
+    .filter((m) => m.lot_id === lotId)
+    .toArray();
   let sold = 0;
   for (const m of sales) {
     if (m.deleted_at !== null) continue;

@@ -31,6 +31,7 @@
     "list": "List",
     "add": "Add",
     "receive": "Receive",
+    "sell": "Sell",
     "dashboard": "Dashboard",
     "settings": "Settings"
   },
@@ -368,6 +369,26 @@
     "clothes_desc": "Apparel — sized stock",
     "shop_label": "Shop",
     "shop_desc": "Minimarket, kiosk, grocery — scan-driven"
+  },
+  "sell": {
+    "title": "Sell",
+    "cart_toggle": "{{n}} · {{total}}",
+    "type_instead": "Type instead",
+    "search_placeholder": "EAN, internal code, or product name",
+    "search_no_match": "Nothing found for \"{{query}}\".",
+    "scanner_unsupported_short": "Scanner not supported. Use Type instead to enter codes manually.",
+    "scanner_error_short": "Camera unavailable",
+    "scan_invalid": "Invalid barcode — must be 12 or 13 digits.",
+    "scan_unknown": "Unknown barcode — receive it first or open Search.",
+    "scan_sized_multi": "This article has multiple sizes — open it manually.",
+    "scan_out_of_stock": "Out of stock for that item.",
+    "scan_internal_error": "Something went wrong adding that item. Try again, or open it from Search.",
+    "peek_count": "{{n}} in cart",
+    "cart_title": "Cart",
+    "cart_empty": "No items yet — scan to add.",
+    "cart_total": "Total",
+    "cart_remove": "Remove",
+    "continue_scanning": "Continue scanning"
   },
   "receive": {
     "title": "Receive stock",

@@ -31,6 +31,7 @@
     "list": "Liste",
     "add": "Ajouter",
     "receive": "Recevoir",
+    "sell": "Vendre",
     "dashboard": "Tableau",
     "settings": "Réglages"
   },
@@ -368,6 +369,26 @@
     "clothes_desc": "Habillement — stock par taille",
     "shop_label": "Boutique",
     "shop_desc": "Minimarket, kiosque, épicerie — flux par scan"
+  },
+  "sell": {
+    "title": "Vente",
+    "cart_toggle": "{{n}} · {{total}}",
+    "type_instead": "Saisir manuellement",
+    "search_placeholder": "EAN, code interne ou nom du produit",
+    "search_no_match": "Aucun résultat pour « {{query}} ».",
+    "scanner_unsupported_short": "Scanner non supporté. Utilisez « Saisir manuellement ».",
+    "scanner_error_short": "Caméra indisponible",
+    "scan_invalid": "Code invalide — doit comporter 12 ou 13 chiffres.",
+    "scan_unknown": "Code inconnu — réceptionnez-le d'abord ou ouvrez Recherche.",
+    "scan_sized_multi": "Cet article a plusieurs tailles — ouvrez-le manuellement.",
+    "scan_out_of_stock": "Rupture de stock pour cet article.",
+    "scan_internal_error": "Une erreur est survenue. Réessayez ou ouvrez-le depuis Recherche.",
+    "peek_count": "{{n}} au panier",
+    "cart_title": "Panier",
+    "cart_empty": "Aucun article — scannez pour ajouter.",
+    "cart_total": "Total",
+    "cart_remove": "Retirer",
+    "continue_scanning": "Continuer le scan"
   },
   "receive": {
     "title": "Réception stock",
