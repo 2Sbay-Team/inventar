@@ -8,6 +8,7 @@ import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
+import { sizeHintValuesForSubtypes } from '../config/fashion-subtypes';
 import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
@@ -788,6 +789,16 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
   // floor/back Stepper inputs. Falls back to the locale + vertical
   // defaults if the profile field is unset.
   const labels = useLocationLabels();
+  // v0.5.2 commit 9: sub-type-aware size hint autocomplete. Reads
+  // the merchant's selected fashion subtypes from the profile and
+  // computes the union of their size_hint values. Empty array → no
+  // datalist rendered (sized verticals with size_hint='none' or
+  // non-fashion verticals where the entire size column is hidden).
+  const profile = useProfile();
+  const sizeHintValues = useMemo(
+    () => sizeHintValuesForSubtypes(profile?.fashion_subtypes ?? []),
+    [profile?.fashion_subtypes],
+  );
   const {
     index,
     block,
@@ -897,6 +908,20 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
 
       {hasSizes ? (
         <div data-testid={`block-${index}-sizes`} className="space-y-2">
+          {/* v0.5.2 ADR-018 + commit 9: sub-type-aware size hint
+              autocomplete. The <datalist> sources its options from
+              sizeHintValuesForSubtypes(profile.fashion_subtypes) —
+              numeric_eu (36-46) for shoes, letter (XS-XXXL) for
+              clothing_men, etc. The merchant can still type any
+              value; the hints are pure suggestions. Empty for
+              accessories / bags / jewelry (size_hint='none'). */}
+          {sizeHintValues.length > 0 ? (
+            <datalist id={`block-${index}-size-hints`} data-testid={`block-${index}-size-hints`}>
+              {sizeHintValues.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
+          ) : null}
           {block.sizes.map((row, j) => (
             <div key={j} className="flex items-center gap-2">
               <input
@@ -905,6 +930,7 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
                 value={row.size}
                 onChange={(e) => patchBlockSize(index, j, { size: e.target.value })}
                 placeholder={t('size_placeholder')}
+                list={sizeHintValues.length > 0 ? `block-${index}-size-hints` : undefined}
                 className="border-hair w-16 rounded-lg border bg-white px-2 py-1.5 font-mono text-sm"
                 inputMode="numeric"
               />
