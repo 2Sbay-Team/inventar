@@ -2,16 +2,23 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  Bell,
   Boxes,
   Camera,
   ChevronRight,
+  Clock,
   Download,
   HardDrive,
+  LifeBuoy,
+  MapPin,
   Plus,
   Receipt,
+  ScanLine,
   Search as SearchIcon,
   Settings as SettingsIcon,
+  ShoppingCart,
   Smartphone,
+  Sparkles,
   Tag,
   type LucideIcon,
 } from 'lucide-react';
@@ -22,22 +29,31 @@ interface Section {
   Icon: LucideIcon;
 }
 
-// Order matters — the user reads top to bottom. Start with "what is this",
-// then the daily flows (add → sale → expense → search), then the safety
-// stuff (backup, auto-backup, multi-device), then the customisation /
-// install topics.
+// Order matters — the user reads top to bottom. Daily flows first
+// (add / sale / restock for fashion; receive / sell scan for shop),
+// then alerts + lots (shop), then helpers (search, expenses), then
+// safety (backup, multi-device), then customisation (locations,
+// custom categories, profile, install), then troubleshooting at the
+// bottom as the "if all else fails" landing.
 const SECTIONS: ReadonlyArray<Section> = [
   { id: 'intro', Icon: Boxes },
   { id: 'article', Icon: Plus },
   { id: 'sale', Icon: Tag },
   { id: 'restock', Icon: Camera },
+  { id: 'receive', Icon: ScanLine },
+  { id: 'sell_scan', Icon: ShoppingCart },
+  { id: 'lots', Icon: Clock },
+  { id: 'alerts', Icon: Bell },
   { id: 'expense', Icon: Receipt },
   { id: 'search', Icon: SearchIcon },
+  { id: 'locations', Icon: MapPin },
+  { id: 'subtypes_custom', Icon: Sparkles },
   { id: 'backup', Icon: Download },
   { id: 'auto_backup', Icon: HardDrive },
   { id: 'multi_device', Icon: ChevronRight },
   { id: 'profile', Icon: SettingsIcon },
   { id: 'install', Icon: Smartphone },
+  { id: 'troubleshoot', Icon: LifeBuoy },
 ];
 
 export function HelpScreen(): JSX.Element {
@@ -87,6 +103,21 @@ export function HelpScreen(): JSX.Element {
           </section>
         ))}
         <p className="text-ink-3 mt-2 text-center text-xs">{t('footer_note')}</p>
+        {/* v0.5.2.1: link to the public tech-requirements page on
+            hoodhood.ai. Helps a merchant whose app DOES load but who
+            wants to check why a feature isn't working as expected.
+            Opens in a new tab so the in-app session isn't lost. */}
+        <p className="text-ink-3 mt-1 text-center text-[11px]">
+          <a
+            data-testid="help-requirements-link"
+            href="https://hoodhood.ai/inventar"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent underline"
+          >
+            {t('requirements_link')}
+          </a>
+        </p>
       </main>
     </ScreenLayout>
   );

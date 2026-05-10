@@ -605,7 +605,22 @@
     "profile_body": "Settings → Shop profile. Rename the shop, upload or change the logo, switch currency. The currency change does not convert existing prices — only how new ones are read.",
     "install_title": "Install as a real app",
     "install_body": "On Android Chrome or desktop Chrome / Edge: Settings → Install as app, or use the browser menu (⋮ → Install app). On iPhone / iPad: tap Share → Add to Home Screen. The app gets its own icon and runs full-screen.",
-    "footer_note": "Lost or stuck? Tap Settings → Reset everything to start over. Your shop's data lives only on this device — back it up first."
+    "receive_title": "Receive stock by scanning",
+    "receive_body": "Shop only. Tap Receive in the bottom nav to open the camera. Point at a product's barcode — if it's already in your catalogue, a small sheet asks for the quantity you're adding (and an optional expiry date). If the barcode is new, a quick form lets you create the article right there. Tap Type instead if the camera can't read the code.",
+    "sell_scan_title": "Sell at the counter by scanning",
+    "sell_scan_body": "Shop only. Tap Sell in the bottom nav to open the camera. Each scan adds one item to a cart at the bottom. Scan the same item twice to bump its quantity. Tap Done to finalise the sale — every item in the cart is recorded as one transaction.",
+    "lots_title": "Expiry dates and FIFO",
+    "lots_body": "When you receive stock with an expiry date, the app remembers each batch as a Lot. When you sell that item, the oldest Lot is used first (FIFO). If you'd rather sell from a specific batch, open the article, tap Sell, and pick the lot from the dropdown.",
+    "alerts_title": "Low-stock and expiring alerts",
+    "alerts_body": "Tap Alerts at the top of Search to see what needs attention. Two tabs: Stock running low (articles you set a reorder threshold for, currently below it) and Expiring soon (lots within your warning window). Hide for 7 days snoozes the alert; new alerts arriving in that window still surface immediately.",
+    "locations_title": "Rename your stock zones",
+    "locations_body": "Settings → Stock locations. Change the names of your front (display) and back (storage) zones to match how you talk about them in your shop. The new labels appear everywhere quantities are shown. Clear a field and save to restore the default for your language.",
+    "subtypes_custom_title": "Custom categories",
+    "subtypes_custom_body": "At onboarding (or anytime in Settings → Categories), you can add your own category labels alongside the predefined ones — e.g. tabac, halal_meat, bio. Custom labels are stored exactly as you type them and never auto-translate.",
+    "troubleshoot_title": "If the app won't open or behaves strangely",
+    "troubleshoot_body": "1) Wait 10 seconds — a Clear cache & reload button appears if the app is stuck. 2) Open Settings → Maintenance to clear cached files without losing your data. 3) If you can't reach Settings, open your browser site settings and tap Clear & reset for inventar.hoodhood.ai. Your shop data is in the device's storage — only the app code is being refreshed.",
+    "footer_note": "Lost or stuck? Open Settings → Maintenance for the safe clear option, or Settings → Reset everything for a full wipe. Back up first.",
+    "requirements_link": "Check supported phones and browsers →"
   },
   "stock_report": {
     "title": "Stock report",

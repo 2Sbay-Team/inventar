@@ -603,7 +603,22 @@
     "profile_body": "Réglages → Profil de la boutique. Renommer la boutique, télécharger ou changer le logo, changer la devise. Le changement de devise ne convertit pas les prix existants — seul l'affichage change.",
     "install_title": "Installer comme une vraie app",
     "install_body": "Sur Chrome Android ou Chrome / Edge bureau : Réglages → Installer en tant qu'app, ou via le menu navigateur (⋮ → Installer l'app). Sur iPhone / iPad : appuyez sur Partager → Sur l'écran d'accueil. L'app obtient sa propre icône et s'ouvre en plein écran.",
-    "footer_note": "Perdu ou bloqué ? Réglages → Tout réinitialiser pour repartir à zéro. Les données de votre boutique vivent uniquement sur cet appareil — sauvegardez d'abord."
+    "receive_title": "Recevoir du stock par scan",
+    "receive_body": "Boutique alimentation uniquement. Appuyez sur Réception dans la barre du bas pour ouvrir la caméra. Pointez vers le code-barres d'un produit — s'il existe déjà dans votre catalogue, une fenêtre vous demande la quantité à ajouter (et une date de péremption optionnelle). Si le code est nouveau, un petit formulaire vous laisse créer l'article. Appuyez sur Saisir manuellement si la caméra n'arrive pas à lire.",
+    "sell_scan_title": "Vendre au comptoir par scan",
+    "sell_scan_body": "Boutique alimentation uniquement. Appuyez sur Vente dans la barre du bas pour ouvrir la caméra. Chaque scan ajoute un article au panier en bas. Scannez le même article deux fois pour augmenter sa quantité. Appuyez sur Terminé pour finaliser — chaque article du panier est enregistré comme une transaction.",
+    "lots_title": "Dates de péremption et FIFO",
+    "lots_body": "Quand vous recevez du stock avec une date de péremption, l'app retient chaque lot. Lors de la vente, le lot le plus ancien est utilisé en premier (FIFO). Pour vendre depuis un lot précis, ouvrez l'article, appuyez sur Vendre, et choisissez le lot dans le menu déroulant.",
+    "alerts_title": "Alertes stock faible et péremption",
+    "alerts_body": "Appuyez sur Alertes en haut de Recherche. Deux onglets : Stock faible (articles avec un seuil de réappro défini, sous ce seuil) et Bientôt périmé (lots dans la fenêtre d'alerte). Masquer 7 jours met l'alerte en pause ; toute nouvelle alerte arrivant dans cette fenêtre apparaît immédiatement.",
+    "locations_title": "Renommer vos zones de stock",
+    "locations_body": "Réglages → Emplacements de stock. Changez les noms des zones avant (vente) et arrière (réserve) pour qu'ils correspondent à votre vocabulaire. Les nouveaux noms apparaissent partout. Videz un champ et enregistrez pour rétablir le nom par défaut de votre langue.",
+    "subtypes_custom_title": "Catégories personnalisées",
+    "subtypes_custom_body": "À l'onboarding (ou plus tard dans Réglages → Catégories), vous pouvez ajouter vos propres étiquettes — ex : tabac, halal, bio. Les étiquettes personnalisées sont enregistrées telles quelles et ne sont jamais traduites automatiquement.",
+    "troubleshoot_title": "Si l'app refuse de s'ouvrir ou se comporte bizarrement",
+    "troubleshoot_body": "1) Patientez 10 secondes — un bouton Vider le cache et recharger apparaît si l'app est bloquée. 2) Ouvrez Réglages → Maintenance pour vider les fichiers en cache sans perdre vos données. 3) Si vous n'arrivez pas à ouvrir Réglages, ouvrez les paramètres du site dans votre navigateur et appuyez sur Effacer pour inventar.hoodhood.ai. Vos données restent dans la mémoire de l'appareil — seul le code de l'app est rafraîchi.",
+    "footer_note": "Perdu ou bloqué ? Réglages → Maintenance pour l'option sûre, ou Réglages → Tout réinitialiser pour tout effacer. Sauvegardez d'abord.",
+    "requirements_link": "Voir les téléphones et navigateurs supportés →"
   },
   "stock_report": {
     "title": "Rapport de stock",
