@@ -114,7 +114,8 @@ test.describe('Add Article — multi-colour with location split', () => {
 
     expect(articles.length).toBe(1);
     expect(articles[0]?.name).toBe('Air Max');
-    expect(articles[0]?.internal_code).toMatch(/^SH-\d{4}$/);
+    // v0.5.2 ADR-021: default vertical is now 'fashion' → 'FN-' prefix.
+    expect(articles[0]?.internal_code).toMatch(/^FN-\d{4}$/);
 
     const alive = variants.filter((v) => v.deleted_at === null);
     expect(alive.length).toBe(3);

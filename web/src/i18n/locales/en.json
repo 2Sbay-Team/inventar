@@ -318,8 +318,6 @@
     "store_type_change_warning": "Switching store type does not migrate your existing articles — they keep their categories and sizes. New articles will use the new store-type defaults. Continue?",
     "shop_subtypes_title": "Shop sub-types",
     "shop_subtypes_hint": "Toggle each sub-type your shop sells. Drives the default category list in Add Article and shapes the dashboard widgets.",
-    "shop_subtypes_save": "Save sub-types",
-    "shop_subtypes_saved": "Saved",
     "shop_subtypes_min_one": "Pick at least one sub-type",
     "locations_title": "Stock locations",
     "locations_hint": "Rename your front and back zones to match how you talk about them in your shop. These names appear in stock counts, the matrix, and Quick Adjust.",

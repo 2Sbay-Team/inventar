@@ -91,7 +91,8 @@ test('receive: scanning an unknown EAN opens the mini-form, save creates Article
   expect(articles.length).toBe(1);
   expect(articles[0]!.name).toBe('Test Product');
   expect(articles[0]!.barcode_ean).toBe(newEan);
-  expect(articles[0]!.internal_code).toMatch(/^GR-\d{4}$/);
+  // v0.5.2 ADR-021: shop sku_prefix changed from GR → SP.
+  expect(articles[0]!.internal_code).toMatch(/^SP-\d{4}$/);
 
   const movements = (state.movements as M[]).filter((m) => m.deleted_at === null);
   expect(movements.length).toBe(1);

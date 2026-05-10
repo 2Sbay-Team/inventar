@@ -132,7 +132,12 @@ export function InventoryOverview(): JSX.Element {
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
-  const sized = profile?.store_type === 'shoes' || profile?.store_type === 'clothes';
+  // v0.5.2 ADR-021: include 'fashion' (the merged shoes+clothes vertical).
+  // Legacy 'shoes' / 'clothes' kept for v8-shape IDB back-compat.
+  const sized =
+    profile?.store_type === 'fashion' ||
+    profile?.store_type === 'shoes' ||
+    profile?.store_type === 'clothes';
   const metrics = useLive<OverviewMetrics>(computeOverview, [], EMPTY) ?? EMPTY;
 
   const maxBucket = metrics.byCategory[0]?.units ?? 0;

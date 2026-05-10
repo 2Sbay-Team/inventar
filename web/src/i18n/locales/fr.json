@@ -318,8 +318,6 @@
     "store_type_change_warning": "Changer le type de boutique ne migre pas vos articles existants — ils gardent leurs catégories et leurs tailles. Les nouveaux articles utiliseront les valeurs par défaut du nouveau type. Continuer ?",
     "shop_subtypes_title": "Sous-types de boutique",
     "shop_subtypes_hint": "Activez chaque sous-type que votre boutique vend. Détermine la liste des catégories par défaut dans Ajouter un article et façonne les widgets du tableau de bord.",
-    "shop_subtypes_save": "Enregistrer les sous-types",
-    "shop_subtypes_saved": "Enregistré",
     "shop_subtypes_min_one": "Choisissez au moins un sous-type",
     "locations_title": "Emplacements de stock",
     "locations_hint": "Renommez les zones avant et arrière selon la façon dont vous en parlez dans votre boutique. Ces noms apparaîtront dans les comptages, la matrice et l'ajustement rapide.",

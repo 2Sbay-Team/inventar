@@ -438,3 +438,70 @@ merchant can change their mind.
 ## 8. Out of scope for this spec
 
 Anything not listed above. See `NON_GOALS.md`. The most important non-goals are: multi-device sync, cloud backup, customer database, employee accounts, automated alerts, AI photo recognition, multi-store, payment processing, invoice printing.
+
+---
+
+## 9. v0.5.2 additions
+
+### 9.1 Two verticals
+
+ADR-021 merged shoes + clothes → 'fashion' (parallel to ADR-017's
+kiosk + grocery → 'shop'). Onboarding offers two verticals:
+
+- **fashion** — sized + coloured, browse-driven, sku_prefix=`FN`. Sub-types: shoes, shoes_kids, clothing_men, clothing_women, clothing_kids, accessories, bags, jewelry. Each has a size_hint that drives Add Article's autocomplete.
+- **shop** — scan-driven, expiry-aware, sku_prefix=`SP`. Sub-types: 14 predefined (food_beverages, fresh_produce, bakery_pastry, snacks_confectionery, frozen_foods, personal_care, cosmetics_beauty, health_otc, household_cleaning, kitchenware_homegoods, stationery, toys_baby, pet_supplies, electronics_accessories) + custom strings.
+
+Legacy 'shoes' / 'clothes' / 'kiosk' / 'grocery' values stay readable for back-compat with v8 IDBs but are no longer in the picker. Removed in v0.7+.
+
+### 9.2 Custom subtypes
+
+Both pickers expose an inline "+ Add another category" affordance that opens a 30-char text input. Custom strings are stored verbatim in `shop_subtypes` / `fashion_subtypes` arrays, displayed as removable chips, and round-trip through backups. They do NOT contribute to the category-suggestion union (only predefined keys have `categories` lists).
+
+### 9.3 Onboarding flow (v0.5.2)
+
+`language → intent → name + vertical → subtypes (per vertical) → locations → backup card → search`.
+
+The locations step pre-fills `location_floor_label` / `location_back_label` from `defaultLocationLabels(vertical, locale)`. Merchant can override; clearing reverts to the default. Same editor lives in Settings → Stock locations.
+
+### 9.4 /alerts screen (replaces standalone /expiry)
+
+Two tabs:
+
+- **Stock running low** — articles with `min_stock_threshold` set AND current stock below threshold. Per-article alerts only — no global low-stock default.
+- **Expiring soon** — lots within `expiry_warning_days` (or article's `expiry_alert_days` override). Hidden for non-shop verticals. Actions: Discount / Mark damaged / Hide for 7 days per variant.
+
+Routing: `/alerts` defaults to the low tab; `?tab=expiring` opens directly to the expiring tab. `/expiry` is a permanent redirect to `/alerts?tab=expiring`.
+
+### 9.5 Migration banner + confirmation screen
+
+Shows on Search after a v8→v9 upgrade (gated on `migration_v9_completed_at` AND NOT `migration_v9_subtypes_confirmed_at`). Tap → `/migrations/confirm-subtypes`. "Hide for 7 days" stamps `migration_v9_banner_hidden_until`. Onboarding stamps `migration_v9_subtypes_confirmed_at` so fresh installs never see the banner.
+
+### 9.6 AlertsBanner with snapshot reappearance
+
+Above ExpiryBanner on Search. Aggregates low-stock + expiring counts. "Hide for 7 days" stamps both `alerts_banner_hidden_until` AND `alerts_banner_hidden_count_snapshot`. Banner re-shows if current count exceeds snapshot — handles the "new alert arrives mid-suppression" case.
+
+### 9.7 Quick Adjust manual lot override
+
+When a shop variant has ≥2 alive lots with remaining > 0 AND reason is sale or return, a Lot dropdown appears above the reason picker. Default = FIFO (earliest expiry). Selected lot becomes `Movement.lot_id` on the resulting movement.
+
+### 9.8 Per-article fields
+
+- `Article.min_stock_threshold: number | null` — already from v7. Article Detail exposes the editor for shop articles (gated on `storeCfg.has_expiry`).
+- `Article.expiry_alert_days: number | null` (NEW v9) — overrides global `expiry_warning_days`. Same editor location, shop-only.
+
+### 9.9 Per-prefix internal_code counter
+
+ADR-024. `nextInternalCode(db, prefix)` returns `max(tail-where-prefix-matches) + 1`, anchored on `${prefix}-`. Legacy SH/CL/KI/GR codes from before v0.5.2 stay in place; new fashion / shop articles allocate FN- / SP- starting at PFX-0001 within their prefix.
+
+### 9.10 Customisable location labels
+
+`ShopProfile.location_floor_label` / `location_back_label` (max 30 chars). Internal `Movement.location` enum stays 'floor' / 'back' for storage and indexing — labels are a pure display alias. Defaults are locale + vertical-aware. Read via `useLocationLabels()` hook.
+
+### 9.11 Defensive layers (v0.5.1, recap)
+
+- Inline boot watchdog in `index.html` — 10s timeout shows "Clear cache & reload" if React doesn't mount.
+- Top-level `<ErrorBoundary>` catches render-time crashes.
+- Settings → Maintenance "Clear app cache & reload" — unregisters SWs + clears Cache Storage. IndexedDB untouched.
+- `formatCurrency` always emits a currency marker even on stripped-down ICU builds.
+- PhotoPicker: explicit Camera + Gallery buttons in Add Article + Receive (Android picker workaround).
+- Scanner accepts Inventar's own QR URL (`https://inventar.hoodhood.ai/article/{uuid}`) and `internal_code` short-IDs in addition to EAN.

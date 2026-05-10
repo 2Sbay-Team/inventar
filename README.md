@@ -16,6 +16,8 @@ Offline-first PWA for inventory management on a single phone. No server, no sync
 
 The deployable unit is `web/dist/` served by `nginx:alpine`. See `DEPLOY.md`.
 
+For day-to-day operations (deploys, rollbacks, stuck-PWA recovery, e2e + vitest commands, schema migration ops), see `RUNBOOK.md`.
+
 ## Development
 
 ```bash

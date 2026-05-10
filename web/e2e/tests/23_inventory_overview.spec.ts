@@ -38,14 +38,18 @@ test.describe('Inventory overview (shoes)', () => {
 test.describe('Inventory overview (shop — sizeless)', () => {
   test('shop vertical shows "Units in stock", not "Pairs"', async ({ page }) => {
     // Onboard as shop via UI. v0.5 ADR-017: kiosk merged into shop.
+    // v0.5.2 ADR-018: tobacco_lottery is no longer in the picker —
+    // food_beverages used as the canonical predefined.
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
     await page.getByTestId('onb-store-shop').click();
     await page.getByTestId('shop-name-input').fill('Kiosk Test');
     await page.getByTestId('continue').click();
-    // v0.5 ADR-017: walk the new sub-types step.
-    await page.getByTestId('onb-subtype-tobacco_lottery').click();
+    await page.getByTestId('onb-subtype-food_beverages').click();
+    await page.getByTestId('continue').click();
+    // v0.5.2 ADR-022: locations step now sits between subtypes and backup.
+    await expect(page.getByTestId('step-locations')).toBeVisible();
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();

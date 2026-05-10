@@ -23,6 +23,9 @@ test.describe('Add Article — sizeless, colourless verticals (shop)', () => {
     // v0.5 ADR-017: walk the new sub-types step.
     await page.getByTestId('onb-subtype-food_beverages').click();
     await page.getByTestId('continue').click();
+    // v0.5.2 ADR-022: locations step now sits between subtypes and backup card.
+    await expect(page.getByTestId('step-locations')).toBeVisible();
+    await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
     void onboardViaUI; // type-check the import — kept for parity with sibling tests
