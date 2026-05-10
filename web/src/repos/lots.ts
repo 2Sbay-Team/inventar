@@ -62,8 +62,12 @@ export async function lotsForVariant(db: InventarDB, variantId: UUID): Promise<L
   return rows.filter((l) => l.deleted_at === null);
 }
 
-// Lot remaining quantity. Sale movements with lot_id pointing at this
-// lot are summed (their delta is negative, so we negate to get a count).
+// Lot remaining quantity.
+//
+// remaining = original_quantity
+//           − SUM(|sale movements with lot_id = this.id|)
+//           + SUM(|return movements whose refunds_movement_id points
+//                  at one of those sale movements|)
 //
 // v0.5 fix (commit 4): we cannot use `where('lot_id').equals(lotId)`
 // because the v7 schema deliberately does NOT index lot_id (the
@@ -73,21 +77,34 @@ export async function lotsForVariant(db: InventarDB, variantId: UUID): Promise<L
 // on object store movements is not indexed"). Scope by variant_id
 // (which IS indexed) and filter by lot_id in memory; the inner set is
 // small (one variant's movements).
+//
+// v0.5.1: returns are credited back via Movement.refunds_movement_id.
+// A return whose linked sale was attributed to this lot adds 1 unit
+// back to remaining. Without this, returns silently drift the lot's
+// remaining below the variant's actual stock count for that batch.
 export async function remainingForLot(db: InventarDB, lotId: UUID): Promise<number> {
   const lot = await db.lots.get(lotId);
   if (!lot || lot.deleted_at !== null) return 0;
-  const sales = await db.movements
-    .where('variant_id')
-    .equals(lot.variant_id)
-    .filter((m) => m.lot_id === lotId)
-    .toArray();
+  const variantMovements = await db.movements.where('variant_id').equals(lot.variant_id).toArray();
+  // Two passes so we can index sale ids first, then check returns.
+  const lotSaleIds = new Set<UUID>();
   let sold = 0;
-  for (const m of sales) {
+  for (const m of variantMovements) {
     if (m.deleted_at !== null) continue;
     if (m.type !== 'sale') continue;
+    if (m.lot_id !== lotId) continue;
+    lotSaleIds.add(m.id);
     sold += -m.delta; // delta is negative on sales; sold is the absolute count
   }
-  return Math.max(0, lot.original_quantity - sold);
+  let refunded = 0;
+  for (const m of variantMovements) {
+    if (m.deleted_at !== null) continue;
+    if (m.type !== 'return') continue;
+    if (!m.refunds_movement_id) continue;
+    if (!lotSaleIds.has(m.refunds_movement_id)) continue;
+    refunded += m.delta; // delta is positive on returns
+  }
+  return Math.max(0, lot.original_quantity - sold + refunded);
 }
 
 // Returns the lot that a /sell scan should attribute to: earliest

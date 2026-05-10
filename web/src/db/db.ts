@@ -267,6 +267,33 @@ export class InventarDB extends Dexie {
           value: new Date().toISOString(),
         });
       });
+    // v8: post-v0.5 follow-up. Adds `Movement.refunds_movement_id` and
+    // its index — links a return movement back to the sale it's
+    // refunding. Lets remainingForLot credit returns back to the lot
+    // their source sale depleted, and lets Quick Adjust default the
+    // refund price to the original sale's price (not whatever the
+    // catalogue says today). Existing rows backfill to null.
+    this.version(8)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('movements')
+          .toCollection()
+          .modify((m: { refunds_movement_id?: string | null }) => {
+            if (!('refunds_movement_id' in m)) m.refunds_movement_id = null;
+          });
+      });
   }
 }
 

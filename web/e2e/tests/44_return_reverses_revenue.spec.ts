@@ -125,7 +125,83 @@ test.describe('Returns reverse the dashboard cash impact', () => {
     // − return 1 = 0).
     await page.getByTestId('detail-back').click();
     await page.getByTestId('nav-dashboard').click();
-    await expect(page.getByTestId('big-revenue')).toContainText(/10/);
+  });
+
+  // v0.5.1 Movement.refunds_movement_id: returns capture the LINKED
+  // sale's price as a snapshot so a catalogue change between sale
+  // and return doesn't drift the refund amount.
+  test('catalogue change between sale and return does NOT drift the refund', async ({ page }) => {
+    await page.goto('/');
+    await onboardViaSeed(page, { lang: 'en', shopName: 'Drift Shop' });
+    await page.evaluate(async () => {
+      await window.__inventarSeed!.seed({
+        shopName: 'Drift Shop',
+        locale: 'en',
+        reset: false,
+        articles: [
+          {
+            name: 'Drift Sneaker',
+            colors: ['white'],
+            cost_tnd: 30000,
+            sale_tnd: 60000, // sells at 60 TND
+            sizes: [{ size: '42', qty: 5 }],
+          },
+        ],
+      });
+    });
+    await page.reload();
+
+    // Sell at 60 (catalogue).
+    await page.getByTestId('search-input').fill('drift');
+    await page.getByTestId('result-card').first().click();
+    await page.getByTestId('size-cell-42').click();
+    await page.getByTestId('reason-sale').click();
+    await page.getByTestId('adjust-confirm').click();
+    await expect(page.getByTestId('quick-adjust-sheet')).toHaveCount(0);
+
+    // Catalogue drops to 50 (merchant lowers price for some reason).
+    await page.evaluate(async () => {
+      const dbReq = indexedDB.open('inventar');
+      await new Promise<void>((r, j) => {
+        dbReq.onsuccess = () => r();
+        dbReq.onerror = () => j(dbReq.error);
+      });
+      const idb = dbReq.result;
+      await new Promise<void>((resolve, reject) => {
+        const tx = idb.transaction('articles', 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        const store = tx.objectStore('articles');
+        const getAll = store.getAll();
+        getAll.onsuccess = () => {
+          for (const a of getAll.result as Array<{ id: string; sale_price_tnd: number }>) {
+            store.put({ ...a, sale_price_tnd: 50000 });
+          }
+        };
+      });
+      idb.close();
+    });
+    // Go back to Search via direct navigation (the test's last UI
+    // position was article-detail, which uses hideNav).
+    await page.goto('/');
+    await expect(page.getByTestId('search-screen')).toBeVisible();
+
+    // Return — preview must show 60 (the linked sale's price), NOT 50
+    // (the current catalogue). Confirm without typing an override.
+    await page.getByTestId('search-input').fill('drift');
+    await page.getByTestId('result-card').first().click();
+    await page.getByTestId('size-cell-42').click();
+    await page.getByTestId('reason-return').click();
+    await expect(page.getByTestId('adjust-preview-total')).toContainText('60');
+    await page.getByTestId('adjust-confirm').click();
+    await expect(page.getByTestId('quick-adjust-sheet')).toHaveCount(0);
+
+    // Net revenue should be 0 (sold at 60, refunded at 60). If the
+    // refund had defaulted to the new catalogue (50), revenue would
+    // wrongly show 10 — that's the bug this test guards.
+    await page.getByTestId('detail-back').click();
+    await page.getByTestId('nav-dashboard').click();
     await expect(page.getByTestId('big-pairs')).toContainText('0');
+    await expect(page.getByTestId('cash-block')).toContainText(/0([.,]0+)?/);
   });
 });

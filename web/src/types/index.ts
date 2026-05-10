@@ -194,6 +194,16 @@ export interface Movement {
   // expires_at that still has remaining quantity. Null for non-perishable
   // items, for sales recorded before lots existed, and for non-sale types.
   lot_id: UUID | null;
+  // v0.5.1 (post-v0.5 follow-up): on type='return' movements, points at
+  // the original sale Movement being refunded. Null when the merchant
+  // returns an item that has no traceable sale (legacy data, manual
+  // restock that doubled as a return, etc.). Lets us:
+  //   1. Default the refund unit_price to the original sale's price
+  //      (not the current catalogue price, which may have drifted).
+  //   2. Credit the returned unit back to the lot the sale depleted —
+  //      remainingForLot adds returns whose linked sale carried lot_id.
+  // Indexed so "find returns of this sale" runs at O(log n).
+  refunds_movement_id: UUID | null;
   created_at: ISODate;
   deleted_at: ISODate | null;
 }

@@ -35,6 +35,7 @@ function mkSale(
     transaction_id: null,
     expires_at: null,
     lot_id: null,
+    refunds_movement_id: null,
     created_at: NOW,
     deleted_at: null,
     id: o.id,
@@ -69,6 +70,7 @@ function mkTransfer(
     transaction_id: null,
     expires_at: null,
     lot_id: null,
+    refunds_movement_id: null,
     created_at: NOW,
     deleted_at: null,
   };

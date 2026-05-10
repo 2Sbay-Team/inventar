@@ -147,6 +147,12 @@ test.describe('Sale-time discount affects dashboard math', () => {
       db.close();
       return movements.find((m) => m.type === 'sale')?.unit_price_tnd ?? null;
     });
-    expect(moveOverride).toBeNull();
+    // v0.5.1: even without an explicit discount, sales now SNAPSHOT
+    // the catalogue price at sale time (60_000 millimes here). This
+    // changed in the returns-linkage commit so that a future return
+    // can refund the exact original amount even if the catalogue
+    // changes later. The dashboard math is unaffected — it already
+    // honoured `unit_price_tnd ?? article.sale_price_tnd`.
+    expect(moveOverride).toBe(60000);
   });
 });

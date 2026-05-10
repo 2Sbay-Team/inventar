@@ -189,6 +189,9 @@ function backfillV05Defaults(rows: AppliedRows): AppliedRows {
           transaction_id: (m as Movement).transaction_id ?? null,
           expires_at: (m as Movement).expires_at ?? null,
           lot_id: (m as Movement).lot_id ?? null,
+          // v0.5.1: Movement.refunds_movement_id added in Dexie v8.
+          // Backfill defensively for backups exported before that.
+          refunds_movement_id: (m as Movement).refunds_movement_id ?? null,
         }) as Movement,
     ),
     expenses: rows.expenses,

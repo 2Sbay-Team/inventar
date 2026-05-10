@@ -58,6 +58,11 @@ export interface RecordMovementInput {
   // recordSaleTransaction; can also be set manually via the long-form
   // Quick Adjust for non-FIFO sales.
   lot_id?: UUID | null;
+  // v0.5.1: only meaningful on type='return'. Points at the original
+  // sale Movement being refunded. Quick Adjust auto-links to the
+  // most recent alive sale of the same variant. Validators reject
+  // non-return types that try to set this.
+  refunds_movement_id?: UUID | null;
 }
 
 function assertLocation(value: unknown): asserts value is Location {
@@ -92,6 +97,11 @@ function validate(input: RecordMovementInput): void {
   }
   if (input.lot_id != null && input.type !== 'sale') {
     throw new Error(`Movement.lot_id is only valid on type='sale', got type='${input.type}'`);
+  }
+  if (input.refunds_movement_id != null && input.type !== 'return') {
+    throw new Error(
+      `Movement.refunds_movement_id is only valid on type='return', got type='${input.type}'`,
+    );
   }
 
   if (input.type === 'transfer') {
@@ -145,6 +155,7 @@ export async function recordMovement(
     transaction_id: input.transaction_id ?? null,
     expires_at: input.expires_at ?? null,
     lot_id: input.lot_id ?? null,
+    refunds_movement_id: input.refunds_movement_id ?? null,
     created_at: nowISO(),
     deleted_at: null,
   };
@@ -199,6 +210,31 @@ export async function listMovementsForVariant(
     .filter((m) => m.deleted_at === null)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
   return opts.limit !== undefined ? alive.slice(0, opts.limit) : alive;
+}
+
+// v0.5.1: find the most recent alive sale movement for a variant.
+// Used by Quick Adjust when reason='return' to auto-link the return
+// to the sale it's refunding — driving (a) the default refund unit
+// price (the original sale's, not the current catalogue price), and
+// (b) lot accounting (returns of lot-attributed sales credit back to
+// that lot via remainingForLot's linked-return path).
+//
+// Returns null when the variant has no alive sale movements.
+export async function findMostRecentSale(
+  db: InventarDB,
+  variantId: UUID,
+): Promise<Movement | null> {
+  const rows = await db.movements
+    .where('[variant_id+created_at]')
+    .between([variantId, ''], [variantId, '￿'])
+    .toArray();
+  let best: Movement | null = null;
+  for (const m of rows) {
+    if (m.deleted_at !== null) continue;
+    if (m.type !== 'sale') continue;
+    if (!best || m.created_at > best.created_at) best = m;
+  }
+  return best;
 }
 
 // SPEC §2.3: Article detail shows the last 8 movements across all variants

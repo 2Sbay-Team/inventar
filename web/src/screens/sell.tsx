@@ -240,6 +240,10 @@ export function SellScreen(): JSX.Element {
           location: 'floor',
           transaction_id: sessionIdRef.current,
           lot_id: row.lot_id,
+          // v0.5.1: snapshot the catalogue price at sale time. Future
+          // returns linked to this sale will refund the same amount
+          // even if Article.sale_price_tnd is changed later.
+          unit_price_tnd: row.unit_price_tnd,
         });
       }
       navigate('/', { replace: true });

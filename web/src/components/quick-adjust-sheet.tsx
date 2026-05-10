@@ -8,8 +8,8 @@ import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
 import { parseCurrency } from '../i18n/parse-currency';
 import { db } from '../db/db';
-import { recordMovement } from '../repos/movements';
-import { type MovementType, type UUID } from '../types';
+import { findMostRecentSale, recordMovement } from '../repos/movements';
+import { type Movement, type MovementType, type UUID } from '../types';
 
 export interface QuickAdjustTarget {
   variantId: UUID;
@@ -60,6 +60,13 @@ export function QuickAdjustSheet({
   // catalogue price. Validated on confirm via parseCurrency.
   const [discountInput, setDiscountInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // v0.5.1: when reason='return', we look up the most recent alive
+  // sale of this variant. The sheet pre-fills the refund amount with
+  // that sale's effective price (override ?? catalogue) and passes
+  // its id as refunds_movement_id on confirm. Null means "no traceable
+  // sale" — the merchant can still record a return; lot accounting
+  // just skips the credit-back path.
+  const [linkedSale, setLinkedSale] = useState<Movement | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -67,8 +74,29 @@ export function QuickAdjustSheet({
       setReason(defaultReason);
       setNote('');
       setDiscountInput('');
+      setLinkedSale(null);
     }
   }, [open, defaultReason]);
+
+  // Look up the most recent sale whenever the reason flips to return.
+  // Cheap (single indexed query); intentionally not pre-fetched on
+  // open so the sale lookup doesn't fire for the common sell / restock
+  // paths.
+  useEffect(() => {
+    if (!open || reason !== 'return' || !target) {
+      setLinkedSale(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const sale = await findMostRecentSale(db, target.variantId);
+      if (cancelled) return;
+      setLinkedSale(sale);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, reason, target]);
 
   if (!target) return null;
 
@@ -86,17 +114,48 @@ export function QuickAdjustSheet({
     if (parsed === null || parsed < 0) return null;
     return parsed;
   }
-  const effectiveUnit = target && showPriceOverride ? (parsedOverride() ?? target.unitPriceTnd) : 0;
+  // For returns with a linked sale, the default falls back to the
+  // ORIGINAL sale's effective price — not the catalogue price, which
+  // may have drifted between the sale and the return. Sales fall back
+  // to the catalogue price. The merchant's explicit override always
+  // wins.
+  const refundFallback =
+    reason === 'return' && linkedSale
+      ? (linkedSale.unit_price_tnd ?? target?.unitPriceTnd ?? 0)
+      : (target?.unitPriceTnd ?? 0);
+  const effectiveUnit = target && showPriceOverride ? (parsedOverride() ?? refundFallback) : 0;
   const previewTotal = step * effectiveUnit;
 
   async function confirm(): Promise<void> {
     if (!target) return;
     setSubmitting(true);
     const sign = REASONS.find((r) => r.key === reason)?.sign ?? -1;
-    // Per-unit override on sales OR returns — see comment above. Empty
-    // / bad input falls back to null (= use article.sale_price_tnd at
-    // dashboard read time).
-    const unitPriceOverride = showPriceOverride ? parsedOverride() : null;
+    // v0.5.1: ALWAYS snapshot the per-unit price on sales and returns
+    // so the historical record is immune to catalogue drift. Without
+    // this, a sale with no override stores unit_price_tnd=null;
+    // dashboards then read the CURRENT catalogue at read time, and a
+    // return looking up its linked sale finds null and falls back to
+    // (possibly drifted) catalogue too. Snapshotting freezes the
+    // amount at the moment of the transaction, which is what the
+    // merchant intended.
+    //
+    // Override priority:
+    //   1. Merchant typed an explicit override → use that.
+    //   2. Return with a linked sale → reuse the linked sale's
+    //      snapshotted unit_price_tnd (catalogue at sale time).
+    //   3. Sale (no override) → snapshot the current catalogue.
+    //   4. Return without a linked sale → snapshot current catalogue.
+    let unitPriceOverride: number | null = null;
+    if (showPriceOverride) {
+      const typed = parsedOverride();
+      if (typed !== null) {
+        unitPriceOverride = typed;
+      } else if (reason === 'return' && linkedSale) {
+        unitPriceOverride = linkedSale.unit_price_tnd ?? target.unitPriceTnd;
+      } else {
+        unitPriceOverride = target.unitPriceTnd;
+      }
+    }
     // ADR-012: location is required for non-transfer movement types.
     // Quick Adjust doesn't expose a location picker (the v0.3 long-form
     // adjust does), so default to the most common case per reason:
@@ -111,6 +170,7 @@ export function QuickAdjustSheet({
       note: note.trim() === '' ? null : note.trim(),
       unit_price_tnd: unitPriceOverride,
       location: defaultLocation,
+      refunds_movement_id: reason === 'return' ? (linkedSale?.id ?? null) : null,
     });
     setSubmitting(false);
     onClose();

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v7)', () => {
+describe('InventarDB schema (v8)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,8 +15,8 @@ describe('InventarDB schema (v7)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 7', () => {
-    expect(db.verno).toBe(7);
+  it('opens at version 8', () => {
+    expect(db.verno).toBe(8);
   });
 
   it('has the eight tables from DATA_MODEL §3 (v0.5 adds lots)', () => {
@@ -66,7 +66,7 @@ describe('InventarDB schema (v7)', () => {
     expect(tri?.keyPath).toEqual(['article_id', 'color', 'size']);
   });
 
-  it('movements: primKey id + per-location compound + v7 transaction/expiry indexes', () => {
+  it('movements: primKey id + per-location compound + v7 transaction/expiry + v8 refunds_movement_id index', () => {
     const t = db.table('movements');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
@@ -76,6 +76,7 @@ describe('InventarDB schema (v7)', () => {
       'created_at',
       'deleted_at',
       'expires_at',
+      'refunds_movement_id',
       'transaction_id',
       'type',
       'variant_id',
@@ -224,6 +225,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
       transaction_id: null,
       expires_at: null,
       lot_id: null,
+      refunds_movement_id: null,
       created_at: t,
       deleted_at: null,
     });
