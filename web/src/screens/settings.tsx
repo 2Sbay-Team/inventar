@@ -127,6 +127,89 @@ function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): 
   );
 }
 
+// v0.5.1: SW kill-switch. The most likely cause of "the app won't open
+// on my phone" reports is a stale precached service worker that's
+// serving a broken old shell — workbox's clientsClaim/skipWaiting take
+// effect on the next page load, but if that load itself crashes the
+// merchant has no way out. This section gives them one. We unregister
+// every SW + delete every Cache Storage bucket + reload. IndexedDB is
+// deliberately untouched: this is "drop the cache", not "reset the
+// app" (the destructive option already exists below).
+function MaintenanceSection(): JSX.Element {
+  const { t } = useTranslation('settings');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  async function clearCachesAndReload(): Promise<void> {
+    setWorking(true);
+    try {
+      // Unregister every controller registered for this scope.
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      // Drop the workbox precache + any runtime caches.
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch (e) {
+      // Best-effort. If something fails we still want the reload to
+      // happen — at minimum the merchant gets a fresh network fetch.
+      console.error('clear cache failed', e);
+    }
+    // Hard reload so the freshly-installing SW (if any) doesn't keep
+    // serving the old shell.
+    window.location.reload();
+  }
+
+  return (
+    <section
+      data-testid="section-maintenance"
+      className="border-hair rounded-2xl border bg-white p-4"
+    >
+      <h3 className="font-display text-base font-medium mb-1">{t('maintenance_title')}</h3>
+      <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('maintenance_hint')}</p>
+      <button
+        type="button"
+        data-testid="clear-cache"
+        onClick={() => setConfirmOpen(true)}
+        className="border-hair w-full rounded-xl border bg-white py-2.5 text-sm"
+      >
+        {t('clear_cache_btn')}
+      </button>
+      {confirmOpen ? (
+        <div
+          data-testid="clear-cache-confirm"
+          className="border-hair mt-2 rounded-xl border bg-white p-3"
+        >
+          <p className="text-sm">{t('clear_cache_confirm_body')}</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              data-testid="clear-cache-cancel"
+              onClick={() => setConfirmOpen(false)}
+              disabled={working}
+              className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
+            >
+              {t('clear_cache_cancel')}
+            </button>
+            <button
+              type="button"
+              data-testid="clear-cache-confirm-btn"
+              onClick={() => void clearCachesAndReload()}
+              disabled={working}
+              className="bg-accent text-accent-ink flex-1 rounded-xl py-2.5 text-sm"
+            >
+              {working ? t('clear_cache_working') : t('clear_cache_confirm_yes')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 const APP_VERSION = '1.0.0';
 
 const LANGUAGES: ReadonlyArray<{ code: Locale; label: string }> = [
@@ -771,6 +854,8 @@ export function SettingsScreen(): JSX.Element {
             <ChevronRight aria-hidden className="text-ink-3 h-5 w-5" strokeWidth={2} />
           </Link>
         </section>
+
+        <MaintenanceSection />
 
         <section data-testid="section-danger">
           <button
