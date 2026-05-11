@@ -176,7 +176,7 @@ export function AddArticleScreen(): JSX.Element {
     minStockInput: '',
     // Seed with the safe piece default; the effect below upgrades to
     // 'pair' once the profile resolves IF the merchant exclusively
-    // stocks shoes (per ADR-031). A fashion+shoes-only merchant who
+    // stocks shoes (per ADR-026). A fashion+shoes-only merchant who
     // lands on Add Article shouldn't have to switch the unit every
     // time they add a pair.
     unitOfMeasure: defaultUomForProfile(profile),
@@ -208,7 +208,7 @@ export function AddArticleScreen(): JSX.Element {
       ? shopWantsSizes
       : storeCfg.has_sizes;
 
-  // v0.5.6 ADR-031 — quick-tap size suggestions for the merchant's
+  // v0.5.6 ADR-026 — quick-tap size suggestions for the merchant's
   // current (vertical, sub-types, category) combination. Fashion uses
   // sub-type + category to narrow (a clothing_men article shouldn't
   // see EU shoe sizes). Shop uses a fixed package-size list when the
@@ -824,7 +824,7 @@ interface Step2Props {
   // are the only UoMs where the merchant may want fractional input
   // (0.85 kg, 1.25 l); 'g' and 'ml' stay integer.
   allowDecimalQty: boolean;
-  // v0.5.6 ADR-031 — quick-tap size suggestions for the merchant's
+  // v0.5.6 ADR-026 — quick-tap size suggestions for the merchant's
   // current (vertical, sub-types, category) combination. The size
   // input always also accepts free text; this list just populates a
   // <datalist> for one-tap selection. Empty when no useful hint
@@ -1002,7 +1002,7 @@ interface BlockEditorProps {
   // for back-compat; only true when the merchant picked kg or l on
   // Step 1.
   allowDecimalQty?: boolean;
-  // v0.5.6 ADR-031 — quick-tap size suggestions for this article.
+  // v0.5.6 ADR-026 — quick-tap size suggestions for this article.
   // Computed by the parent based on (vertical, sub-types, category)
   // so all colour blocks render the same list. Empty array → no
   // <datalist> rendered.
@@ -1032,7 +1032,7 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
     allowDecimalQty = false,
     sizeHints = [],
   } = props;
-  // v0.5.6 ADR-031 — alias to the prop so the existing JSX below (which
+  // v0.5.6 ADR-026 — alias to the prop so the existing JSX below (which
   // already iterates `sizeHintValues`) keeps reading the same name.
   const sizeHintValues = sizeHints;
   return (

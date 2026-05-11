@@ -3,7 +3,7 @@ import { onboardViaSeed } from '../helpers/onboarding';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// v0.5.6 ADR-031 — size suggestion chips on Add Article are now
+// v0.5.6 ADR-026 — size suggestion chips on Add Article are now
 // sub-type AND category-aware for Fashion, and a fixed package-size
 // list for Shop. The merchant can always type free text in addition
 // to the suggestions.
@@ -47,7 +47,7 @@ async function walkToStep2Fashion(
   await expect(page.getByTestId('block-0-photo-preview')).toBeVisible({ timeout: 10_000 });
 }
 
-test.describe('Add Article — size suggestions (v0.5.6 ADR-031)', () => {
+test.describe('Add Article — size suggestions (v0.5.6 ADR-026)', () => {
   test('Fashion + shoes-only → datalist shows EU 36-46', async ({ page }) => {
     await walkToStep2Fashion(page, { fashionSubtypes: ['shoes'] });
     const options = await getDatalistOptions(page, 'block-0-size-hints');

@@ -150,7 +150,7 @@ export function sizeHintValuesForSubtypes(subtypes: readonly FashionSubtype[]): 
   return out;
 }
 
-// v0.5.6 ADR-031 — size suggestions narrowed by the article's category.
+// v0.5.6 ADR-026 — size suggestions narrowed by the article's category.
 //
 // When the merchant types an article whose category matches one of the
 // selected sub-types' category list (e.g. category 'shirts' belongs to

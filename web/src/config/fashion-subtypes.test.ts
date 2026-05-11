@@ -99,7 +99,7 @@ describe('getFashionSubtypeConfig', () => {
   });
 });
 
-describe('sizeHintValuesForCategory (v0.5.6 ADR-031)', () => {
+describe('sizeHintValuesForCategory (v0.5.6 ADR-026)', () => {
   it('returns letter sizes when category=shirts on a shoes+clothing_men profile', () => {
     // The article is a shirt; shoes EU sizes shouldn't pollute the
     // datalist even though shoes is also selected on the profile.

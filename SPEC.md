@@ -180,7 +180,7 @@ can change it):
 - Fashion + any other or mixed sub-types → **Piece**
 - Shop → **Piece**
 
-**v0.5.6 — Size suggestions (ADR-031).** The size input on Step 2
+**v0.5.6 — Size suggestions (ADR-026).** The size input on Step 2
 exposes a `<datalist>` of quick-tap chips that adapt to context:
 
 | Profile state | Chip pool |

@@ -428,7 +428,7 @@ shipped a new predefined. The category list is the merchant's
 declaration about THEIR shop, not a rolling inventory of
 Inventar's taxonomy.
 
-## ADR-031: Size suggestions on Add Article are sub-type + category-aware quick chips; free text always accepted
+## ADR-026: Size suggestions on Add Article are sub-type + category-aware quick chips; free text always accepted
 
 **v0.5.6.** Two related decisions about the size-input UX on the
 Add Article form:
@@ -470,7 +470,7 @@ this as the #1 complaint on the Add Article form. Narrowing by
 category removes the noise without making the list user-
 configurable (which would have been another preference to manage).
 
-## ADR-032: Article master data is product-intrinsic only. Tax, expenses, discounts, and stock live in separate domains.
+## ADR-027: Article master data is product-intrinsic only. Tax, expenses, discounts, and stock live in separate domains.
 
 **v0.5.6 — affirming an architectural boundary that came up
 during v0.5.6 polish discussions.** Several adjacent feature
