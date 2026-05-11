@@ -427,3 +427,44 @@ suddenly find their dashboard widgets shifting because Inventar
 shipped a new predefined. The category list is the merchant's
 declaration about THEIR shop, not a rolling inventory of
 Inventar's taxonomy.
+
+## ADR-027: QR labels gain centered branding (logo or store name); error correction M → Q; in-app scan QR stays plain
+
+**v0.6.** Printed QR labels used to show only the QR pattern.
+Merchants wanted labels that looked branded — store logo or name
+in the centre — without breaking scan reliability.
+
+**Algorithm** (`web/src/utils/qr-branding.ts` + `components/article-qr.tsx`):
+
+1. Generate the QR at error correction level **Q** (was M). Level Q
+   recovers up to ~25 % of the modules, the budget the centre
+   overlay eats into. Level M would barely cover the 22 %-edge
+   overlay and would fail on imperfect prints.
+2. Post-process the qrcode lib's SVG output: parse the `viewBox`,
+   compute the centered 22 %×22 % square, and inject either
+   - an `<image href="data:image/...;base64,…">` element backed by a
+     white `<rect>` (so a logo with transparent corners doesn't let
+     the QR modules show through), or
+   - a `<rect>` + `<text>` element carrying the truncated store name
+     (12 char cap, ellipsis suffix).
+3. The overlay is added ONLY when the label screen passes a
+   `branding` prop to `<ArticleQR>`. Article Detail's on-screen
+   QR dialog leaves it undefined, keeping the in-app QR plain for
+   fastest in-app scanning.
+
+**Cross-branch note.** The logo source is `ShopProfile.logo_photo_id`,
+which already exists on `main` from earlier v0.5 work. The v0.5.4
+logo-keying branch (ADR-026, unmerged) adds the auto-keying pipeline
+that strips white backgrounds before the logo lands as a Photo row;
+that improvement is independent of this ADR and lands separately.
+
+**Why not pdf-lib?** Labels are still exported via `window.print()`
+("Save as PDF" in the print dialog). Switching to a programmatic
+PDF generator would add ~200 KB to the bundle and a second rendering
+pipeline for one screen; the SVG-print path already produces the
+same paper-or-PDF result on every OS the app targets.
+
+**Why 22 % edge?** Industry-standard QR-branding sizing: a 22%×22%
+centred occluder covers ~5 % of the QR's pixels, well within level
+Q's 25 % recovery budget. Tested round-trip via jsQR on both
+mobile-chromium and mobile-webkit (specs 67).

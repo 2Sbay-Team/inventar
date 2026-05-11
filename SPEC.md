@@ -100,6 +100,18 @@ Size grid behaviour:
 - Archive article (soft delete with `archived_at`)
 - Delete forever (hard delete, requires "type DELETE to confirm")
 
+**Printable QR label** (`/article/:id/label`, v0.5.2.3 + v0.6
+ADR-027). After saving in Add Article the merchant lands on a
+printable sheet showing a 256-px QR plus the article name and
+internal code. The QR encodes `https://inventar.hoodhood.ai/article/:id`
+at error correction level Q and carries centered branding (logo
+when `ShopProfile.logo_photo_id` is set, store name otherwise — max
+12 chars, ellipsis if longer). The 22 %×22 % branded centre stays
+within level Q's recovery budget; jsQR scans the result reliably.
+Export path: `window.print()` → user picks "Save as PDF" or paper.
+Article Detail's on-screen QR dialog keeps the plain unobscured QR
+for fastest in-app scanning.
+
 ### 2.4 Quick Adjust modal
 
 Bottom sheet covering ~50% of screen, dismissible by swipe-down.
@@ -244,6 +256,8 @@ Plain catalogue browse, separate from search. Sort options: Recently added · A�
 Language               > FR / AR / EN
 Currency display       (locked to TND in MVP)
 Shop name              > edit
+Shop logo              > upload / change / remove
+Preview label          > stub QR label with current logo / name (v0.6)
 Backup ──────
   Export data          > generates JSON, opens OS share sheet
   Import data          > pick JSON file, choose merge or replace
