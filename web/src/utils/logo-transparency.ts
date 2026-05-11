@@ -108,13 +108,21 @@ export function createKeyingCanvas(
   return canvas;
 }
 
+// `canvas instanceof OffscreenCanvas` throws TypeError in environments
+// where OffscreenCanvas is undefined (older iOS Safari, where we take
+// the HTMLCanvasElement fallback in createKeyingCanvas). The typeof
+// guard mirrors the construction check so both call sites stay safe.
+function isOffscreenCanvas(c: OffscreenCanvas | HTMLCanvasElement): c is OffscreenCanvas {
+  return typeof OffscreenCanvas !== 'undefined' && c instanceof OffscreenCanvas;
+}
+
 function getKeyingContext(
   canvas: OffscreenCanvas | HTMLCanvasElement,
 ): OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D {
   // willReadFrequently=true tells the browser to back the canvas with
   // a software bitmap rather than a GPU texture, which makes
   // getImageData / putImageData faster on Chromium.
-  if (canvas instanceof OffscreenCanvas) {
+  if (isOffscreenCanvas(canvas)) {
     const ctx = canvas.getContext('2d', {
       willReadFrequently: true,
     }) as OffscreenCanvasRenderingContext2D | null;
@@ -129,7 +137,7 @@ function getKeyingContext(
 }
 
 async function exportPng(canvas: OffscreenCanvas | HTMLCanvasElement): Promise<Blob> {
-  if (canvas instanceof OffscreenCanvas) {
+  if (isOffscreenCanvas(canvas)) {
     return canvas.convertToBlob({ type: 'image/png' });
   }
   return new Promise<Blob>((resolve, reject) => {
