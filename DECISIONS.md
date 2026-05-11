@@ -427,3 +427,49 @@ suddenly find their dashboard widgets shifting because Inventar
 shipped a new predefined. The category list is the merchant's
 declaration about THEIR shop, not a rolling inventory of
 Inventar's taxonomy.
+
+## ADR-028: Onboarding location picker switches to a localized dropdown; vertical-specific defaults retire from the picker UI (migration defaults stay)
+
+**v0.6.** ADR-022 made the floor/back labels merchant-customisable
+with locale+vertical defaults exposed as free-text inputs in
+onboarding and Settings. Typing on mobile in any language (Arabic
+especially) was slow; merchants asked for taps, not text.
+
+**Decision.** The picker UI becomes a 3-option `<select>` per zone
+with a `+ Type your own` fallback that swaps to an inline text input.
+Same option list across both verticals (one curated set per locale —
+no Fashion/Shop branching):
+
+|        | EN                       | FR                          | AR                          |
+|--------|--------------------------|-----------------------------|-----------------------------|
+| Floor  | Shop floor* / Display / Front | Magasin* / Boutique / Comptoir | المحل* / الواجهة / العرض |
+| Back   | Stockroom* / Storage / Back | Réserve* / Stock / Arrière | المخزن* / التخزين / المستودع |
+
+`*` = pre-selected default. The stored value is the literal label
+string (no enum), so a merchant who picks the FR "Boutique" gets
+"Boutique" persisted to `ShopProfile.location_floor_label`, the
+same as before. `useLocationLabels()`, the `Movement.location` enum,
+and the schema are untouched.
+
+**What stays.** The v8→v9 migration's vertical+locale defaults
+(`Shelf` / `Rayon` / `الرف` for shop+locale, `Shop floor` / `Boutique`
+/ `المحل` for fashion+locale) keep firing for pre-existing profiles.
+Those values seed the field on first migration and propagate through
+`useLocationLabels()`. When such a profile lands in the new dropdown,
+the picker detects the stored value isn't in the new option list
+and renders in custom mode with the legacy value pre-filled — the
+merchant sees their existing text, can keep it or switch to a
+predefined option. No data migration.
+
+**Why same-list across verticals.** A Tunisian boutique merchant
+and a Tunisian shop merchant call the front of their store similar
+things; carrying two separate option lists in code split the choices
+without a corresponding mental-model split for the merchants. The
+brief explicitly mandates this.
+
+**Cross-branch note.** This is ADR-028 assuming `v0.5.4-logo-autokey`
+(ADR-026) and `v0.6-qr-branding` (ADR-027) land first. If only this
+PR lands, renumber to ADR-026; the in-code `ADR-028` references in
+`config/location-options.ts`, `components/select-with-custom.tsx`,
+and the comment block in `screens/onboarding.tsx` need the same
+rename.
