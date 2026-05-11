@@ -277,6 +277,7 @@ Plain catalogue browse, separate from search. Sort options: Recently added · A�
 Language               > FR / AR / EN
 Currency display       (locked to TND in MVP)
 Shop name              > edit
+Shop logo              > upload / change / remove (see "Logo upload" below)
 Backup ──────
   Export data          > generates JSON, opens OS share sheet
   Import data          > pick JSON file, choose merge or replace
@@ -286,6 +287,35 @@ Storage                > "X MB used", "Refresh persistence" (calls navigator.sto
 About                  > version, build date, contact info for the code owner
 Reset everything       > destructive, requires typed confirmation
 ```
+
+**Logo upload (v0.5.4, ADR-026).** Both the onboarding "Shop info"
+step and Settings → Shop profile share the same upload pipeline:
+
+1. The merchant picks an image; `compressPhoto` re-encodes it to JPEG
+   ≤ 200 KB (ADR-008).
+2. The keyer (`web/src/utils/logo-transparency.ts`) samples four
+   corner pixels. If all three gate conditions hold — BT.709
+   luminance > 0.85, HSL saturation < 0.15, cross-corner stddev < 15
+   — it produces a keyed PNG with the corner colour flooded to alpha
+   0 (and a thin alpha = 128 anti-alias band at the keying boundary
+   so the logo doesn't show a halo against the cream theme).
+3. On a successful key, a side-by-side `LogoPreviewDialog` shows the
+   original next to the transparent version with two buttons: **Use
+   transparent** (default, autofocus) and **Keep original**.
+4. On a failed gate (the image isn't a uniform-bg logo) the upload
+   silently commits the original compressed JPEG with no dialog.
+5. On any unexpected error in the keying path, the upload commits
+   the original and shows a non-blocking "Background removal not
+   available" toast. The upload never blocks on keying.
+6. If the keying result is > 95 % transparent (the "logo" was a flat
+   coloured rectangle with no detail) the upload refuses with an
+   error and the merchant is asked to upload a richer image.
+
+The stored Photo row carries the correct mime (`image/png` when the
+merchant kept the transparent version, `image/jpeg` otherwise), so
+downstream renderers — invoice PDF in particular — pick the right
+decoder. Cross-browser: `OffscreenCanvas` where available, with an
+`HTMLCanvasElement` fallback for iOS Safari 14–16.3.
 
 ---
 

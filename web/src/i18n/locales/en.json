@@ -701,5 +701,15 @@
     "past_invoices_title": "Past invoices",
     "past_invoices_link": "View past invoices",
     "past_invoices_empty": "No invoices issued yet."
+  },
+  "logo": {
+    "title": "Logo preview",
+    "subtitle": "We removed the background so your logo blends with the app. Keep the original if you'd rather not.",
+    "label_original": "Original",
+    "label_transparent": "Transparent",
+    "use_transparent": "Use transparent",
+    "keep_original": "Keep original",
+    "removal_failed_toast": "Background removal isn't available here — using the original image.",
+    "too_much_background": "That image is mostly background. Upload a logo with more detail."
   }
 }

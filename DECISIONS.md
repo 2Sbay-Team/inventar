@@ -511,3 +511,56 @@ line now — explicitly — saves us from a cleanup pass later.
 **If a future contributor wonders whether tax / expense /
 discount / stock belongs on Article: the answer is NO.** Add a
 new domain table and reference it by `article_id` instead.
+
+## ADR-028: Logo background auto-removal via color-key Canvas API; no ML dependency; cross-browser fallback for older iOS Safari
+
+**v0.5.4 hotfix.** Merchants typically grab logos from Google
+search, screenshots, or basic graphics tools — almost all arrive
+with a solid white (or near-white) box around the artwork. On
+the app's cream theme that box is glaring. Auto-remove the
+background at upload time, then ask the merchant to confirm.
+
+**Algorithm** (`web/src/utils/logo-transparency.ts`):
+
+1. After the existing `compressPhoto` pass produces a JPEG blob,
+   decode it via `createImageBitmap` and downscale to ≤ 800 px on
+   the longest edge.
+2. Sample the four corner pixels (1 px inset, so JPEG block noise
+   doesn't dominate) and compute their mean RGB.
+3. Gate the keying on three thresholds applied to that mean:
+   BT.709 luminance > 0.85, HSL saturation < 0.15, and
+   cross-corner stddev < 15 sRGB. Real-world photos fail at least
+   one of these → keying is skipped.
+4. If the gate passes, scan every pixel: Euclidean RGB distance
+   to the mean corner colour < 25 → alpha = 0; 25–35 → alpha =
+   128 (the anti-alias band that prevents halos against the cream
+   theme); otherwise alpha unchanged.
+5. Encode the result as PNG. If > 95 % of pixels were keyed (the
+   "logo" was really just a coloured rectangle) reject the result
+   and surface a clear error.
+
+**Cross-browser**: `OffscreenCanvas` where available (Chrome 69+,
+Edge 79+, Firefox 105+, Safari 16.4+), `HTMLCanvasElement`
+fallback for iOS Safari 14–16.3. The branch decision uses a
+`typeof OffscreenCanvas !== 'undefined'` guard rather than a bare
+`instanceof` check, because `canvas instanceof OffscreenCanvas`
+throws `TypeError` when the global is undefined — and that's
+exactly the environment the fallback path is supposed to cover.
+
+**UX**: when keying succeeds, show a side-by-side preview
+(`LogoPreviewDialog`) with the original and the keyed version.
+Default selection is the transparent version. The merchant can
+override and "Keep original" — both branches store a real Photo
+row, with mime `image/png` for transparent or `image/jpeg` for
+original, so downstream renderers (invoice PDF in particular)
+know what they're dealing with. When the gate skips or the
+keyer errors, the upload still completes silently with the
+original compressed JPEG; the merchant always ends with a logo.
+
+**Why not ML?** A pre-trained background-removal model (U²-Net,
+MODNet) is 20–80 MB. The app's entire JS bundle is ~750 KB
+gzipped. For the 95 %+ case where the merchant uploaded a
+plain-background logo, a four-corner colour-key is correct,
+deterministic, and ships in ~10 KB of Canvas code. The rare
+photographic logo doesn't justify the bundle hit, especially
+when the merchant can always pick "Keep original".

@@ -699,5 +699,15 @@
     "past_invoices_title": "Factures émises",
     "past_invoices_link": "Voir les factures émises",
     "past_invoices_empty": "Aucune facture émise pour l'instant."
+  },
+  "logo": {
+    "title": "Aperçu du logo",
+    "subtitle": "Nous avons retiré le fond pour que votre logo s'intègre à l'app. Gardez l'original si vous préférez.",
+    "label_original": "Original",
+    "label_transparent": "Transparent",
+    "use_transparent": "Utiliser le transparent",
+    "keep_original": "Garder l'original",
+    "removal_failed_toast": "Le retrait du fond n'est pas disponible ici — image originale utilisée.",
+    "too_much_background": "Cette image est presque entièrement du fond. Choisissez un logo plus détaillé."
   }
 }

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { LogoPreviewDialog } from '../components/logo-preview-dialog';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { ShopHeader } from '../components/shop-header';
@@ -497,6 +498,7 @@ export function SettingsScreen(): JSX.Element {
   const { t: tStoreTypes } = useTranslation('store_types');
   const { t: tShopSubtypes } = useTranslation('shop_subtypes');
   const { t: tFashionSubtypes } = useTranslation('fashion_subtypes');
+  const { t: tLogo } = useTranslation('logo');
   const { locale, setLocale } = useLocale();
   const profile = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -508,6 +510,14 @@ export function SettingsScreen(): JSX.Element {
   const [shopNameDraft, setShopNameDraft] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  // v0.5.4 ADR-028 — keying preview state; see onboarding for parallel.
+  const [logoKeyingCandidate, setLogoKeyingCandidate] = useState<{
+    originalBlob: Blob;
+    keyedBlob: Blob;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [logoToast, setLogoToast] = useState<string | null>(null);
   const [pendingCurrency, setPendingCurrency] = useState<CurrencyCode | null>(null);
   const [pendingStoreType, setPendingStoreType] = useState<StoreType | null>(null);
   // v0.5.1: shop sub-types editor saves immediately on toggle (no
@@ -602,6 +612,7 @@ export function SettingsScreen(): JSX.Element {
     if (!profile) return;
     setLogoBusy(true);
     setLogoError(null);
+    setLogoToast(null);
     try {
       // Lazy-load the photo compressor (browser-image-compression is ~54 KB).
       // Keeps the initial Settings chunk small so the screen mounts fast.
@@ -617,6 +628,33 @@ export function SettingsScreen(): JSX.Element {
         }
         return;
       }
+      // v0.5.4 ADR-028 — keying attempt. On 'keyed' we open the
+      // preview Dialog and defer the storePhoto + upsertProfile to
+      // the merchant's choice. On 'skipped' / 'rejected' (non-fatal)
+      // we proceed straight to store the original compressed blob.
+      const { analyseLogoForKeying } = await import('../utils/logo-transparency');
+      const outcome = await analyseLogoForKeying({
+        blob: compressed.blob,
+        width: compressed.width,
+        height: compressed.height,
+        mime: compressed.mime,
+      });
+      if (outcome.kind === 'keyed') {
+        setLogoKeyingCandidate({
+          originalBlob: compressed.blob,
+          keyedBlob: outcome.keyedBlob,
+          width: compressed.width,
+          height: compressed.height,
+        });
+        return;
+      }
+      if (outcome.kind === 'rejected') {
+        if (outcome.reason === 'all-transparent') {
+          setLogoError(tLogo('too_much_background'));
+          return;
+        }
+        setLogoToast(tLogo('removal_failed_toast'));
+      }
       const stored = await storePhoto(db, {
         blob: compressed.blob,
         width: compressed.width,
@@ -631,6 +669,35 @@ export function SettingsScreen(): JSX.Element {
     } finally {
       setLogoBusy(false);
       if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  }
+
+  // v0.5.4 — commit the merchant's pick from LogoPreviewDialog. Mime
+  // matches the chosen branch (image/png for keyed, image/jpeg for
+  // original) so the Photo row carries the right type for downstream
+  // renderers (invoice PDF in particular).
+  async function commitLogoChoice(choice: {
+    blob: Blob;
+    kind: 'transparent' | 'original';
+  }): Promise<void> {
+    if (!profile || !logoKeyingCandidate) return;
+    const mime = choice.kind === 'transparent' ? 'image/png' : 'image/jpeg';
+    setLogoBusy(true);
+    try {
+      const stored = await storePhoto(db, {
+        blob: choice.blob,
+        width: logoKeyingCandidate.width,
+        height: logoKeyingCandidate.height,
+        mime,
+      });
+      await upsertProfile(db, {
+        name: profile.name,
+        locale: profile.locale,
+        logo_photo_id: stored.id,
+      });
+    } finally {
+      setLogoBusy(false);
+      setLogoKeyingCandidate(null);
     }
   }
 
@@ -796,6 +863,24 @@ export function SettingsScreen(): JSX.Element {
             >
               {logoError}
             </p>
+          ) : null}
+          {logoToast ? (
+            <p
+              data-testid="shop-logo-toast"
+              role="status"
+              className="text-ink-3 bg-paper-deep border-hair mt-2 rounded-xl border px-3 py-2 text-xs"
+            >
+              {logoToast}
+            </p>
+          ) : null}
+          {logoKeyingCandidate ? (
+            <LogoPreviewDialog
+              open
+              originalBlob={logoKeyingCandidate.originalBlob}
+              keyedBlob={logoKeyingCandidate.keyedBlob}
+              onChoose={(c) => void commitLogoChoice(c)}
+              onCancel={() => setLogoKeyingCandidate(null)}
+            />
           ) : null}
 
           <label htmlFor="settings-shop-name" className="text-ink-3 mt-4 mb-1 block text-xs">

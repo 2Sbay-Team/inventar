@@ -65,3 +65,20 @@
     margin: 14mm 12mm;
   }
 }
+
+/* v0.5.4 ADR-027 — checker pattern behind the keyed-logo preview so
+   any keying halo is obvious against neutral grey squares. 8px tiles
+   chosen to match the rest of the app's micro-rounding scale. */
+.logo-preview-checker {
+  background-image: linear-gradient(45deg, #e5e5e5 25%, transparent 25%),
+    linear-gradient(-45deg, #e5e5e5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e5e5e5 75%),
+    linear-gradient(-45deg, transparent 75%, #e5e5e5 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-color: #fff;
+}

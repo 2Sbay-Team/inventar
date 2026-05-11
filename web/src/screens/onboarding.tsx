@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
+import { LogoPreviewDialog } from '../components/logo-preview-dialog';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
@@ -109,6 +110,14 @@ export function OnboardingScreen(): JSX.Element {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  // v0.5.4 ADR-028 — keying preview state. When the util produces a
+  // candidate, render LogoPreviewDialog and let the merchant choose
+  // before we commit to setLogoFile. Cleared on close.
+  const [logoKeyingCandidate, setLogoKeyingCandidate] = useState<{
+    originalBlob: Blob;
+    keyedBlob: Blob;
+  } | null>(null);
+  const [logoToast, setLogoToast] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -131,6 +140,7 @@ export function OnboardingScreen(): JSX.Element {
   async function handleLogoFile(file: File): Promise<void> {
     setLogoBusy(true);
     setLogoError(null);
+    setLogoToast(null);
     try {
       // Lazy-load the compressor (browser-image-compression is ~54 KB) so
       // it only ships when a user actually picks a logo.
@@ -146,6 +156,30 @@ export function OnboardingScreen(): JSX.Element {
         }
         return;
       }
+      // v0.5.4 ADR-028 — try the keying util. Three outcomes:
+      //   keyed → open the preview Dialog (caller picks)
+      //   skipped → commit the original silently
+      //   rejected (render-error or all-transparent) → toast +
+      //     fall back to the original blob
+      const { analyseLogoForKeying } = await import('../utils/logo-transparency');
+      const outcome = await analyseLogoForKeying({
+        blob: compressed.blob,
+        width: compressed.width,
+        height: compressed.height,
+        mime: compressed.mime,
+      });
+      if (outcome.kind === 'keyed') {
+        setLogoKeyingCandidate({ originalBlob: compressed.blob, keyedBlob: outcome.keyedBlob });
+        return;
+      }
+      if (outcome.kind === 'rejected') {
+        if (outcome.reason === 'all-transparent') {
+          setLogoError(t('logo:too_much_background'));
+          return;
+        }
+        setLogoToast(t('logo:removal_failed_toast'));
+      }
+      // skipped or fall-through rejection → commit the original blob.
       const compressedFile = new File([compressed.blob], 'logo.jpg', { type: compressed.mime });
       const url = URL.createObjectURL(compressedFile);
       if (logoPreview) URL.revokeObjectURL(logoPreview);
@@ -155,6 +189,22 @@ export function OnboardingScreen(): JSX.Element {
       setLogoBusy(false);
       if (logoInputRef.current) logoInputRef.current.value = '';
     }
+  }
+
+  // v0.5.4 — invoked when the merchant picks an option in the
+  // LogoPreviewDialog. Both branches store the chosen blob as the
+  // logo File; mime stays application-friendly (image/png for the
+  // keyed branch, image/jpeg for the original).
+  function commitLogoChoice(choice: { blob: Blob; kind: 'transparent' | 'original' }): void {
+    const mime = choice.kind === 'transparent' ? 'image/png' : 'image/jpeg';
+    const ext = choice.kind === 'transparent' ? 'png' : 'jpg';
+    const fileName = `logo.${ext}`;
+    const file = new File([choice.blob], fileName, { type: mime });
+    const url = URL.createObjectURL(file);
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoFile(file);
+    setLogoPreview(url);
+    setLogoKeyingCandidate(null);
   }
 
   function clearLogo(): void {
@@ -577,6 +627,15 @@ export function OnboardingScreen(): JSX.Element {
                   {logoError}
                 </p>
               ) : null}
+              {logoToast ? (
+                <p
+                  data-testid="onb-logo-toast"
+                  role="status"
+                  className="text-ink-3 bg-paper-deep border-hair rounded-xl border px-3 py-2 text-xs"
+                >
+                  {logoToast}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -745,6 +804,15 @@ export function OnboardingScreen(): JSX.Element {
         ) : null}
       </main>
       <AppFooter />
+      {logoKeyingCandidate ? (
+        <LogoPreviewDialog
+          open
+          originalBlob={logoKeyingCandidate.originalBlob}
+          keyedBlob={logoKeyingCandidate.keyedBlob}
+          onChoose={commitLogoChoice}
+          onCancel={() => setLogoKeyingCandidate(null)}
+        />
+      ) : null}
     </div>
   );
 }
