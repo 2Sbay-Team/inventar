@@ -9,6 +9,7 @@ import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
 import { sizeHintValuesForSubtypes } from '../config/fashion-subtypes';
+import { inputPriceToInternal, inputQtyToInternal, type Uom } from '../config/article-traits';
 import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
@@ -46,6 +47,13 @@ interface Basics {
   // active vertical has has_expiry=true (shop). Stored as a string so
   // empty / typing-in-progress states are unambiguous; parsed at save.
   minStockInput: string;
+  // v0.5.2.9 (UoM) — display + qty-input precision. Defaults to
+  // 'piece'. When the merchant picks kg / g / l / ml in Step 1, Step
+  // 2 collapses the color × size matrix to a single row (a packet of
+  // coffee has no "size 42 in blue"). The merchant types prices in
+  // their chosen unit (15 TND/kg, 200 mil/g) and we convert to
+  // millimes-per-smallest-unit at save via inputPriceToInternal.
+  unitOfMeasure: Uom;
 }
 
 // Parse the threshold input. Empty / non-numeric / <= 0 → null (no
@@ -150,8 +158,6 @@ export function AddArticleScreen(): JSX.Element {
   // "yes" there.
   const [shopWantsSizes, setShopWantsSizes] = useState(false);
   const [shopWantsColors, setShopWantsColors] = useState(false);
-  const hasColors = storeType === 'shop' ? shopWantsColors : storeCfg.has_colors;
-  const hasSizes = storeType === 'shop' ? shopWantsSizes : storeCfg.has_sizes;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [basics, setBasics] = useState<Basics>(() => ({
@@ -162,7 +168,18 @@ export function AddArticleScreen(): JSX.Element {
     saleInput: '',
     notes: '',
     minStockInput: '',
+    unitOfMeasure: 'piece',
   }));
+  // v0.5.2.9 (UoM): non-piece UoM forces sizeless + colourless — a
+  // 250 g packet of coffee has no "size 42 in blue".
+  const nonPieceUom = basics.unitOfMeasure !== 'piece';
+  const hasColors = nonPieceUom
+    ? false
+    : storeType === 'shop'
+      ? shopWantsColors
+      : storeCfg.has_colors;
+  const hasSizes = nonPieceUom ? false : storeType === 'shop' ? shopWantsSizes : storeCfg.has_sizes;
+
   const [blocks, setBlocks] = useState<ColorBlock[]>(() => [emptyBlock()]);
   const [duplicate, setDuplicate] = useState<Article | null>(null);
   const [dupDismissed, setDupDismissed] = useState(false);
@@ -350,15 +367,26 @@ export function AddArticleScreen(): JSX.Element {
     }
     setSubmitting(true);
     try {
-      const cost = Math.max(0, parseCurrency(basics.costInput, locale, currency) ?? 0);
-      const sale = Math.max(0, parseCurrency(basics.saleInput, locale, currency) ?? 0);
+      // v0.5.2.9 (UoM): merchant types prices in their preferred unit
+      // ("15 TND per kg" → typed as 15.000). Convert to the internal
+      // millimes-per-smallest-unit representation so the existing
+      // |qty| * price revenue math stays consistent across all UoMs.
+      const uom = basics.unitOfMeasure;
+      const costDisplay = Math.max(0, parseCurrency(basics.costInput, locale, currency) ?? 0);
+      const saleDisplay = Math.max(0, parseCurrency(basics.saleInput, locale, currency) ?? 0);
+      const cost = inputPriceToInternal(costDisplay, uom);
+      const sale = inputPriceToInternal(saleDisplay, uom);
 
       const variantSpecs = blocks.flatMap((b) =>
         b.sizes.map((s) => ({
           color: hasColors ? effectiveColor(b) : null,
           size: hasSizes ? (s.size.trim() === '' ? null : s.size.trim()) : null,
-          floor_qty: Math.max(0, Math.floor(s.floor)),
-          back_qty: Math.max(0, Math.floor(s.back)),
+          // For piece UoM the merchant types whole pieces (existing
+          // behaviour). For non-piece UoM the stepper field still
+          // holds the typed display value (e.g. 0.85 kg) — convert to
+          // the smallest unit (850 grams).
+          floor_qty: Math.max(0, inputQtyToInternal(s.floor, uom)),
+          back_qty: Math.max(0, inputQtyToInternal(s.back, uom)),
           photo_id: b.photoId ?? null,
         })),
       );
@@ -396,6 +424,13 @@ export function AddArticleScreen(): JSX.Element {
         // clothes (the input isn't surfaced there). createArticle
         // accepts null and stores it verbatim.
         min_stock_threshold: parseMinStock(basics.minStockInput),
+        // v0.5.2.9 (UoM + Phase B): persist the merchant's chosen
+        // unit and the derived sizeless/colourless overrides when
+        // UoM != piece. Article reads these later via the trait
+        // helpers (articleHasSizes / Colors / Expiry).
+        unit_of_measure: uom,
+        has_sizes: nonPieceUom ? false : null,
+        has_colors: nonPieceUom ? false : null,
       });
       // v0.5.2.3 — land on the printable-label page so the merchant
       // sees the QR for the just-created item and can stick it on the
@@ -538,6 +573,7 @@ function Step1({
 }: Step1Props): JSX.Element {
   const { t } = useTranslation('add');
   const { t: tCommon } = useTranslation('common');
+  const nonPieceUom = basics.unitOfMeasure !== 'piece';
   return (
     <div data-testid="step-1" className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4">
       <button
@@ -614,8 +650,34 @@ function Step1({
         data-testid="add-section-pricing"
         className="border-hair space-y-3 rounded-2xl border bg-white p-4"
       >
+        {/* v0.5.2.9 (UoM): picker drives whether this article is
+            sold by piece, weight, or volume. Defaults to 'piece' so
+            the existing flows (shoes, clothing, packaged goods)
+            are unaffected. Non-piece UoMs auto-suppress the colour
+            × size matrix in Step 2 — a 250 g packet of coffee
+            has no "size 42 in blue". */}
+        <Field label={t('field_uom')} hint={tCommon('optional')}>
+          <select
+            data-testid="field-uom"
+            value={basics.unitOfMeasure}
+            onChange={(e) => setBasics((b) => ({ ...b, unitOfMeasure: e.target.value as Uom }))}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
+          >
+            <option value="piece">{t('uom_piece')}</option>
+            <option value="kg">{t('uom_kg')}</option>
+            <option value="g">{t('uom_g')}</option>
+            <option value="l">{t('uom_l')}</option>
+            <option value="ml">{t('uom_ml')}</option>
+          </select>
+        </Field>
         <div className="grid grid-cols-2 gap-2">
-          <Field label={t('field_cost', { currency })} hint={tCommon('optional')}>
+          <Field
+            label={t('field_cost_uom', {
+              currency,
+              uom: nonPieceUom ? t(`uom_${basics.unitOfMeasure}`) : t('uom_piece_short'),
+            })}
+            hint={tCommon('optional')}
+          >
             <input
               data-testid="field-cost"
               type="text"
@@ -625,7 +687,13 @@ function Step1({
               className="border-hair rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
             />
           </Field>
-          <Field label={t('field_sale', { currency })} hint={tCommon('optional')}>
+          <Field
+            label={t('field_sale_uom', {
+              currency,
+              uom: nonPieceUom ? t(`uom_${basics.unitOfMeasure}`) : t('uom_piece_short'),
+            })}
+            hint={tCommon('optional')}
+          >
             <input
               data-testid="field-sale"
               type="text"
