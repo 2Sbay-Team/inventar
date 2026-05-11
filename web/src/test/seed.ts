@@ -171,6 +171,23 @@ function simulateScan(value: string): void {
   document.dispatchEvent(new CustomEvent('inventar:e2e-scan', { detail: { value } }));
 }
 
+// v0.6 ADR-031 — test seam for the update-consent flow. Installs a
+// fake SwHandle the first time it's called so the spec can drive the
+// 'waiting' event without a real SW deploy + activation race. The
+// fake's emitWaiting handle is cached so subsequent calls re-fire
+// the event against the already-installed handle.
+import { __installFakeSwHandleForE2E } from '../pwa/register-sw';
+let fakeSwControls: ReturnType<typeof __installFakeSwHandleForE2E> | null = null;
+function triggerUpdateWaiting(): void {
+  if (!fakeSwControls) {
+    fakeSwControls = __installFakeSwHandleForE2E();
+  }
+  fakeSwControls.emitWaiting();
+}
+function getUpdateActivateCalls(): number {
+  return fakeSwControls?.activateCalls ?? 0;
+}
+
 interface SeedAPI {
   seed: (input: SeedInput) => Promise<void>;
   sellOne: (articleName: string, size: string) => Promise<void>;
@@ -178,6 +195,8 @@ interface SeedAPI {
   deleteDb: () => Promise<void>;
   exportJson: () => Promise<string>;
   simulateScan: (value: string) => void;
+  triggerUpdateWaiting: () => void;
+  getUpdateActivateCalls: () => number;
 }
 
 declare global {
@@ -196,6 +215,8 @@ export function mountTestSeed(): void {
     deleteDb,
     exportJson,
     simulateScan,
+    triggerUpdateWaiting,
+    getUpdateActivateCalls,
   };
   window.__inventarSeed = api;
 }

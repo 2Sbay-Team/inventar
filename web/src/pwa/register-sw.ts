@@ -1,32 +1,67 @@
 import { Workbox } from 'workbox-window';
 
-// Manual SW registration. Vite-plugin-pwa is configured with
-// `injectRegister: false` so we call this exactly once from `main.tsx` and
-// own the update lifecycle (SPEC §7).
+// v0.6 ADR-031 — manual SW registration with consent-driven activation.
 //
-// Behaviour:
-//   - Skips registration entirely outside of production builds (dev server
-//     has no SW; this saves a 404 on /sw.js during `npm run dev`).
-//   - On a fresh install: registers, no toast.
-//   - On an update: when the new SW reaches `waiting`, ask it to take
-//     control (`SKIP_WAITING`), then surface a toast "Updated to v1.X" via
-//     the supplied callback so the host can render it.
+// vite-plugin-pwa is configured (vite.config.ts) with
+//   `skipWaiting: false` + `injectRegister: false`
+// so a newly-installed SW stays in the WAITING state until we tell it
+// to take over. The decision to take over is made by the merchant via
+// the update-consent modal (AppUpdateModal); this module only exposes
+// the lifecycle hooks the modal needs.
 //
-// We never reload mid-session — the new shell is active on next page load
-// (SPEC §7: "no forced reload mid-session").
+// Subscribers (React hooks) can attach to the handle at any time —
+// even BEFORE registerServiceWorker() has been called. The handle is
+// a module-level singleton with a stable listener bag, so a useEffect
+// that mounts before bootstrap finishes won't miss a later event.
 
-export interface RegisterOptions {
-  // Called once when an updated SW has activated. The host renders the
-  // "Updated to vX" toast (SPEC §7).
-  onUpdated?: () => void;
-  // Called when the SW becomes ready and is controlling the page for the
-  // first time. Useful as a hook for a "you can use this offline now" toast.
-  onReady?: () => void;
+type SwEvent = 'waiting' | 'controllerchange' | 'ready';
+
+export interface SwHandle {
+  on(event: SwEvent, handler: () => void): () => void;
+  // Sends SKIP_WAITING to the waiting SW. Resolves once the new SW
+  // becomes the page's controller (i.e. controllerchange has fired).
+  // No-op when the real registration hasn't been wired yet.
+  activateWaiting(): Promise<void>;
+}
+
+const listeners: Record<SwEvent, Set<() => void>> = {
+  waiting: new Set(),
+  controllerchange: new Set(),
+  ready: new Set(),
+};
+
+function emit(event: SwEvent): void {
+  for (const fn of listeners[event]) {
+    try {
+      fn();
+    } catch (err) {
+      console.error('[register-sw] listener threw', err);
+    }
+  }
+}
+
+// The function actually called by activateWaiting(). Swapped in by
+// registerServiceWorker() once Workbox has registered, and by the
+// e2e test seam for in-context simulation.
+let activateImpl: () => Promise<void> = async () => {};
+
+const handle: SwHandle = {
+  on(event, fn) {
+    listeners[event].add(fn);
+    return () => listeners[event].delete(fn);
+  },
+  async activateWaiting() {
+    await activateImpl();
+  },
+};
+
+export function getSwHandle(): SwHandle {
+  return handle;
 }
 
 let registered = false;
 
-export function registerServiceWorker(options: RegisterOptions = {}): void {
+export function registerServiceWorker(): void {
   if (registered) return;
   if (typeof window === 'undefined') return;
   if (!('serviceWorker' in navigator)) return;
@@ -36,18 +71,71 @@ export function registerServiceWorker(options: RegisterOptions = {}): void {
   const wb = new Workbox('/sw.js', { scope: '/' });
 
   wb.addEventListener('waiting', () => {
-    // A new SW finished installing and is waiting. Tell it to activate;
-    // workbox-window will fire 'controlling' once it does.
-    void wb.messageSkipWaiting();
+    // v0.6 ADR-031 — DO NOT call wb.messageSkipWaiting() here. The
+    // merchant decides via the modal; we just announce the event.
+    emit('waiting');
   });
 
-  wb.addEventListener('controlling', () => {
-    options.onUpdated?.();
-  });
+  wb.addEventListener('controlling', () => emit('controllerchange'));
 
   wb.addEventListener('activated', (event) => {
-    if (!event.isUpdate) options.onReady?.();
+    if (!event.isUpdate) emit('ready');
   });
 
+  activateImpl = async () => {
+    // Race the controllerchange event against a 10 s timeout so a
+    // wedged SW can't hang the consent flow forever (the caller
+    // shows an error and lets the merchant try again).
+    const waitForControlling = new Promise<void>((resolve) => {
+      const off = handle.on('controllerchange', () => {
+        off();
+        resolve();
+      });
+    });
+    void wb.messageSkipWaiting();
+    await Promise.race([
+      waitForControlling,
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('SW activation timed out after 10 s')), 10_000),
+      ),
+    ]);
+  };
+
   void wb.register();
+}
+
+// ── Test seams ──────────────────────────────────────────────────────
+
+// Used by vitest to clear listener state between tests.
+export function __resetSwHandleForTests(): void {
+  listeners.waiting.clear();
+  listeners.controllerchange.clear();
+  listeners.ready.clear();
+  activateImpl = async () => {};
+  registered = false;
+}
+
+// v0.6 ADR-031 — e2e test seam. Wires activateImpl to a synchronous
+// stub that simulates the controllerchange event after SKIP_WAITING.
+// Returns controls so the spec can fire the 'waiting' event manually
+// AND read the number of activation calls. Gated on VITE_E2E so this
+// dead-code-eliminates from production bundles.
+export function __installFakeSwHandleForE2E(): {
+  emitWaiting: () => void;
+  readonly activateCalls: number;
+} {
+  if (!import.meta.env.VITE_E2E) {
+    throw new Error('__installFakeSwHandleForE2E called outside VITE_E2E');
+  }
+  const stats = { activateCalls: 0 };
+  activateImpl = async () => {
+    stats.activateCalls += 1;
+    queueMicrotask(() => emit('controllerchange'));
+  };
+  return {
+    emitWaiting: () => emit('waiting'),
+    get activateCalls() {
+      return stats.activateCalls;
+    },
+  };
 }

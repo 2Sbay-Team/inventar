@@ -657,6 +657,12 @@
     "locations_body": "Réglages → Emplacements de stock. Changez les noms des zones avant (vente) et arrière (réserve) pour qu'ils correspondent à votre vocabulaire. Les nouveaux noms apparaissent partout. Videz un champ et enregistrez pour rétablir le nom par défaut de votre langue.",
     "subtypes_custom_title": "Catégories personnalisées",
     "subtypes_custom_body": "À l'onboarding (ou plus tard dans Réglages → Catégories), vous pouvez ajouter vos propres étiquettes — ex : tabac, halal, bio. Les étiquettes personnalisées sont enregistrées telles quelles et ne sont jamais traduites automatiquement.",
+    "updates_consent_title": "Pourquoi l'app demande avant de se mettre à jour ?",
+    "updates_consent_body": "Nous respectons votre choix. Quand nous publions des améliorations, vous décidez quand — ou si — vous voulez les installer. Vos données d'inventaire ne sont jamais modifiées par une mise à jour.",
+    "updates_skipping_title": "Et si je continue à ignorer les mises à jour ?",
+    "updates_skipping_body": "L'app continue de fonctionner avec la version que vous avez. Mais vous risquez de manquer des corrections de bugs et de nouvelles fonctionnalités. Nous recommandons d'installer les mises à jour quand cela vous convient.",
+    "updates_server_down_title": "Et si votre serveur tombe en panne ?",
+    "updates_server_down_body": "L'app continue de fonctionner hors ligne depuis votre téléphone. Vous ne recevrez pas de nouvelles mises à jour tant que le serveur n'est pas revenu, mais tout ce que vous avez déjà saisi reste en sécurité sur votre appareil.",
     "troubleshoot_title": "Si l'app refuse de s'ouvrir ou se comporte bizarrement",
     "troubleshoot_body": "1) Patientez 10 secondes — un bouton Vider le cache et recharger apparaît si l'app est bloquée. 2) Ouvrez Réglages → Maintenance pour vider les fichiers en cache sans perdre vos données. 3) Si vous n'arrivez pas à ouvrir Réglages, ouvrez les paramètres du site dans votre navigateur et appuyez sur Effacer pour inventar.hoodhood.ai. Vos données restent dans la mémoire de l'appareil — seul le code de l'app est rafraîchi.",
     "footer_note": "Perdu ou bloqué ? Réglages → Maintenance pour l'option sûre, ou Réglages → Tout réinitialiser pour tout effacer. Sauvegardez d'abord.",
@@ -713,5 +719,18 @@
     "keep_original": "Garder l'original",
     "removal_failed_toast": "Le retrait du fond n'est pas disponible ici — image originale utilisée.",
     "too_much_background": "Cette image est presque entièrement du fond. Choisissez un logo plus détaillé."
+  },
+  "updates": {
+    "title_with_version": "Nouvelle version disponible — v{{version}}",
+    "title_generic": "Nouvelle version disponible",
+    "subtitle": "C'est vous qui choisissez quand installer.",
+    "whats_new_heading": "Quoi de neuf",
+    "whats_new_fallback": "Améliorations et corrections de bugs.",
+    "data_safe": "Vos données restent exactement les mêmes.",
+    "install_now": "Installer maintenant",
+    "installing": "Mise à jour…",
+    "snooze": "Me rappeler demain",
+    "skip": "Ignorer cette version",
+    "welcome": "Bienvenue dans la v{{version}} ✓"
   }
 }

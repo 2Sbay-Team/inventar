@@ -53,6 +53,10 @@ const SECTIONS: ReadonlyArray<Section> = [
   { id: 'multi_device', Icon: ChevronRight },
   { id: 'profile', Icon: SettingsIcon },
   { id: 'install', Icon: Smartphone },
+  // v0.6 ADR-031 — update-consent flow questions.
+  { id: 'updates_consent', Icon: Sparkles },
+  { id: 'updates_skipping', Icon: Sparkles },
+  { id: 'updates_server_down', Icon: Sparkles },
   { id: 'troubleshoot', Icon: LifeBuoy },
 ];
 
