@@ -138,10 +138,13 @@ test.describe('QR label center branding', () => {
     });
     await page.reload();
 
-    // Upload a logo via Settings. The synthesized PNG is plain white
-    // (no transparency) so the branding helper takes the logo branch
-    // without the v0.5.4 keying preview interfering (keying is on a
-    // separate branch and not on main).
+    // Upload a logo via Settings. The synthesized white-bg PNG trips
+    // the v0.5.4 logo keyer (ADR-028) and opens the LogoPreviewDialog;
+    // we click "Keep original" so the upload commits the un-keyed
+    // JPEG that the QR branding overlay will then render as an
+    // <image>. (We could also pick "Use transparent" — both branches
+    // end with a stored logo; the QR overlay test cares about the
+    // <image> tag in the SVG, not the alpha channel.)
     await page.getByTestId('nav-settings').click();
     await expect(page.getByTestId('section-shop-profile')).toBeVisible();
     await page.setInputFiles('[data-testid="shop-logo-input"]', {
@@ -149,6 +152,10 @@ test.describe('QR label center branding', () => {
       mimeType: 'image/png',
       buffer: synthWhiteBgWithSquare(),
     });
+    const keyingDialog = page.getByTestId('logo-preview-dialog');
+    await expect(keyingDialog).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('logo-preview-keep-original').click();
+    await expect(keyingDialog).toBeHidden();
     await expect(page.locator('[data-testid="shop-logo-preview"] img')).toBeVisible({
       timeout: 10_000,
     });

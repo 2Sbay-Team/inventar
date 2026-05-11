@@ -74,7 +74,18 @@ test.describe('Add Article — size hints per fashion subtype', () => {
     await expect(page.getByTestId('block-0-size-hints')).toHaveCount(0);
   });
 
-  test('multiple subtypes: union of values (shoes + clothing_men)', async ({ page }) => {
+  test('multiple subtypes: union of values when category does not match (shoes + clothing_men)', async ({
+    page,
+  }) => {
+    // v0.5.6 ADR-026 narrows size-hint suggestions by category: when
+    // the article's category belongs to one specific sub-type, only
+    // that sub-type's hints contribute. The fallback path — when the
+    // category isn't in ANY selected sub-type's `categories` list —
+    // still surfaces the broader union, which is what this test now
+    // exercises. We pick 'kids' as the category: it's a fashion-level
+    // category but not in shoes' or clothing_men's lists, so the
+    // narrowing finds no match and falls back to the all-sub-types
+    // union — both EU shoe sizes AND letter sizes appear.
     await page.goto('/');
     await onboardViaSeed(page, {
       lang: 'en',
@@ -85,6 +96,7 @@ test.describe('Add Article — size hints per fashion subtype', () => {
     await page.reload();
     await page.goto('/add');
     await page.getByTestId('field-name').fill('Item');
+    await page.getByTestId('category-kids').click();
     await page.getByTestId('continue').click();
 
     const values = await page
