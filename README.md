@@ -2,6 +2,11 @@
 
 Offline-first PWA for inventory management on a single phone. No server, no sync, no accounts.
 
+For end-users: **what you need to run Inventar** is documented in
+[REQUIREMENTS.md](REQUIREMENTS.md) (browser, OS version, storage,
+backup expectations). The in-app `/help` screen links to the same
+information at <https://hoodhood.ai/inventar>.
+
 ## Layout
 
 ```
