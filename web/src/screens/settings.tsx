@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
+import { SelectWithCustom } from '../components/select-with-custom';
 import { ShopHeader } from '../components/shop-header';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
 import { useLocationLabels } from '../hooks/use-location-labels';
-import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
+import { LOCATION_OPTIONS } from '../config/location-options';
 import { useProfile } from '../hooks/use-profile';
 import { useLive } from '../hooks/use-live';
 import {
@@ -146,37 +147,31 @@ function StockLocationsSection(): JSX.Element | null {
   const { t } = useTranslation('settings');
   const profile = useProfile();
   const labels = useLocationLabels();
-  const [floorDraft, setFloorDraft] = useState<string | null>(null);
-  const [backDraft, setBackDraft] = useState<string | null>(null);
   if (!profile) return null;
-  // Resolved current values: the locked-in profile value if set,
-  // else the locale default (rendered to the merchant via the hook).
-  // Drafts override during editing.
-  const floorValue = floorDraft ?? labels.floor;
-  const backValue = backDraft ?? labels.back;
-  // Fallback target when the merchant clears a field: the locale +
-  // vertical default, NOT the currently-rendered label (which would be
-  // the merchant's own customised value, defeating the "clear to
-  // restore default" affordance).
-  const verticalForLabels: 'fashion' | 'shop' = profile.store_type === 'shop' ? 'shop' : 'fashion';
-  const localeDefaults = defaultLocationLabels(verticalForLabels, profile.locale);
+  // v0.6 — the picker is the source of truth while open; commit
+  // happens on every change (no separate draft + blur dance). Empty
+  // values aren't reachable through SelectWithCustom (it reverts to
+  // the first predefined option), but we still guard against them
+  // before writing.
   async function commitFloor(value: string): Promise<void> {
     if (!profile) return;
+    const trimmed = value.trim();
+    if (trimmed === '') return;
     await upsertProfile(db, {
       name: profile.name,
       locale: profile.locale,
-      location_floor_label: value.trim() === '' ? localeDefaults.floor : value.trim(),
+      location_floor_label: trimmed,
     });
-    setFloorDraft(null);
   }
   async function commitBack(value: string): Promise<void> {
     if (!profile) return;
+    const trimmed = value.trim();
+    if (trimmed === '') return;
     await upsertProfile(db, {
       name: profile.name,
       locale: profile.locale,
-      location_back_label: value.trim() === '' ? localeDefaults.back : value.trim(),
+      location_back_label: trimmed,
     });
-    setBackDraft(null);
   }
   return (
     <section
@@ -190,36 +185,26 @@ function StockLocationsSection(): JSX.Element | null {
           <label htmlFor="settings-location-floor" className="text-ink-2 block text-xs font-medium">
             {t('location_floor_label')}
           </label>
-          <input
+          <SelectWithCustom
             id="settings-location-floor"
-            data-testid="settings-location-floor"
-            type="text"
-            value={floorValue}
-            onChange={(e) => setFloorDraft(e.target.value)}
-            onBlur={(e) => void commitFloor(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            }}
-            maxLength={30}
-            className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            testId="settings-location-floor"
+            value={labels.floor}
+            onChange={(v) => void commitFloor(v)}
+            options={LOCATION_OPTIONS[profile.locale].floor}
+            ariaLabel={t('location_floor_label')}
           />
         </div>
         <div className="space-y-1">
           <label htmlFor="settings-location-back" className="text-ink-2 block text-xs font-medium">
             {t('location_back_label')}
           </label>
-          <input
+          <SelectWithCustom
             id="settings-location-back"
-            data-testid="settings-location-back"
-            type="text"
-            value={backValue}
-            onChange={(e) => setBackDraft(e.target.value)}
-            onBlur={(e) => void commitBack(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            }}
-            maxLength={30}
-            className="border-hair w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            testId="settings-location-back"
+            value={labels.back}
+            onChange={(v) => void commitBack(v)}
+            options={LOCATION_OPTIONS[profile.locale].back}
+            ariaLabel={t('location_back_label')}
           />
         </div>
       </div>

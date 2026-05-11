@@ -16,9 +16,11 @@ import {
 } from 'lucide-react';
 import { AppFooter } from '../components/app-footer';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
+import { SelectWithCustom } from '../components/select-with-custom';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
+import { LOCATION_OPTIONS, LOCATION_PICKER_DEFAULTS } from '../config/location-options';
 import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
 import { db } from '../db/db';
 import { META_KEYS, setMeta } from '../repos/meta';
@@ -296,18 +298,19 @@ export function OnboardingScreen(): JSX.Element {
     setStep('backup_card');
   }
 
-  // v0.5.2 ADR-022: when the merchant lands on the locations step,
-  // pre-fill the inputs with the (vertical, locale) defaults if they
-  // haven't typed anything yet. Re-derives if vertical or locale changes
-  // mid-onboarding (rare but possible via the back buttons).
+  // v0.6 ADR-029 — when the merchant lands on the locations step, pre-fill
+  // the dropdown with the per-locale defaults. The picker uses the same
+  // option list for both verticals (per the v0.6 brief); the v8→v9
+  // migration's vertical-specific defaults still seed the field for
+  // pre-existing profiles via defaultLocationLabels (used by
+  // useLocationLabels), but the *picker* UI is locale-only.
   useEffect(() => {
     if (step !== 'locations') return;
-    const verticalForLabels: 'fashion' | 'shop' = storeType === 'shop' ? 'shop' : 'fashion';
-    const defaults = defaultLocationLabels(verticalForLabels, locale);
+    const defaults = LOCATION_PICKER_DEFAULTS[locale];
     if (locationFloorLabel.trim() === '') setLocationFloorLabel(defaults.floor);
     if (locationBackLabel.trim() === '') setLocationBackLabel(defaults.back);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, storeType, locale]);
+  }, [step, locale]);
 
   async function confirmBackupCard(): Promise<void> {
     setSubmitting(true);
@@ -326,10 +329,15 @@ export function OnboardingScreen(): JSX.Element {
       bitmap.close?.();
       logoPhotoId = stored.id;
     }
-    // Resolve location labels: if the merchant skipped the locations
-    // step (legacy vertical fallback), derive from (vertical, locale).
+    // Resolve location labels. The picker normally guarantees a non-empty
+    // value, but the legacy-vertical-fallback path (a v6 profile that
+    // bypasses the locations step entirely) still benefits from the
+    // (vertical, locale) defaults used by the v8→v9 migration.
     const verticalForLabels: 'fashion' | 'shop' = storeType === 'shop' ? 'shop' : 'fashion';
-    const labelDefaults = defaultLocationLabels(verticalForLabels, locale);
+    const labelDefaults =
+      locationFloorLabel.trim() === '' || locationBackLabel.trim() === ''
+        ? defaultLocationLabels(verticalForLabels, locale)
+        : { floor: '', back: '' };
     const finalFloorLabel =
       locationFloorLabel.trim() === '' ? labelDefaults.floor : locationFloorLabel.trim();
     const finalBackLabel =
@@ -742,28 +750,26 @@ export function OnboardingScreen(): JSX.Element {
                 >
                   {t('onboarding:location_floor_label')}
                 </label>
-                <input
+                <SelectWithCustom
                   id="onb-location-floor"
-                  data-testid="onb-location-floor"
-                  type="text"
+                  testId="onb-location-floor"
                   value={locationFloorLabel}
-                  onChange={(e) => setLocationFloorLabel(e.target.value)}
-                  maxLength={30}
-                  className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                  onChange={setLocationFloorLabel}
+                  options={LOCATION_OPTIONS[locale].floor}
+                  ariaLabel={t('onboarding:location_floor_label')}
                 />
               </div>
               <div className="space-y-1">
                 <label htmlFor="onb-location-back" className="text-ink-2 block text-sm font-medium">
                   {t('onboarding:location_back_label')}
                 </label>
-                <input
+                <SelectWithCustom
                   id="onb-location-back"
-                  data-testid="onb-location-back"
-                  type="text"
+                  testId="onb-location-back"
                   value={locationBackLabel}
-                  onChange={(e) => setLocationBackLabel(e.target.value)}
-                  maxLength={30}
-                  className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                  onChange={setLocationBackLabel}
+                  options={LOCATION_OPTIONS[locale].back}
+                  ariaLabel={t('onboarding:location_back_label')}
                 />
               </div>
               <p className="text-ink-3 text-[11px]">{t('onboarding:locations_hint')}</p>

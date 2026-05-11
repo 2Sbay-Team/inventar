@@ -2,6 +2,7 @@
   "common": {
     "back": "Back",
     "cancel": "Cancel",
+    "select_custom": "+ Type your own",
     "save": "Save",
     "confirm": "Confirm",
     "delete": "Delete",

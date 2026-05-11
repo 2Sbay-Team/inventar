@@ -1,12 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-// v0.5.2 ADR-022 — location labels customisation at onboarding. The
-// Settings-side editor lands in commit 4. This test verifies the
-// onboarding flow: the locations step pre-fills (vertical, locale)
-// defaults; the merchant can edit; the values persist to the profile.
+// v0.5.2 ADR-022 → v0.6 — location labels at onboarding. The picker is
+// now a 3-option dropdown + "Type your own"; default selection is
+// locale-only (no vertical variation) per the v0.6 brief. Test 67
+// covers the fashion-vertical onboarding walk + Settings flow; this
+// file covers the shop-vertical onboarding walks across the same
+// three locales, exercising the shop subtypes path.
 
-test.describe('Onboarding — location labels', () => {
-  test('shop/en: defaults to Shelf / Stockroom; merchant override persists', async ({ page }) => {
+test.describe('Onboarding — location labels (shop vertical)', () => {
+  test('shop/en: locale defaults render; "Type your own" lets the merchant override the floor', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.getByTestId('lang-en').click();
     await page.getByTestId('intent-new').click();
@@ -17,11 +21,17 @@ test.describe('Onboarding — location labels', () => {
     await page.getByTestId('continue').click();
 
     await expect(page.getByTestId('step-locations')).toBeVisible();
-    await expect(page.getByTestId('onb-location-floor')).toHaveValue('Shelf');
-    await expect(page.getByTestId('onb-location-back')).toHaveValue('Stockroom');
+    // Locale defaults (shared across both verticals in v0.6).
+    await expect(page.getByTestId('onb-location-floor-select')).toHaveValue('Shop floor');
+    await expect(page.getByTestId('onb-location-back-select')).toHaveValue('Stockroom');
 
-    // Customise the front-of-shop label only.
-    await page.getByTestId('onb-location-floor').fill('Counter');
+    // Override the floor via the "Type your own" path.
+    await page.getByTestId('onb-location-floor-select').selectOption('__custom__');
+    const customInput = page.getByTestId('onb-location-floor-custom-input');
+    await expect(customInput).toBeVisible();
+    await customInput.fill('Counter');
+    await customInput.press('Tab');
+
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
@@ -47,27 +57,13 @@ test.describe('Onboarding — location labels', () => {
         dbReq.onerror = () => reject(dbReq.error);
       });
     });
-    // Custom label survives; back falls back to the default.
     expect(labels.floor).toBe('Counter');
     expect(labels.back).toBe('Stockroom');
   });
 
-  test('fashion/fr: defaults to Boutique / Réserve', async ({ page }) => {
-    await page.goto('/');
-    await page.getByTestId('lang-fr').click();
-    await page.getByTestId('intent-new').click();
-    await page.getByTestId('onb-store-fashion').click();
-    await page.getByTestId('shop-name-input').fill('Boutique Test');
-    await page.getByTestId('continue').click();
-    await page.getByTestId('onb-subtype-shoes').click();
-    await page.getByTestId('continue').click();
-
-    await expect(page.getByTestId('step-locations')).toBeVisible();
-    await expect(page.getByTestId('onb-location-floor')).toHaveValue('Boutique');
-    await expect(page.getByTestId('onb-location-back')).toHaveValue('Réserve');
-  });
-
-  test('shop/ar: defaults to Arabic shop labels (الرف / المخزن)', async ({ page }) => {
+  test('shop/ar: defaults to Arabic locale options (المحل / المخزن); RTL applies', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.getByTestId('lang-ar').click();
     await page.getByTestId('intent-new').click();
@@ -78,7 +74,8 @@ test.describe('Onboarding — location labels', () => {
     await page.getByTestId('continue').click();
 
     await expect(page.getByTestId('step-locations')).toBeVisible();
-    await expect(page.getByTestId('onb-location-floor')).toHaveValue('الرف');
-    await expect(page.getByTestId('onb-location-back')).toHaveValue('المخزن');
+    await expect(page.getByTestId('onb-location-floor-select')).toHaveValue('المحل');
+    await expect(page.getByTestId('onb-location-back-select')).toHaveValue('المخزن');
+    await expect(page.getByTestId('onb-location-floor-select')).toHaveAttribute('dir', 'rtl');
   });
 });

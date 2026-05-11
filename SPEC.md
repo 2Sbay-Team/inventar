@@ -563,7 +563,11 @@ ADR-024. `nextInternalCode(db, prefix)` returns `max(tail-where-prefix-matches) 
 
 ### 9.10 Customisable location labels
 
-`ShopProfile.location_floor_label` / `location_back_label` (max 30 chars). Internal `Movement.location` enum stays 'floor' / 'back' for storage and indexing — labels are a pure display alias. Defaults are locale + vertical-aware. Read via `useLocationLabels()` hook.
+`ShopProfile.location_floor_label` / `location_back_label` (max 30 chars). Internal `Movement.location` enum stays 'floor' / 'back' for storage and indexing — labels are a pure display alias. Read via `useLocationLabels()` hook.
+
+**v0.5.2 (ADR-022)**: migration defaults are locale + vertical-aware (`Shelf` vs `Shop floor` etc.). Onboarding and Settings exposed free-text inputs.
+
+**v0.6 (ADR-028)**: onboarding and Settings switch to a `SelectWithCustom` dropdown — 3 predefined options per zone in the merchant's locale (same list across both verticals) plus `+ Type your own`. Picker defaults are locale-only (`Shop floor` / `Magasin` / `المحل` for floor; `Stockroom` / `Réserve` / `المخزن` for back). Migration defaults from ADR-022 still seed the field for pre-existing profiles; a legacy value not in the new option list opens the picker in custom mode with that value pre-filled.
 
 ### 9.11 Defensive layers (v0.5.1, recap)
 
