@@ -104,7 +104,7 @@ export function OnboardingScreen(): JSX.Element {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
-  // v0.5.4 ADR-027 — keying preview state. When the util produces a
+  // v0.5.4 ADR-026 — keying preview state. When the util produces a
   // candidate, render LogoPreviewDialog and let the merchant choose
   // before we commit to setLogoFile. Cleared on close.
   const [logoKeyingCandidate, setLogoKeyingCandidate] = useState<{
@@ -150,7 +150,7 @@ export function OnboardingScreen(): JSX.Element {
         }
         return;
       }
-      // v0.5.4 ADR-027 — try the keying util. Three outcomes:
+      // v0.5.4 ADR-026 — try the keying util. Three outcomes:
       //   keyed → open the preview Dialog (caller picks)
       //   skipped → commit the original silently
       //   rejected (render-error or all-transparent) → toast +

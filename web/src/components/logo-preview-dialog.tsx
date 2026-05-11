@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 
-// v0.5.4 ADR-027 — side-by-side preview shown only when the keying
+// v0.5.4 ADR-026 — side-by-side preview shown only when the keying
 // util produced a candidate. Default selection: transparent (matches
 // merchant expectation 90%+ of the time per the design note). Cream-
 // theme background under both previews makes any keyed-edge halo

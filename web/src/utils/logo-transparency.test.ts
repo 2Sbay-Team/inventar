@@ -8,7 +8,7 @@ import {
   type PixelBuffer,
 } from './logo-transparency';
 
-// v0.5.4 ADR-027 — unit tests for the keying math + threshold gate.
+// v0.5.4 ADR-026 — unit tests for the keying math + threshold gate.
 // Integration coverage (the full analyseLogoForKeying call + blob
 // round-trip + UI confirm flow) lives in the e2e specs 67-71. These
 // tests stay in jsdom where ImageData is constructable and the

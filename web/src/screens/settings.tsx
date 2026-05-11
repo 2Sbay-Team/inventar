@@ -510,7 +510,7 @@ export function SettingsScreen(): JSX.Element {
   const [shopNameDraft, setShopNameDraft] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
-  // v0.5.4 ADR-027 — keying preview state; see onboarding for parallel.
+  // v0.5.4 ADR-026 — keying preview state; see onboarding for parallel.
   const [logoKeyingCandidate, setLogoKeyingCandidate] = useState<{
     originalBlob: Blob;
     keyedBlob: Blob;
@@ -628,7 +628,7 @@ export function SettingsScreen(): JSX.Element {
         }
         return;
       }
-      // v0.5.4 ADR-027 — keying attempt. On 'keyed' we open the
+      // v0.5.4 ADR-026 — keying attempt. On 'keyed' we open the
       // preview Dialog and defer the storePhoto + upsertProfile to
       // the merchant's choice. On 'skipped' / 'rejected' (non-fatal)
       // we proceed straight to store the original compressed blob.

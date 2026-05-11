@@ -1,4 +1,4 @@
-// v0.5.4 ADR-027 — Logo background auto-removal via Canvas color-key.
+// v0.5.4 ADR-026 — Logo background auto-removal via Canvas color-key.
 //
 // Merchants commonly upload logos with a uniform light background
 // (white / off-white) sourced from Google search, screenshots, or
