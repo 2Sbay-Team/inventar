@@ -8,6 +8,7 @@ import { db } from '../db/db';
 import { useLive } from '../hooks/use-live';
 import { useProfile } from '../hooks/use-profile';
 import { quantityFor } from '../repos/quantity';
+import { formatQtyWithUom } from '../config/article-traits';
 import { ExpiryScreen } from './expiry';
 import { type Article } from '../types';
 
@@ -156,10 +157,24 @@ function LowStockList(): JSX.Element {
           <div className="flex flex-1 flex-col">
             <span className="text-ink text-sm font-medium leading-tight">{row.article.name}</span>
             <span className="text-ink-3 mt-0.5 text-[11px]">
-              {t('low_subtitle', {
-                stock: row.totalStock,
-                threshold: row.article.min_stock_threshold,
-              })}
+              {(() => {
+                // v0.5.2.9 — render the stock + threshold with the
+                // article's UoM ("250 g / threshold 500 g" for a
+                // fish article, "3 / threshold 5" for shoes).
+                const uom = row.article.unit_of_measure ?? 'piece';
+                const stockFmt = formatQtyWithUom(row.totalStock, uom);
+                const stockText =
+                  stockFmt.suffix === ''
+                    ? String(stockFmt.value)
+                    : `${stockFmt.value} ${stockFmt.suffix}`;
+                const threshNum = row.article.min_stock_threshold ?? 0;
+                const threshFmt = formatQtyWithUom(threshNum, uom);
+                const threshText =
+                  threshFmt.suffix === ''
+                    ? String(threshFmt.value)
+                    : `${threshFmt.value} ${threshFmt.suffix}`;
+                return t('low_subtitle', { stock: stockText, threshold: threshText });
+              })()}
             </span>
           </div>
           <Link

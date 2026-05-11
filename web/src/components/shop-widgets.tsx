@@ -9,6 +9,7 @@ import { useLive } from '../hooks/use-live';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { lotsExpiringWithin } from '../repos/lots';
+import { formatQtyWithUom } from '../config/article-traits';
 import { expirySnoozeKey, getMeta, META_KEYS } from '../repos/meta';
 import { quantityFor } from '../repos/quantity';
 import { formatCurrency } from '../i18n/format-currency';
@@ -38,7 +39,13 @@ export function ShopWidgets(): JSX.Element | null {
 interface TodayClose {
   txnCount: number;
   revenueMillimes: number;
-  topSellers: Array<{ name: string; qty: number }>;
+  topSellers: Array<{
+    name: string;
+    qty: number;
+    // v0.5.2.9 — UoM snapshot so each row renders with the right
+    // suffix (a fish row shows "0.85 kg", a shoe row stays bare).
+    unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+  }>;
 }
 
 async function computeTodayClose(): Promise<TodayClose> {
@@ -72,7 +79,10 @@ async function computeTodayClose(): Promise<TodayClose> {
   // Aggregate by ARTICLE for top-sellers, not by variant — the same
   // article scanned twice belongs in one bucket. Decision per the
   // v0.5 plan, Q-I.
-  const qtyByArticle = new Map<string, { name: string; qty: number }>();
+  const qtyByArticle = new Map<
+    string,
+    { name: string; qty: number; unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml' }
+  >();
 
   for (const m of movements) {
     const units = Math.abs(m.delta);
@@ -89,7 +99,12 @@ async function computeTodayClose(): Promise<TodayClose> {
     if (m.transaction_id) txnIds.add(m.transaction_id);
     const cur = qtyByArticle.get(articleId);
     if (cur) cur.qty += signed;
-    else qtyByArticle.set(articleId, { name: article.name, qty: signed });
+    else
+      qtyByArticle.set(articleId, {
+        name: article.name,
+        qty: signed,
+        unit_of_measure: article.unit_of_measure ?? 'piece',
+      });
   }
   // Drop articles that net to zero / negative qty from the top-sellers
   // ranking — a customer who bought-and-returned shouldn't appear.
@@ -146,7 +161,9 @@ function TodayCloseWidget(): JSX.Element {
     if (data.topSellers.length === 0) return t('today_close_empty');
     const top = data.topSellers[0];
     if (!top) return t('today_close_empty');
-    return t('today_close_top', { name: top.name, qty: top.qty });
+    const { value, suffix } = formatQtyWithUom(top.qty, top.unit_of_measure);
+    const qtyDisplay = suffix === '' ? String(value) : `${value} ${suffix}`;
+    return t('today_close_top', { name: top.name, qty: qtyDisplay });
   }, [data.topSellers, t]);
 
   return (

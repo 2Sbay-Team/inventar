@@ -8,6 +8,7 @@ import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
+import { formatQtyWithUom } from '../config/article-traits';
 import { quantityFor } from '../repos/quantity';
 
 const LOW_STOCK_THRESHOLD = 3;
@@ -22,6 +23,9 @@ interface LowStockArticle {
   name: string;
   internal_code: string;
   totalUnits: number;
+  // v0.5.2.9 — snapshot the UoM so the list row can render
+  // "850 g" / "1.25 kg" instead of a bare integer.
+  unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
 }
 
 interface OverviewMetrics {
@@ -99,6 +103,7 @@ async function computeOverview(): Promise<OverviewMetrics> {
         name: article.name,
         internal_code: article.internal_code,
         totalUnits: units,
+        unit_of_measure: article.unit_of_measure ?? 'piece',
       });
     }
   }
@@ -233,7 +238,11 @@ export function InventoryOverview(): JSX.Element {
                 <span
                   className={`font-mono flex-shrink-0 ${a.totalUnits === 0 ? 'text-bad' : 'text-warn'}`}
                 >
-                  {formatNumber(a.totalUnits, locale)}
+                  {(() => {
+                    const { value, suffix } = formatQtyWithUom(a.totalUnits, a.unit_of_measure);
+                    const num = formatNumber(value, locale);
+                    return suffix === '' ? num : `${num} ${suffix}`;
+                  })()}
                 </span>
               </li>
             ))}

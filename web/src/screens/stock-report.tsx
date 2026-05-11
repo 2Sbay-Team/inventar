@@ -11,6 +11,7 @@ import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
+import { formatQtyWithUom } from '../config/article-traits';
 import { quantityFor } from '../repos/quantity';
 import { type Article, type Variant } from '../types';
 
@@ -214,7 +215,14 @@ export function StockReportScreen(): JSX.Element {
                       }`}
                       data-testid="report-row-total"
                     >
-                      {formatNumber(aTotal, locale)}
+                      {(() => {
+                        const { value, suffix } = formatQtyWithUom(
+                          aTotal,
+                          article.unit_of_measure ?? 'piece',
+                        );
+                        const num = formatNumber(value, locale);
+                        return suffix === '' ? num : `${num} ${suffix}`;
+                      })()}
                     </span>
                   </div>
                   <div className="text-ink-3 mt-0.5 font-mono text-[10.5px]">

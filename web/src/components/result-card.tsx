@@ -7,7 +7,7 @@ import { formatNumber } from '../i18n/format-number';
 import { type SearchResult } from '../query/search';
 import { PhotoThumb } from './photo-thumb';
 import { StockBadge } from './stock-badge';
-import { internalPriceToInput } from '../config/article-traits';
+import { formatQtyWithUom, internalPriceToInput } from '../config/article-traits';
 
 interface ResultCardProps {
   result: SearchResult;
@@ -69,7 +69,17 @@ export function ResultCard({ result, featured }: ResultCardProps): JSX.Element {
               data-testid="low-stock-badge"
               className="bg-warn-soft text-warn mt-1.5 inline-block self-start rounded px-2 py-0.5 font-mono text-[10.5px] font-medium"
             >
-              {t('low_left', { n: formatNumber(result.totalQty, locale) })}
+              {(() => {
+                // v0.5.2.9 — low-stock badge in the merchant's UoM
+                // ("Low (850 g left)" for a kg article).
+                const { value, suffix } = formatQtyWithUom(
+                  result.totalQty,
+                  article.unit_of_measure ?? 'piece',
+                );
+                const num = formatNumber(value, locale);
+                const display = suffix === '' ? num : `${num} ${suffix}`;
+                return t('low_left', { n: display });
+              })()}
             </span>
           ) : null}
         </div>
