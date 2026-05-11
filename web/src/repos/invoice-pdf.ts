@@ -500,23 +500,29 @@ export async function renderInvoicePdf({
   newLine(ctx, 14);
 
   // ─── Totals (right-aligned column) ────────────────────────────────
+  // v0.5.2.7: if VAT is disabled on this invoice, skip the VAT line
+  // entirely. Older invoices have no vat_enabled field — treat that
+  // as `true` so historical PDFs print exactly as they did before.
+  const vatShown = invoice.vat_enabled ?? true;
   drawText(ctx, labels.subtotal, { x: COL_PRICE_R, rightAlign: true, size: 10 });
   drawText(ctx, formatMoney(invoice.subtotal_minor, invoice.currency), {
     x: COL_TOTAL_R,
     rightAlign: true,
     size: 10,
   });
-  newLine(ctx);
-  drawText(ctx, `${labels.vat} (${invoice.vat_pct}%)`, {
-    x: COL_PRICE_R,
-    rightAlign: true,
-    size: 10,
-  });
-  drawText(ctx, formatMoney(invoice.vat_minor, invoice.currency), {
-    x: COL_TOTAL_R,
-    rightAlign: true,
-    size: 10,
-  });
+  if (vatShown) {
+    newLine(ctx);
+    drawText(ctx, `${labels.vat} (${invoice.vat_pct}%)`, {
+      x: COL_PRICE_R,
+      rightAlign: true,
+      size: 10,
+    });
+    drawText(ctx, formatMoney(invoice.vat_minor, invoice.currency), {
+      x: COL_TOTAL_R,
+      rightAlign: true,
+      size: 10,
+    });
+  }
   newLine(ctx, 6);
   drawHRule(ctx);
   newLine(ctx, 12);

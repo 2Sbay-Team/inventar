@@ -467,7 +467,8 @@
     "invoice_customer_name": "اسم الزبون (اختياري)",
     "invoice_customer_address": "عنوان الزبون (اختياري)",
     "invoice_customer_fiscal_id": "المعرّف الجبائي للزبون (اختياري)",
-    "invoice_vat_label": "نسبة الرسم %"
+    "invoice_vat_label": "نسبة الرسم %",
+    "invoice_vat_apply_label": "تطبيق رسم القيمة المضافة على هذه الفاتورة"
   },
   "receive": {
     "title": "استلام البضاعة",

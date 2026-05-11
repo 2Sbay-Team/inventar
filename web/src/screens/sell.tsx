@@ -92,6 +92,12 @@ export function SellScreen(): JSX.Element {
   const [invoiceCustomerAddress, setInvoiceCustomerAddress] = useState('');
   const [invoiceCustomerFiscalId, setInvoiceCustomerFiscalId] = useState('');
   const [invoiceVatOverride, setInvoiceVatOverride] = useState<string>('');
+  // v0.5.2.7: per-invoice opt-out of VAT. Defaults on so the existing
+  // behaviour is preserved. The merchant flips this off for sales that
+  // shouldn't print a VAT line (exempt goods, B2B reverse charge,
+  // merchant not VAT-registered). When false, the rate input is
+  // hidden, the printed invoice skips the VAT row, and total = subtotal.
+  const [invoiceVatEnabled, setInvoiceVatEnabled] = useState(true);
   // v0.5.1: when a scan resolves to a sized-vertical article, the
   // toast turns into a tappable Link to /article/:id so the merchant
   // can use Quick Adjust on the right (colour, size) cell. Null when
@@ -308,6 +314,7 @@ export function SellScreen(): JSX.Element {
           lines,
           currency,
           vat_pct: vatPct,
+          vat_enabled: invoiceVatEnabled,
           notes: null,
         });
         navigate(`/invoice/${inv.id}`, { replace: true });
@@ -469,6 +476,8 @@ export function SellScreen(): JSX.Element {
           onChangeInvoiceCustomerFiscalId={setInvoiceCustomerFiscalId}
           invoiceVatOverride={invoiceVatOverride}
           onChangeInvoiceVatOverride={setInvoiceVatOverride}
+          invoiceVatEnabled={invoiceVatEnabled}
+          onToggleInvoiceVatEnabled={() => setInvoiceVatEnabled((v) => !v)}
           invoiceDefaultVatPct={profile?.default_vat_pct ?? null}
           tCommon={tCommon}
           t={t}
@@ -634,6 +643,8 @@ function CartDrawer(props: {
   onChangeInvoiceCustomerFiscalId: (v: string) => void;
   invoiceVatOverride: string;
   onChangeInvoiceVatOverride: (v: string) => void;
+  invoiceVatEnabled: boolean;
+  onToggleInvoiceVatEnabled: () => void;
   invoiceDefaultVatPct: number | null;
   tCommon: (k: string) => string;
   t: (k: string, opts?: Record<string, unknown>) => string;
@@ -660,6 +671,8 @@ function CartDrawer(props: {
     onChangeInvoiceCustomerFiscalId,
     invoiceVatOverride,
     onChangeInvoiceVatOverride,
+    invoiceVatEnabled,
+    onToggleInvoiceVatEnabled,
     invoiceDefaultVatPct,
     tCommon,
     t,
@@ -797,28 +810,49 @@ function CartDrawer(props: {
                     dir="ltr"
                     className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
                   />
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="sell-invoice-vat" className="text-ink-3 text-xs">
-                      {t('invoice_vat_label')}
-                    </label>
-                    <input
-                      id="sell-invoice-vat"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={50}
-                      step={1}
-                      data-testid="sell-invoice-vat"
-                      value={invoiceVatOverride}
-                      onChange={(e) => onChangeInvoiceVatOverride(e.target.value)}
-                      placeholder={
-                        invoiceDefaultVatPct != null ? String(invoiceDefaultVatPct) : '0'
-                      }
-                      dir="ltr"
-                      className="border-hair w-20 rounded-lg border px-3 py-2 text-sm"
-                    />
-                    <span className="text-ink-3 text-xs">%</span>
-                  </div>
+                  <button
+                    type="button"
+                    data-testid="sell-invoice-vat-enabled-toggle"
+                    onClick={onToggleInvoiceVatEnabled}
+                    aria-pressed={invoiceVatEnabled}
+                    className="flex w-full items-center gap-2 rounded-lg border border-hair bg-white px-3 py-2 text-start text-xs"
+                  >
+                    <span
+                      aria-hidden
+                      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2 ${
+                        invoiceVatEnabled
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-hair bg-white'
+                      }`}
+                    >
+                      {invoiceVatEnabled ? '✓' : ''}
+                    </span>
+                    <span className="text-ink">{t('invoice_vat_apply_label')}</span>
+                  </button>
+                  {invoiceVatEnabled ? (
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="sell-invoice-vat" className="text-ink-3 text-xs">
+                        {t('invoice_vat_label')}
+                      </label>
+                      <input
+                        id="sell-invoice-vat"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={50}
+                        step={1}
+                        data-testid="sell-invoice-vat"
+                        value={invoiceVatOverride}
+                        onChange={(e) => onChangeInvoiceVatOverride(e.target.value)}
+                        placeholder={
+                          invoiceDefaultVatPct != null ? String(invoiceDefaultVatPct) : '0'
+                        }
+                        dir="ltr"
+                        className="border-hair w-20 rounded-lg border px-3 py-2 text-sm"
+                      />
+                      <span className="text-ink-3 text-xs">%</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </section>

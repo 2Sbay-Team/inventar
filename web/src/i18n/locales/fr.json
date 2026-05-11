@@ -467,7 +467,8 @@
     "invoice_customer_name": "Nom du client (optionnel)",
     "invoice_customer_address": "Adresse du client (optionnel)",
     "invoice_customer_fiscal_id": "Matricule fiscal du client (optionnel)",
-    "invoice_vat_label": "TVA %"
+    "invoice_vat_label": "TVA %",
+    "invoice_vat_apply_label": "Appliquer la TVA à cette facture"
   },
   "receive": {
     "title": "Réception stock",

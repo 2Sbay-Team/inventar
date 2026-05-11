@@ -61,6 +61,11 @@ export interface CreateInvoiceInput {
   // ShopProfile.default_vat_pct and lets the merchant override per
   // invoice; when neither is set, pass 0.
   vat_pct: number;
+  // v0.5.2.7 — optional VAT switch. When false, computeInvoiceTotals
+  // zeroes the VAT amount regardless of vat_pct (so total = subtotal),
+  // and downstream renderers (PDF + screen) skip the VAT line.
+  // Defaults to true for back-compat with callers that don't pass it.
+  vat_enabled?: boolean;
   notes: string | null;
 }
 
@@ -71,16 +76,21 @@ export interface CreateInvoiceInput {
 export function computeInvoiceTotals(
   lines: InvoiceLine[],
   vatPct: number,
+  vatEnabled: boolean = true,
 ): { subtotal_minor: number; vat_minor: number; total_minor: number } {
   const subtotal = lines.reduce((s, l) => s + l.qty * l.unit_price_minor, 0);
-  const vat = Math.round((subtotal * vatPct) / 100);
+  // When VAT is disabled (e.g. exempt sale, B2B with reverse charge,
+  // merchant not VAT-registered) we zero the VAT amount so total =
+  // subtotal regardless of the stored vat_pct.
+  const vat = vatEnabled ? Math.round((subtotal * vatPct) / 100) : 0;
   return { subtotal_minor: subtotal, vat_minor: vat, total_minor: subtotal + vat };
 }
 
 export async function createInvoice(db: InventarDB, input: CreateInvoiceInput): Promise<Invoice> {
   const ts = nowISO();
   const year = ts.slice(0, 4);
-  const totals = computeInvoiceTotals(input.lines, input.vat_pct);
+  const vatEnabled = input.vat_enabled ?? true;
+  const totals = computeInvoiceTotals(input.lines, input.vat_pct, vatEnabled);
   return db.transaction('rw', [db.invoices, db.meta], async () => {
     const seq = await allocateInvoiceNumber(db, year);
     const invoice: Invoice = {
@@ -95,6 +105,7 @@ export async function createInvoice(db: InventarDB, input: CreateInvoiceInput): 
       subtotal_minor: totals.subtotal_minor,
       vat_pct: input.vat_pct,
       vat_minor: totals.vat_minor,
+      vat_enabled: vatEnabled,
       total_minor: totals.total_minor,
       notes: input.notes,
       transaction_id: input.transaction_id,

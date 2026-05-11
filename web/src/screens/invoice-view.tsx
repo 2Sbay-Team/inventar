@@ -255,14 +255,16 @@ export function InvoiceViewScreen(): JSX.Element | null {
               {formatCurrency(invoice.subtotal_minor, locale, cur)}
             </span>
           </div>
-          <div className="text-ink-3 mt-1 flex items-center justify-between text-xs">
-            <span>
-              {t('vat')} ({invoice.vat_pct}%)
-            </span>
-            <span data-testid="invoice-vat" className="font-mono tabular-nums" dir="ltr">
-              {formatCurrency(invoice.vat_minor, locale, cur)}
-            </span>
-          </div>
+          {(invoice.vat_enabled ?? true) ? (
+            <div className="text-ink-3 mt-1 flex items-center justify-between text-xs">
+              <span>
+                {t('vat')} ({invoice.vat_pct}%)
+              </span>
+              <span data-testid="invoice-vat" className="font-mono tabular-nums" dir="ltr">
+                {formatCurrency(invoice.vat_minor, locale, cur)}
+              </span>
+            </div>
+          ) : null}
           <div className="border-hair mt-2 flex items-center justify-between border-t pt-2 text-base font-semibold">
             <span>{t('total')}</span>
             <span data-testid="invoice-total" className="font-mono tabular-nums" dir="ltr">

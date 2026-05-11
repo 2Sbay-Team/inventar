@@ -157,6 +157,60 @@ describe('invoice PDF (ADR-024)', () => {
     expect(doc.getPageCount()).toBe(1);
   });
 
+  it('vat_enabled=false suppresses the VAT line from the PDF', async () => {
+    const noVatInvoice: Invoice = {
+      ...INVOICE,
+      vat_pct: 19,
+      vat_minor: 0,
+      vat_enabled: false,
+      total_minor: INVOICE.subtotal_minor, // total = subtotal when VAT off
+    };
+    const bytesNoVat = await renderInvoicePdf({
+      invoice: noVatInvoice,
+      profile: PROFILE,
+      locale: 'en',
+    });
+    const bytesWithVat = await renderInvoicePdf({
+      invoice: INVOICE,
+      profile: PROFILE,
+      locale: 'en',
+    });
+    // Inflate + hex-decode both; the no-VAT render must NOT include the
+    // VAT line literal, while the with-VAT render must.
+    async function extract(bytes: Uint8Array): Promise<string> {
+      const { PDFDocument, PDFRawStream } = await import('pdf-lib');
+      const zlib = await import('node:zlib');
+      const doc = await PDFDocument.load(bytes);
+      const out: string[] = [];
+      for (const obj of doc.context.enumerateIndirectObjects()) {
+        const [, pdfObject] = obj;
+        if (!(pdfObject instanceof PDFRawStream)) continue;
+        try {
+          const inflated = zlib.inflateSync(Buffer.from(pdfObject.contents));
+          const binary = inflated.toString('binary');
+          out.push(binary);
+          out.push(
+            binary.replace(/<([0-9A-Fa-f]+)>/g, (_, hex: string) => {
+              let s = '';
+              for (let i = 0; i + 1 < hex.length; i += 2) {
+                s += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+              }
+              return s;
+            }),
+          );
+        } catch {
+          // skip
+        }
+      }
+      return out.join('\n');
+    }
+    const noVatTxt = await extract(bytesNoVat);
+    const withVatTxt = await extract(bytesWithVat);
+    expect(withVatTxt).toContain('VAT (19%)');
+    expect(noVatTxt).not.toContain('VAT (19%)');
+    expect(noVatTxt).not.toContain('VAT (');
+  });
+
   it('falls back gracefully when the logo blob is malformed', async () => {
     // 8 random bytes — not a PNG, not a JPEG. The renderer's
     // detect-by-magic-bytes path should skip embedding and still

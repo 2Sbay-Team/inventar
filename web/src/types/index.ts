@@ -423,6 +423,12 @@ export interface Invoice {
   // default_vat_pct at issue but the merchant may override per-invoice.
   vat_pct: number;
   vat_minor: number;
+  // v0.5.2.7 — optional VAT switch. When `false`, the VAT line is
+  // suppressed on both the screen view and the PDF: total = subtotal,
+  // no "VAT (X%)" row prints. Older invoices (pre-v0.5.2.7) don't
+  // store this field — read with `?? true` so the historical
+  // behaviour (VAT always shown) is preserved on every existing row.
+  vat_enabled?: boolean;
   total_minor: number;
   notes: string | null;
   // Link back to the /sell transaction this invoice was generated from.
