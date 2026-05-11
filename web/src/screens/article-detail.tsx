@@ -10,7 +10,7 @@ import { PhotoThumb } from '../components/photo-thumb';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Camera, Minus, Plus, QrCode, X } from 'lucide-react';
 import { ArticleQR } from '../components/article-qr';
-import { STORE_TYPES } from '../config/store-types';
+import { articleHasExpiry, articleHasSizes } from '../config/article-traits';
 import { useArticleDetail } from '../hooks/use-article-detail';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
@@ -33,13 +33,10 @@ export function ArticleDetailScreen(): JSX.Element {
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
-  const storeCfg = STORE_TYPES[profile?.store_type ?? 'shoes'];
-  const needsSizes = storeCfg.has_sizes;
-  // v0.5 ADR-017: shop articles get an inline min-stock-threshold
-  // editor near the price/stock strip. Other verticals don't surface
-  // it (the field still exists on Article and round-trips via backup
-  // import — just no UI to set it).
-  const showMinStockEditor = storeCfg.has_expiry;
+  // v0.5.2.9 (Phase B): article-level trait overrides resolved via
+  // helpers — fall back to the store_type default when the article's
+  // override is null. needsSizes / showMinStockEditor land after the
+  // article is loaded so the helper has a row to read.
 
   const [adjustTarget, setAdjustTarget] = useState<QuickAdjustTarget | null>(null);
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
@@ -132,6 +129,10 @@ export function ArticleDetailScreen(): JSX.Element {
 
   const article = detail.article;
   const totalQty = detail.sizes.reduce((sum, c) => sum + Math.max(0, c.qty), 0);
+  // Phase B: read traits via the helpers so a per-article override wins
+  // over the store_type default (null on the article = use store_type).
+  const needsSizes = articleHasSizes(article, profile ?? null);
+  const showMinStockEditor = articleHasExpiry(article, profile ?? null);
 
   function openAdjust(cell: SizeGridCell, reason: MovementType): void {
     setAdjustReason(reason);
