@@ -653,6 +653,12 @@
     "locations_body": "Settings → Stock locations. Change the names of your front (display) and back (storage) zones to match how you talk about them in your shop. The new labels appear everywhere quantities are shown. Clear a field and save to restore the default for your language.",
     "subtypes_custom_title": "Custom categories",
     "subtypes_custom_body": "At onboarding (or anytime in Settings → Categories), you can add your own category labels alongside the predefined ones — e.g. tabac, halal_meat, bio. Custom labels are stored exactly as you type them and never auto-translate.",
+    "updates_consent_title": "Why does the app ask before updating now?",
+    "updates_consent_body": "We respect your choice. When we ship improvements, you decide when — or whether — to install them. Your inventory data is never touched by updates.",
+    "updates_skipping_title": "What if I keep skipping updates?",
+    "updates_skipping_body": "The app keeps working with the version you have. But you may miss bug fixes and new features. We recommend installing updates when convenient.",
+    "updates_server_down_title": "What if your server goes down?",
+    "updates_server_down_body": "The app keeps working offline from your phone. You won't get new updates until the server is back, but everything you've already entered is safe on your device.",
     "troubleshoot_title": "If the app won't open or behaves strangely",
     "troubleshoot_body": "1) Wait 10 seconds — a Clear cache & reload button appears if the app is stuck. 2) Open Settings → Maintenance to clear cached files without losing your data. 3) If you can't reach Settings, open your browser site settings and tap Clear & reset for inventar.hoodhood.ai. Your shop data is in the device's storage — only the app code is being refreshed.",
     "footer_note": "Lost or stuck? Open Settings → Maintenance for the safe clear option, or Settings → Reset everything for a full wipe. Back up first.",
@@ -697,5 +703,18 @@
     "past_invoices_title": "Past invoices",
     "past_invoices_link": "View past invoices",
     "past_invoices_empty": "No invoices issued yet."
+  },
+  "updates": {
+    "title_with_version": "New version available — v{{version}}",
+    "title_generic": "New version available",
+    "subtitle": "Choose when to install — it's your decision.",
+    "whats_new_heading": "What's new",
+    "whats_new_fallback": "We've made improvements and fixed some bugs.",
+    "data_safe": "Your data stays exactly the same.",
+    "install_now": "Install now",
+    "installing": "Updating…",
+    "snooze": "Remind me tomorrow",
+    "skip": "Skip this version",
+    "welcome": "Welcome to v{{version}} ✓"
   }
 }

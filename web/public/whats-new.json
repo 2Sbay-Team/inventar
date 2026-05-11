@@ -1,0 +1,21 @@
+{
+  "version": "0.5.4",
+  "released_at": "2026-05-11",
+  "highlights": {
+    "en": [
+      "Faster article search across large catalogues",
+      "Fixed a rare crash on the dashboard, alerts banner, and quick-adjust screens",
+      "Stock display now respects each article's unit of measure"
+    ],
+    "fr": [
+      "Recherche d'articles plus rapide sur les grands catalogues",
+      "Correction d'un crash rare sur le tableau de bord, la bannière d'alertes et l'ajustement rapide",
+      "L'affichage des stocks respecte désormais l'unité de mesure de chaque article"
+    ],
+    "ar": [
+      "بحث أسرع عن المنتجات في الكتالوجات الكبيرة",
+      "إصلاح عطل نادر في لوحة المعلومات وشريط التنبيهات وشاشة التعديل السريع",
+      "عرض المخزون يحترم الآن وحدة قياس كل منتج"
+    ]
+  }
+}

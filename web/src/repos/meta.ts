@@ -81,6 +81,23 @@ export const META_KEYS = {
   // /sell-side invoice issuer reads + increments this atomically
   // inside the same Dexie transaction that writes the invoice row.
   invoice_counter: 'invoice_counter',
+  // v0.6 ADR-030: user-controlled update consent flow. The picker on
+  // a waiting SW honours these.
+  //   update_snooze_until    — ISO timestamp; modal suppressed while
+  //                            now() < this
+  //   update_snoozed_version — version string the snooze was set for;
+  //                            cleared automatically when a different
+  //                            version becomes available
+  //   update_skipped_versions— array<string>; modal never re-shows for
+  //                            any version in this list
+  //   update_just_installed  — version string written immediately
+  //                            before reload-on-consent; on next boot
+  //                            we surface a one-shot "Welcome to vX"
+  //                            toast and clear the key
+  update_snooze_until: 'update_snooze_until',
+  update_snoozed_version: 'update_snoozed_version',
+  update_skipped_versions: 'update_skipped_versions',
+  update_just_installed: 'update_just_installed',
 } as const;
 
 // v0.5 ADR-019: per-variant snooze for the expiry banner. The banner
