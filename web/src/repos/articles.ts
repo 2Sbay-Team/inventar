@@ -1,6 +1,13 @@
 import { type InventarDB } from '../db/db';
 import { computeSearchBlob } from '../query/search-blob';
-import { type Article, type Category, type Movement, type UUID, type Variant } from '../types';
+import {
+  type Article,
+  type Category,
+  type Movement,
+  type Uom,
+  type UUID,
+  type Variant,
+} from '../types';
 import { nowISO } from '../utils/now';
 import { newUUID } from '../utils/uuid';
 import { nextInternalCode } from './internal-code';
@@ -65,7 +72,7 @@ interface CreateArticleInputCommon {
   has_expiry?: boolean | null;
   // v0.5.2.9 (UoM) — display + qty-input precision. Defaults to
   // 'piece' when omitted, which matches the historical convention.
-  unit_of_measure?: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+  unit_of_measure?: Uom;
 }
 
 export interface CreateArticleInputV2 extends CreateArticleInputCommon {

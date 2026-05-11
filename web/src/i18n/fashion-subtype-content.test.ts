@@ -58,3 +58,41 @@ describe('onboarding.fashion_subtypes_subtitle does not leak internal IDs (Issue
     expect(s).toContain('ملابس الأطفال');
   });
 });
+
+describe('Unit field — label rename and dropdown labels (Issues 3 + 4)', () => {
+  it('EN: field_uom label is "Unit" (was "Sold by")', () => {
+    expect(en.add.field_uom).toBe('Unit');
+  });
+  it('FR: field_uom label is "Unité"', () => {
+    expect(fr.add.field_uom).toBe('Unité');
+  });
+  it('AR: field_uom label is "وحدة"', () => {
+    expect(ar.add.field_uom).toBe('وحدة');
+  });
+
+  it('EN: all nine UoM dropdown labels are populated', () => {
+    expect(en.add.uom_piece).toBe('Piece');
+    expect(en.add.uom_pair).toBe('Pair');
+    expect(en.add.uom_pack).toBe('Pack');
+    expect(en.add.uom_dozen).toBe('Dozen');
+    expect(en.add.uom_kg).toBe('kg');
+    expect(en.add.uom_g).toBe('g');
+    expect(en.add.uom_l).toBe('l');
+    expect(en.add.uom_ml).toBe('ml');
+    expect(en.add.uom_meter).toBe('Meter');
+  });
+
+  it('FR: pair / pack / dozen / meter translated', () => {
+    expect(fr.add.uom_pair).toBe('Paire');
+    expect(fr.add.uom_pack).toBe('Pack');
+    expect(fr.add.uom_dozen).toBe('Douzaine');
+    expect(fr.add.uom_meter).toBe('Mètre');
+  });
+
+  it('AR: pair / pack / dozen / meter translated', () => {
+    expect(ar.add.uom_pair).toBe('زوج');
+    expect(ar.add.uom_pack).toBe('حزمة');
+    expect(ar.add.uom_dozen).toBe('دستة');
+    expect(ar.add.uom_meter).toBe('متر');
+  });
+});

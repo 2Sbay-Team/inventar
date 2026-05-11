@@ -13,7 +13,7 @@ import { formatQtyWithUom } from '../config/article-traits';
 import { expirySnoozeKey, getMeta, META_KEYS } from '../repos/meta';
 import { quantityFor } from '../repos/quantity';
 import { formatCurrency } from '../i18n/format-currency';
-import { type Article, type Movement } from '../types';
+import { type Article, type Movement, type Uom } from '../types';
 
 const DEFAULT_THRESHOLD_DAYS = 7;
 
@@ -44,7 +44,7 @@ interface TodayClose {
     qty: number;
     // v0.5.2.9 — UoM snapshot so each row renders with the right
     // suffix (a fish row shows "0.85 kg", a shoe row stays bare).
-    unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+    unit_of_measure: Uom;
   }>;
 }
 
@@ -79,10 +79,7 @@ async function computeTodayClose(): Promise<TodayClose> {
   // Aggregate by ARTICLE for top-sellers, not by variant — the same
   // article scanned twice belongs in one bucket. Decision per the
   // v0.5 plan, Q-I.
-  const qtyByArticle = new Map<
-    string,
-    { name: string; qty: number; unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml' }
-  >();
+  const qtyByArticle = new Map<string, { name: string; qty: number; unit_of_measure: Uom }>();
 
   for (const m of movements) {
     const units = Math.abs(m.delta);
