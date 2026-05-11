@@ -194,6 +194,23 @@ describe('formatQtyWithUom — storage → display pair', () => {
     expect(formatQtyWithUom(500, 'l')).toEqual({ value: 500, suffix: 'ml' });
     expect(formatQtyWithUom(1500, 'l')).toEqual({ value: 1.5, suffix: 'l' });
   });
+
+  it('falls back to piece-like display for undefined / unknown uom (defensive)', () => {
+    // Pre-v12 rows or fashion variants can carry an undefined or
+    // legacy-string uom value past the TS type at runtime. Without a
+    // default branch the function returned undefined and every caller
+    // destructuring `{ value, suffix }` crashed its screen via the
+    // ErrorBoundary ("Cannot destructure property 'value' of …
+    // undefined" / WebKit's "Right side of assignment cannot be
+    // destructured"). The dashboard, alerts banner, quick-adjust sheet
+    // and search results card all read this function.
+    expect(
+      formatQtyWithUom(5, undefined as unknown as Parameters<typeof formatQtyWithUom>[1]),
+    ).toEqual({ value: 5, suffix: '' });
+    expect(
+      formatQtyWithUom(3, 'bogus' as unknown as Parameters<typeof formatQtyWithUom>[1]),
+    ).toEqual({ value: 3, suffix: '' });
+  });
 });
 
 describe('formatQtyString — full display string', () => {

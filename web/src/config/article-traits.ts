@@ -112,6 +112,13 @@ export function formatQtyWithUom(internalQty: number, uom: Uom): { value: number
       return abs >= 1000
         ? { value: internalQty / 1000, suffix: 'l' }
         : { value: internalQty, suffix: 'ml' };
+    default:
+      // Defensive fallback for un-migrated rows or fashion variants that
+      // sneak an undefined/unknown uom past the type checker at runtime.
+      // Without this every quantity surface (dashboard, alerts, quick
+      // adjust, search results) crashes the entire screen via the
+      // destructure `const { value, suffix } = formatQtyWithUom(...)`.
+      return { value: internalQty, suffix: '' };
   }
 }
 
