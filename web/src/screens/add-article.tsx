@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, ScanLine, Trash2 } from 'lucide-react';
@@ -168,6 +168,12 @@ export function AddArticleScreen(): JSX.Element {
   const [dupDismissed, setDupDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // v0.5.2.7: when Save fails validation, surface a top-of-form banner
+  // *and* scroll to the first inline error. Previously the merchant
+  // tapped Save, nothing visible changed, and the small red error text
+  // sat below the fold of a long form. See the saveError banner near
+  // the top of Step 2 and the scrollToFirstError() call below.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const skuPrefix = storeCfg.sku_prefix;
@@ -291,6 +297,7 @@ export function AddArticleScreen(): JSX.Element {
   }
 
   async function continueToStep2(): Promise<void> {
+    setSaveError(null);
     const stepErrors = validateStep1();
     setErrors(stepErrors);
     if (Object.keys(stepErrors).length > 0) return;
@@ -314,10 +321,33 @@ export function AddArticleScreen(): JSX.Element {
     setStep(2);
   }
 
+  function scrollToFirstError(errorKeys: string[]): void {
+    if (errorKeys.length === 0) return;
+    // Resolve the data-testid the inline error renders under. Mirrors
+    // the testid scheme used elsewhere on this form.
+    const key = errorKeys[0]!;
+    const targetTestId =
+      key === 'photo' ? 'err-photo' : key === 'stock' ? 'err-stock' : `err-${key}`;
+    // Run after the next paint so the error nodes exist in the DOM.
+    requestAnimationFrame(() => {
+      const el =
+        document.querySelector(`[data-testid="${targetTestId}"]`) ??
+        // Fallback: scroll to the input itself if no err-* node was rendered
+        // (defensive — every validation branch above does set one).
+        document.querySelector(`[data-testid="${key}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
   async function save(): Promise<void> {
+    setSaveError(null);
     const stepErrors = validateStep2();
     setErrors(stepErrors);
-    if (Object.keys(stepErrors).length > 0) return;
+    if (Object.keys(stepErrors).length > 0) {
+      setSaveError(t('err_save_summary'));
+      scrollToFirstError(Object.keys(stepErrors));
+      return;
+    }
     setSubmitting(true);
     try {
       const cost = Math.max(0, parseCurrency(basics.costInput, locale, currency) ?? 0);
@@ -438,6 +468,7 @@ export function AddArticleScreen(): JSX.Element {
           dismissDuplicate={() => setDupDismissed(true)}
           tColor={tColor}
           errors={errors}
+          saveError={saveError}
           shopOptIn={
             storeType === 'shop'
               ? {
@@ -650,6 +681,9 @@ interface Step2Props {
   dismissDuplicate: () => void;
   tColor: (k: string) => string;
   errors: Record<string, string>;
+  // Top-of-form save error summary. Set when the merchant taps Save and
+  // validation rejects — paired with scrollToFirstError in the parent.
+  saveError: string | null;
   // v0.5.1: shop-only opt-in to sizes / colours per article. Null
   // for non-shop verticals (which always have the built-in answer).
   shopOptIn: {
@@ -678,6 +712,7 @@ function Step2(props: Step2Props): JSX.Element {
     dismissDuplicate,
     tColor,
     errors,
+    saveError,
     shopOptIn,
   } = props;
 
@@ -714,6 +749,15 @@ function Step2(props: Step2Props): JSX.Element {
         </div>
       ) : null}
 
+      {saveError ? (
+        <div
+          data-testid="add-save-error"
+          role="alert"
+          className="bg-bad/10 border-bad/30 text-bad rounded-xl border px-3 py-2 text-sm"
+        >
+          {saveError}
+        </div>
+      ) : null}
       {errors.photo ? (
         <p data-testid="err-photo" className="text-bad text-xs">
           {errors.photo}
@@ -956,43 +1000,62 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
               ))}
             </datalist>
           ) : null}
-          {block.sizes.map((row, j) => (
-            <div key={j} className="flex items-center gap-2">
-              <input
-                data-testid={`block-${index}-size-${j}-input`}
-                type="text"
-                value={row.size}
-                onChange={(e) => patchBlockSize(index, j, { size: e.target.value })}
-                placeholder={t('size_placeholder')}
-                list={sizeHintValues.length > 0 ? `block-${index}-size-hints` : undefined}
-                className="border-hair w-16 rounded-lg border bg-white px-2 py-1.5 font-mono text-sm"
-                inputMode="numeric"
-              />
-              <Stepper
-                testId={`block-${index}-size-${j}-floor`}
-                label={labels.floor}
-                value={row.floor}
-                onChange={(v) => patchBlockSize(index, j, { floor: v })}
-              />
-              <Stepper
-                testId={`block-${index}-size-${j}-back`}
-                label={labels.back}
-                value={row.back}
-                onChange={(v) => patchBlockSize(index, j, { back: v })}
-              />
-              {block.sizes.length > 1 ? (
-                <button
-                  type="button"
-                  data-testid={`block-${index}-size-${j}-remove`}
-                  onClick={() => removeSizeRow(index, j)}
-                  className="text-ink-3"
-                  aria-label={t('remove_size_row')}
-                >
-                  <Trash2 aria-hidden className="h-4 w-4" strokeWidth={2} />
-                </button>
-              ) : null}
-            </div>
-          ))}
+          {block.sizes.map((row, j) => {
+            // v0.5.2.7: inputMode follows the suggested values for the
+            // merchant's fashion sub-types. If ANY suggestion contains
+            // a non-digit (e.g. 'M', 'XL', '3M', '6Y'), open the text
+            // keyboard so the merchant doesn't have to fight a numeric
+            // pad to type letter sizes. Pure-digit suggestions still
+            // get the numeric keypad.
+            const inputModeForSize: 'numeric' | 'text' =
+              sizeHintValues.length === 0 || sizeHintValues.every((v) => /^\d+$/.test(v))
+                ? 'numeric'
+                : 'text';
+            return (
+              <Fragment key={j}>
+                <div className="flex items-center gap-2">
+                  <input
+                    data-testid={`block-${index}-size-${j}-input`}
+                    type="text"
+                    value={row.size}
+                    onChange={(e) => patchBlockSize(index, j, { size: e.target.value })}
+                    placeholder={t('size_placeholder')}
+                    list={sizeHintValues.length > 0 ? `block-${index}-size-hints` : undefined}
+                    className="border-hair w-16 rounded-lg border bg-white px-2 py-1.5 font-mono text-sm"
+                    inputMode={inputModeForSize}
+                  />
+                  <Stepper
+                    testId={`block-${index}-size-${j}-floor`}
+                    label={labels.floor}
+                    value={row.floor}
+                    onChange={(v) => patchBlockSize(index, j, { floor: v })}
+                  />
+                  <Stepper
+                    testId={`block-${index}-size-${j}-back`}
+                    label={labels.back}
+                    value={row.back}
+                    onChange={(v) => patchBlockSize(index, j, { back: v })}
+                  />
+                  {block.sizes.length > 1 ? (
+                    <button
+                      type="button"
+                      data-testid={`block-${index}-size-${j}-remove`}
+                      onClick={() => removeSizeRow(index, j)}
+                      className="text-ink-3"
+                      aria-label={t('remove_size_row')}
+                    >
+                      <Trash2 aria-hidden className="h-4 w-4" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </div>
+                {errors[`block-${index}-size-${j}`] ? (
+                  <p data-testid={`err-block-${index}-size-${j}`} className="text-bad text-xs">
+                    {errors[`block-${index}-size-${j}`]}
+                  </p>
+                ) : null}
+              </Fragment>
+            );
+          })}
           <button
             type="button"
             data-testid={`block-${index}-add-size`}

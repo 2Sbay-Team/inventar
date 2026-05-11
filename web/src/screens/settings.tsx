@@ -24,8 +24,15 @@ import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/
 import { listSupportedCurrencies } from '../i18n/currency';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
+import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
 import { ChevronRight, Download as DownloadIcon, Smartphone } from 'lucide-react';
-import { type CurrencyCode, type Locale, type ShopSubtype, type StoreType } from '../types';
+import {
+  type CurrencyCode,
+  type FashionSubtype,
+  type Locale,
+  type ShopSubtype,
+  type StoreType,
+} from '../types';
 
 const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 
@@ -464,6 +471,7 @@ export function SettingsScreen(): JSX.Element {
   const { t: tCommon } = useTranslation('common');
   const { t: tStoreTypes } = useTranslation('store_types');
   const { t: tShopSubtypes } = useTranslation('shop_subtypes');
+  const { t: tFashionSubtypes } = useTranslation('fashion_subtypes');
   const { locale, setLocale } = useLocale();
   const profile = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -660,6 +668,23 @@ export function SettingsScreen(): JSX.Element {
       name: profile.name,
       locale: profile.locale,
       shop_subtypes: next,
+    });
+  }
+
+  // v0.5.2.7: same toggle pattern for the fashion vertical. Without
+  // this, a merchant who picked only `shoes` at onboarding had no way
+  // to later add clothing_men / clothing_women etc. — and therefore no
+  // access to the letter-size autocomplete (XS / S / M / L / XL ...).
+  async function toggleFashionSubtype(st: FashionSubtype): Promise<void> {
+    if (!profile) return;
+    const current = profile.fashion_subtypes;
+    const wouldRemove = current.includes(st);
+    if (wouldRemove && current.length === 1) return;
+    const next = wouldRemove ? current.filter((s) => s !== st) : [...current, st];
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      fashion_subtypes: next,
     });
   }
 
@@ -902,6 +927,59 @@ export function SettingsScreen(): JSX.Element {
           </section>
         ) : null}
 
+        {profile?.store_type === 'fashion' ? (
+          <section
+            data-testid="section-fashion-subtypes"
+            className="border-hair rounded-2xl border bg-white p-4"
+          >
+            <h3 className="font-display text-base font-medium mb-1">
+              {t('fashion_subtypes_title')}
+            </h3>
+            <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('fashion_subtypes_hint')}</p>
+            <div data-testid="settings-fashion-subtypes" className="space-y-2">
+              {FASHION_SUBTYPE_ORDER.map((st) => {
+                const cfg = FASHION_SUBTYPE_CONFIG[st];
+                const active = profile.fashion_subtypes.includes(st);
+                const isLastSelected = active && profile.fashion_subtypes.length === 1;
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    data-testid={`settings-fashion-subtype-${st}`}
+                    onClick={() => void toggleFashionSubtype(st)}
+                    disabled={isLastSelected}
+                    aria-pressed={active}
+                    title={isLastSelected ? t('fashion_subtypes_min_one') : undefined}
+                    className={`active:scale-[0.99] flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-80 ${
+                      active
+                        ? 'border-accent bg-accent-soft/40'
+                        : 'border-hair bg-white hover:border-accent/40'
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 ${
+                        active ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
+                      }`}
+                    >
+                      {active ? '✓' : ''}
+                    </span>
+                    <span className="flex flex-1 flex-col">
+                      <span className="text-ink text-sm font-medium leading-tight">
+                        {tFashionSubtypes(cfg.label_key)}
+                      </span>
+                      <span className="text-ink-3 mt-0.5 text-[11px] leading-snug">
+                        {tFashionSubtypes(cfg.desc_key)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-ink-3 mt-2 text-[11px]">{t('fashion_subtypes_min_one')}</p>
+          </section>
+        ) : null}
+
         {profile?.store_type === 'shop' ? (
           <ExpiryThresholdSection profileLoaded={Boolean(profile)} />
         ) : null}
@@ -909,6 +987,12 @@ export function SettingsScreen(): JSX.Element {
         {profile?.store_type === 'shop' ? (
           <EanStrictSection profileLoaded={Boolean(profile)} />
         ) : null}
+
+        {/* v0.5.2.7: surfaced Invoicing higher in the list — merchants
+            reported they couldn't find legal name / address / fiscal ID /
+            VAT or the Past Invoices link when these lived at the bottom
+            of Settings. */}
+        <InvoicingSection />
 
         <section
           data-testid="section-install"
@@ -1097,8 +1181,6 @@ export function SettingsScreen(): JSX.Element {
         </section>
 
         <StockLocationsSection />
-
-        <InvoicingSection />
 
         <MaintenanceSection />
 
