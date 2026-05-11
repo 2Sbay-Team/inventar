@@ -2,6 +2,7 @@
   "common": {
     "back": "رجوع",
     "cancel": "إلغاء",
+    "select_custom": "+ اكتب الخاص بك",
     "save": "حفظ",
     "confirm": "تأكيد",
     "delete": "حذف",

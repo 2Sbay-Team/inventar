@@ -2,6 +2,7 @@
   "common": {
     "back": "Retour",
     "cancel": "Annuler",
+    "select_custom": "+ Saisir le vôtre",
     "save": "Enregistrer",
     "confirm": "Confirmer",
     "delete": "Supprimer",
