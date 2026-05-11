@@ -212,6 +212,11 @@ interface DrawOpts {
   // When true, x is treated as the RIGHT edge and the text is drawn
   // ending at that x. Used for Arabic / right-aligned columns.
   rightAlign?: boolean;
+  // v0.5.2.8: when true, x is treated as the CENTER point and the
+  // text is drawn centered on that x. Used for the centered header
+  // (logo / store name / address / phone / fiscal id all align on
+  // the page midline regardless of length).
+  centerAlign?: boolean;
 }
 
 // Splits a mixed-script string into consecutive runs, each tagged
@@ -254,7 +259,7 @@ function drawText(ctx: DrawCtx, text: string, opts: DrawOpts): void {
   if (ctx.arabic == null || !containsArabic(text)) {
     const rendered = safeLatin(text);
     const width = helv.widthOfTextAtSize(rendered, size);
-    const x = opts.rightAlign ? opts.x - width : opts.x;
+    const x = opts.centerAlign ? opts.x - width / 2 : opts.rightAlign ? opts.x - width : opts.x;
     ctx.page.drawText(rendered, { x, y: ctx.y, size, font: helv, color: rgb(0.12, 0.12, 0.13) });
     return;
   }
@@ -282,7 +287,11 @@ function drawText(ctx: DrawCtx, text: string, opts: DrawOpts): void {
   // edge and the text grows rightward. Without this distinction
   // left-anchored Arabic fields (legal_name at MARGIN, address lines,
   // notes) get clipped off the left page edge.
-  let cursorX = opts.rightAlign ? opts.x - totalWidth : opts.x;
+  let cursorX = opts.centerAlign
+    ? opts.x - totalWidth / 2
+    : opts.rightAlign
+      ? opts.x - totalWidth
+      : opts.x;
   for (const p of prepared) {
     ctx.page.drawText(p.rendered, {
       x: cursorX,
@@ -344,7 +353,7 @@ export async function renderInvoicePdf({
   const page = doc.addPage([PAGE_W, PAGE_H]);
   const labels = LABELS[locale];
 
-  // ─── Logo (v0.5.2.7): embed at top-left if the merchant set one.
+  // ─── Logo (v0.5.2.7+v0.5.2.8): centered at the top of the page.
   // Detect mime via the blob's `type` first; fall back to inspecting
   // the magic bytes (JPEG: FF D8 FF, PNG: 89 50 4E 47) so a row with
   // an empty `type` doesn't silently get skipped. Failures are
@@ -370,74 +379,88 @@ export async function renderInvoicePdf({
       embeddedLogo = null;
     }
   }
-  // Reserve a 48pt-high logo slot at the top of the page. When no logo
-  // is present we collapse it to zero so existing layouts stay identical.
-  const LOGO_BOX = 48;
-  const logoSpace = embeddedLogo ? LOGO_BOX + 8 : 0;
+  // v0.5.2.8: logo box bumped from 48 → 80pt so the merchant's brand
+  // is actually visible on a printed A4. Drawn centered, not left.
+  const LOGO_BOX = 80;
+  const CENTER_X = PAGE_W / 2;
+  let topCursorY = PAGE_H - MARGIN;
+  if (embeddedLogo) {
+    const scale = Math.min(LOGO_BOX / embeddedLogo.width, LOGO_BOX / embeddedLogo.height);
+    const w = embeddedLogo.width * scale;
+    const h = embeddedLogo.height * scale;
+    page.drawImage(embeddedLogo, {
+      x: CENTER_X - w / 2,
+      y: PAGE_H - MARGIN - h,
+      width: w,
+      height: h,
+    });
+    topCursorY = PAGE_H - MARGIN - h - 6;
+  }
 
   const ctx: DrawCtx = {
     page,
     font,
     bold,
     arabic,
-    y: PAGE_H - MARGIN - logoSpace,
+    y: topCursorY,
     doc,
     currency: invoice.currency,
   };
 
-  if (embeddedLogo) {
-    // Preserve aspect ratio inside an LOGO_BOX × LOGO_BOX bounding box,
-    // anchored at top-left of the header.
-    const scale = Math.min(LOGO_BOX / embeddedLogo.width, LOGO_BOX / embeddedLogo.height);
-    const w = embeddedLogo.width * scale;
-    const h = embeddedLogo.height * scale;
-    page.drawImage(embeddedLogo, {
-      x: MARGIN,
-      y: PAGE_H - MARGIN - h,
-      width: w,
-      height: h,
-    });
-  }
-
-  // ─── Header: shop info + INVOICE label + number ───────────────────
+  // ─── Centered header: legal_name → address → phone → fiscal_id ────
+  // v0.5.2.8: rebuilt as a centered block so the issuer's brand sits
+  // at the top of the invoice the way most printed Tunisian /
+  // Maghrebi receipts present it. The "INVOICE" / "FACTURE" / "فاتورة"
+  // label sits below this block on its own line; the number + date
+  // go to the right just before the customer block.
   drawText(ctx, profile?.legal_name ?? profile?.name ?? '', {
-    x: MARGIN,
+    x: CENTER_X,
+    centerAlign: true,
     bold: true,
-    size: 14,
+    size: 16,
   });
-  drawText(ctx, labels.invoice, { x: PAGE_W - MARGIN, rightAlign: true, bold: true, size: 16 });
-  newLine(ctx, 20);
+  newLine(ctx, 18);
 
   if (profile?.legal_address) {
     for (const line of profile.legal_address.split('\n')) {
-      drawText(ctx, line, { x: MARGIN, size: 9 });
+      drawText(ctx, line, { x: CENTER_X, centerAlign: true, size: 9 });
       newLine(ctx, 11);
     }
   }
   if (profile?.phone) {
-    drawText(ctx, `${labels.tel} ${profile.phone}`, { x: MARGIN, size: 9 });
+    drawText(ctx, `${labels.tel} ${profile.phone}`, {
+      x: CENTER_X,
+      centerAlign: true,
+      size: 9,
+    });
     newLine(ctx, 11);
   }
   if (profile?.fiscal_id) {
-    drawText(ctx, `${labels.tax_id} ${profile.fiscal_id}`, { x: MARGIN, size: 9 });
+    drawText(ctx, `${labels.tax_id} ${profile.fiscal_id}`, {
+      x: CENTER_X,
+      centerAlign: true,
+      size: 9,
+    });
     newLine(ctx, 11);
   }
 
-  // Invoice number + issued date in the right column. We draw these
-  // at fixed y positions (relative to the page top) so they line up
-  // with the shop-name baseline regardless of the address height.
-  const headerRight = PAGE_W - MARGIN;
-  const numberStr = `${labels.number} ${invoice.number}`;
-  const dateStr = `${labels.date} ${invoice.issued_at.slice(0, 10)}`;
-  // Save current y, draw at fixed positions, then restore.
-  const savedY = ctx.y;
-  ctx.y = PAGE_H - MARGIN - 28;
-  drawText(ctx, numberStr, { x: headerRight, rightAlign: true, bold: true, size: 10 });
-  ctx.y = PAGE_H - MARGIN - 42;
-  drawText(ctx, dateStr, { x: headerRight, rightAlign: true, size: 9 });
-  ctx.y = savedY;
-
+  // Centered "INVOICE" / "FACTURE" / "فاتورة" title.
+  newLine(ctx, 6);
+  drawText(ctx, labels.invoice, { x: CENTER_X, centerAlign: true, bold: true, size: 16 });
   newLine(ctx, 16);
+
+  // Number (left) + date (right) on one row just above the customer block.
+  drawText(ctx, `${labels.number} ${invoice.number}`, {
+    x: MARGIN,
+    bold: true,
+    size: 10,
+  });
+  drawText(ctx, `${labels.date} ${invoice.issued_at.slice(0, 10)}`, {
+    x: PAGE_W - MARGIN,
+    rightAlign: true,
+    size: 10,
+  });
+  newLine(ctx, 14);
   drawHRule(ctx);
   newLine(ctx, 14);
 
