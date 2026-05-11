@@ -81,7 +81,7 @@
     "shop_subtypes_title": "Que vend votre boutique ?",
     "shop_subtypes_subtitle": "Sélectionnez tout ce qui s'applique. Modifiable plus tard.",
     "fashion_subtypes_title": "Quels articles vendez-vous ?",
-    "fashion_subtypes_subtitle": "Cochez chaque catégorie que vous vendez — chaussures, vêtements, ou les deux. Vous pouvez en choisir plusieurs et changer plus tard dans Réglages.",
+    "fashion_subtypes_subtitle": "Activez chaque catégorie que vous vendez. Ajouter Vêtements hommes ou Vêtements femmes débloque les tailles en lettres (S, M, L, XL, XXL) ; ajouter Vêtements enfants débloque les tailles par âge (3M, 2Y…).",
     "subtypes_custom_add": "Ajouter une catégorie",
     "subtypes_custom_placeholder": "ex. tabac, halal, bio…",
     "locations_title": "Où rangez-vous le stock ?",
@@ -597,7 +597,7 @@
     "other_desc": "tout le reste"
   },
   "fashion_subtypes": {
-    "shoes_label": "Chaussures",
+    "shoes_label": "Chaussures adultes (hommes et femmes)",
     "shoes_desc": "sport, ville, casual",
     "shoes_kids_label": "Chaussures enfants",
     "shoes_kids_desc": "sport, école, casual",

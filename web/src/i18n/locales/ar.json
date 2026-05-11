@@ -81,7 +81,7 @@
     "shop_subtypes_title": "ماذا يبيع متجرك؟",
     "shop_subtypes_subtitle": "اختر كل ما ينطبق. يمكنك تغيير ذلك لاحقاً.",
     "fashion_subtypes_title": "ما الأصناف التي تبيعها؟",
-    "fashion_subtypes_subtitle": "اضغط على كل فئة تبيعها — أحذية، ملابس، أو الاثنين معاً. يمكنك اختيار أكثر من فئة وتغييرها لاحقاً من الإعدادات.",
+    "fashion_subtypes_subtitle": "حدد كل فئة تبيعها. إضافة ملابس رجالية أو ملابس نسائية تُفعّل مقاسات الحروف (S, M, L, XL, XXL)؛ إضافة ملابس الأطفال تُفعّل المقاسات العمرية (3M, 2Y…).",
     "subtypes_custom_add": "أضف فئة جديدة",
     "subtypes_custom_placeholder": "مثال: حلال، عضوي…",
     "locations_title": "أين تضع المخزون؟",
@@ -597,7 +597,7 @@
     "other_desc": "كل شيء آخر"
   },
   "fashion_subtypes": {
-    "shoes_label": "أحذية",
+    "shoes_label": "أحذية للكبار (رجال ونساء)",
     "shoes_desc": "رياضي، رسمي، كاجوال",
     "shoes_kids_label": "أحذية أطفال",
     "shoes_kids_desc": "رياضي، مدرسي، كاجوال",

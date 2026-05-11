@@ -81,7 +81,7 @@
     "shop_subtypes_title": "What does your shop sell?",
     "shop_subtypes_subtitle": "Pick all that apply. You can change this later in Settings.",
     "fashion_subtypes_title": "What kinds of items do you stock?",
-    "fashion_subtypes_subtitle": "Tap every category you sell — shoes, clothing, or both work. You can pick more than one and change it later in Settings.",
+    "fashion_subtypes_subtitle": "Toggle every category you sell. Adding Men's clothing or Women's clothing unlocks letter sizes (S, M, L, XL, XXL); adding Kids' clothing unlocks age sizes (3M, 2Y…).",
     "subtypes_custom_add": "Add another category",
     "subtypes_custom_placeholder": "e.g. tabac, halal_meat, bio…",
     "locations_title": "Where do you keep stock?",
@@ -599,7 +599,7 @@
     "other_desc": "everything else"
   },
   "fashion_subtypes": {
-    "shoes_label": "Shoes",
+    "shoes_label": "Adult shoes (men and women)",
     "shoes_desc": "sport, dress, casual",
     "shoes_kids_label": "Kids' shoes",
     "shoes_kids_desc": "sport, school, casual",
