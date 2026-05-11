@@ -8,7 +8,7 @@ import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
-import { sizeHintValuesForSubtypes } from '../config/fashion-subtypes';
+import { SHOP_PACKAGE_SIZES, sizeHintValuesForCategory } from '../config/fashion-subtypes';
 import {
   defaultUomForProfile,
   inputPriceToInternal,
@@ -207,6 +207,19 @@ export function AddArticleScreen(): JSX.Element {
     : storeType === 'shop'
       ? shopWantsSizes
       : storeCfg.has_sizes;
+
+  // v0.5.6 ADR-031 — quick-tap size suggestions for the merchant's
+  // current (vertical, sub-types, category) combination. Fashion uses
+  // sub-type + category to narrow (a clothing_men article shouldn't
+  // see EU shoe sizes). Shop uses a fixed package-size list when the
+  // sizeless block is opted into per-article sizes. Both verticals
+  // always accept free text — the hints just populate a <datalist>.
+  const sizeHintsForArticle = useMemo<readonly string[]>(() => {
+    if (!hasSizes) return [];
+    if (storeType === 'shop') return SHOP_PACKAGE_SIZES;
+    if (!profile) return [];
+    return sizeHintValuesForCategory(profile.fashion_subtypes ?? [], basics.category);
+  }, [hasSizes, storeType, profile, basics.category]);
 
   const [blocks, setBlocks] = useState<ColorBlock[]>(() => [emptyBlock()]);
   const [duplicate, setDuplicate] = useState<Article | null>(null);
@@ -549,6 +562,7 @@ export function AddArticleScreen(): JSX.Element {
               : null
           }
           allowDecimalQty={basics.unitOfMeasure === 'kg' || basics.unitOfMeasure === 'l'}
+          sizeHints={sizeHintsForArticle}
         />
       )}
 
@@ -810,6 +824,13 @@ interface Step2Props {
   // are the only UoMs where the merchant may want fractional input
   // (0.85 kg, 1.25 l); 'g' and 'ml' stay integer.
   allowDecimalQty: boolean;
+  // v0.5.6 ADR-031 — quick-tap size suggestions for the merchant's
+  // current (vertical, sub-types, category) combination. The size
+  // input always also accepts free text; this list just populates a
+  // <datalist> for one-tap selection. Empty when no useful hint
+  // applies (custom category on a non-matching sub-type pool, or a
+  // shop merchant who hasn't opted into per-article sizes).
+  sizeHints: readonly string[];
 }
 
 function Step2(props: Step2Props): JSX.Element {
@@ -833,6 +854,7 @@ function Step2(props: Step2Props): JSX.Element {
     saveError,
     shopOptIn,
     allowDecimalQty,
+    sizeHints,
   } = props;
 
   return (
@@ -942,6 +964,7 @@ function Step2(props: Step2Props): JSX.Element {
           removeColorBlock={removeColorBlock}
           handleBlockPhoto={handleBlockPhoto}
           allowDecimalQty={allowDecimalQty}
+          sizeHints={sizeHints}
         />
       ))}
 
@@ -979,6 +1002,11 @@ interface BlockEditorProps {
   // for back-compat; only true when the merchant picked kg or l on
   // Step 1.
   allowDecimalQty?: boolean;
+  // v0.5.6 ADR-031 — quick-tap size suggestions for this article.
+  // Computed by the parent based on (vertical, sub-types, category)
+  // so all colour blocks render the same list. Empty array → no
+  // <datalist> rendered.
+  sizeHints?: readonly string[];
 }
 
 function BlockEditor(props: BlockEditorProps): JSX.Element {
@@ -987,16 +1015,6 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
   // floor/back Stepper inputs. Falls back to the locale + vertical
   // defaults if the profile field is unset.
   const labels = useLocationLabels();
-  // v0.5.2 commit 9: sub-type-aware size hint autocomplete. Reads
-  // the merchant's selected fashion subtypes from the profile and
-  // computes the union of their size_hint values. Empty array → no
-  // datalist rendered (sized verticals with size_hint='none' or
-  // non-fashion verticals where the entire size column is hidden).
-  const profile = useProfile();
-  const sizeHintValues = useMemo(
-    () => sizeHintValuesForSubtypes(profile?.fashion_subtypes ?? []),
-    [profile?.fashion_subtypes],
-  );
   const {
     index,
     block,
@@ -1012,7 +1030,11 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
     removeColorBlock,
     handleBlockPhoto,
     allowDecimalQty = false,
+    sizeHints = [],
   } = props;
+  // v0.5.6 ADR-031 — alias to the prop so the existing JSX below (which
+  // already iterates `sizeHintValues`) keeps reading the same name.
+  const sizeHintValues = sizeHints;
   return (
     <section
       data-testid={`block-${index}`}

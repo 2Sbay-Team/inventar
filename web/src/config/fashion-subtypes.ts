@@ -149,3 +149,36 @@ export function sizeHintValuesForSubtypes(subtypes: readonly FashionSubtype[]): 
   }
   return out;
 }
+
+// v0.5.6 ADR-031 — size suggestions narrowed by the article's category.
+//
+// When the merchant types an article whose category matches one of the
+// selected sub-types' category list (e.g. category 'shirts' belongs to
+// clothing_men), only THAT sub-type's size hints contribute — the
+// merchant adding a shirt shouldn't see EU shoe sizes 36-46 alongside
+// the letter sizes S-XXXL.
+//
+// Falls back to the all-sub-types union when:
+//   • the category is empty (no narrowing signal)
+//   • the category doesn't match any selected sub-type's category list
+//     (custom categories the merchant typed manually — keep showing the
+//     broader pool so they have something to tap)
+export function sizeHintValuesForCategory(
+  subtypes: readonly FashionSubtype[],
+  category: string | null | undefined,
+): string[] {
+  const trimmed = (category ?? '').trim();
+  if (trimmed === '') return sizeHintValuesForSubtypes(subtypes);
+  const matching = subtypes.filter((st) => {
+    const cfg = getFashionSubtypeConfig(st);
+    return cfg ? cfg.categories.includes(trimmed) : false;
+  });
+  if (matching.length === 0) return sizeHintValuesForSubtypes(subtypes);
+  return sizeHintValuesForSubtypes(matching);
+}
+
+// v0.5.6 — quick-tap package-size suggestions for the Shop vertical.
+// Surfaces in Add Article when the shop merchant opts into per-article
+// sizes (the sizeless block's sizes toggle). Mirrors the v0.5.6 brief
+// exactly. Free text is always accepted alongside these.
+export const SHOP_PACKAGE_SIZES: readonly string[] = ['250ml', '500ml', '1L', '500g', '1Kg', '5Kg'];
