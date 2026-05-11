@@ -407,6 +407,34 @@ export class InventarDB extends Dexie {
             },
           );
       });
+
+    // v0.5.2.7 — invoicing phone number. Same shape as the v10 invoice
+    // block: nullable column on the profile singleton, defaulted on
+    // upgrade, no index needed (single-row table). Stored verbatim so
+    // the merchant can include the country code, dashes, slashes, or
+    // anything else their customers expect on a printed invoice.
+    this.version(11)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: { phone?: string | null }) => {
+            if (!('phone' in p)) p.phone = null;
+          });
+      });
   }
 }
 

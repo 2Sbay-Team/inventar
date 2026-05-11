@@ -1,4 +1,11 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import * as ArabicReshaperLib from 'arabic-reshaper';
 import amiriUrl from '@fontsource/amiri/files/amiri-arabic-400-normal.woff2?url';
@@ -30,6 +37,12 @@ interface RenderOptions {
   // App locale at issue time. Drives label translation (EN/FR/AR) and
   // header alignment. Optional for back-compat — defaults to 'en'.
   locale?: Locale;
+  // v0.5.2.7 — merchant logo blob, looked up by the caller from
+  // profile.logo_photo_id. Null/omitted = no logo (current behaviour).
+  // Passing the blob directly (rather than reading it inside the
+  // renderer) keeps invoice-pdf.ts free of a Dexie dependency, which
+  // matters for the unit tests that exercise it without a DB.
+  logo?: { blob: Blob; mime: string } | null;
 }
 
 const PAGE_W = 595; // A4 width in points
@@ -103,6 +116,9 @@ interface PdfLabels {
   bill_to: string;
   walk_in: string;
   tax_id: string;
+  // v0.5.2.7 — phone prefix used in the issuer block (e.g. "Tel: ...").
+  // Kept short because phone numbers can be long with country codes.
+  tel: string;
   description: string;
   qty: string;
   unit: string;
@@ -121,6 +137,7 @@ const LABELS: Record<Locale, PdfLabels> = {
     bill_to: 'Bill to:',
     walk_in: 'Walk-in customer',
     tax_id: 'Tax ID:',
+    tel: 'Tel:',
     description: 'Description',
     qty: 'Qty',
     unit: 'Unit',
@@ -137,6 +154,7 @@ const LABELS: Record<Locale, PdfLabels> = {
     bill_to: 'Client :',
     walk_in: 'Client de passage',
     tax_id: 'Matricule fiscal :',
+    tel: 'Tél. :',
     description: 'Désignation',
     qty: 'Qté',
     unit: 'P.U.',
@@ -153,6 +171,7 @@ const LABELS: Record<Locale, PdfLabels> = {
     bill_to: 'الزبون:',
     walk_in: 'زبون عابر',
     tax_id: 'المعرّف الجبائي:',
+    tel: 'الهاتف:',
     description: 'الوصف',
     qty: 'الكمية',
     unit: 'سعر الوحدة',
@@ -299,6 +318,7 @@ function needsArabicFont(invoice: Invoice, profile: ShopProfile | null, locale: 
   if (locale === 'ar') return true;
   if (containsArabic(profile?.legal_name) || containsArabic(profile?.name)) return true;
   if (containsArabic(profile?.legal_address) || containsArabic(profile?.fiscal_id)) return true;
+  if (containsArabic(profile?.phone)) return true;
   if (containsArabic(invoice.customer_name) || containsArabic(invoice.customer_address)) {
     return true;
   }
@@ -310,6 +330,7 @@ export async function renderInvoicePdf({
   invoice,
   profile,
   locale = 'en',
+  logo = null,
 }: RenderOptions): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -322,15 +343,61 @@ export async function renderInvoicePdf({
   }
   const page = doc.addPage([PAGE_W, PAGE_H]);
   const labels = LABELS[locale];
+
+  // ─── Logo (v0.5.2.7): embed at top-left if the merchant set one.
+  // Detect mime via the blob's `type` first; fall back to inspecting
+  // the magic bytes (JPEG: FF D8 FF, PNG: 89 50 4E 47) so a row with
+  // an empty `type` doesn't silently get skipped. Failures are
+  // swallowed — an unparseable image must not break invoice generation.
+  let embeddedLogo: PDFImage | null = null;
+  if (logo) {
+    try {
+      const arrBuf = await logo.blob.arrayBuffer();
+      const head = new Uint8Array(arrBuf.slice(0, 8));
+      const isPng = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
+      const isJpg = head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+      const declared = logo.mime || logo.blob.type || '';
+      if (declared.includes('png') || (declared === '' && isPng)) {
+        embeddedLogo = await doc.embedPng(arrBuf);
+      } else if (
+        declared.includes('jpeg') ||
+        declared.includes('jpg') ||
+        (declared === '' && isJpg)
+      ) {
+        embeddedLogo = await doc.embedJpg(arrBuf);
+      }
+    } catch {
+      embeddedLogo = null;
+    }
+  }
+  // Reserve a 48pt-high logo slot at the top of the page. When no logo
+  // is present we collapse it to zero so existing layouts stay identical.
+  const LOGO_BOX = 48;
+  const logoSpace = embeddedLogo ? LOGO_BOX + 8 : 0;
+
   const ctx: DrawCtx = {
     page,
     font,
     bold,
     arabic,
-    y: PAGE_H - MARGIN,
+    y: PAGE_H - MARGIN - logoSpace,
     doc,
     currency: invoice.currency,
   };
+
+  if (embeddedLogo) {
+    // Preserve aspect ratio inside an LOGO_BOX × LOGO_BOX bounding box,
+    // anchored at top-left of the header.
+    const scale = Math.min(LOGO_BOX / embeddedLogo.width, LOGO_BOX / embeddedLogo.height);
+    const w = embeddedLogo.width * scale;
+    const h = embeddedLogo.height * scale;
+    page.drawImage(embeddedLogo, {
+      x: MARGIN,
+      y: PAGE_H - MARGIN - h,
+      width: w,
+      height: h,
+    });
+  }
 
   // ─── Header: shop info + INVOICE label + number ───────────────────
   drawText(ctx, profile?.legal_name ?? profile?.name ?? '', {
@@ -346,6 +413,10 @@ export async function renderInvoicePdf({
       drawText(ctx, line, { x: MARGIN, size: 9 });
       newLine(ctx, 11);
     }
+  }
+  if (profile?.phone) {
+    drawText(ctx, `${labels.tel} ${profile.phone}`, { x: MARGIN, size: 9 });
+    newLine(ctx, 11);
   }
   if (profile?.fiscal_id) {
     drawText(ctx, `${labels.tax_id} ${profile.fiscal_id}`, { x: MARGIN, size: 9 });

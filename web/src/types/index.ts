@@ -197,6 +197,12 @@ export interface ShopProfile {
   // France). Used to pre-fill new invoices; the merchant can override
   // per-invoice. Null = no default; the invoice form falls back to 0.
   default_vat_pct: number | null;
+  // v0.5.2.7 — merchant phone number. Optional. Printed on every
+  // invoice under the address block. Stored verbatim (country code,
+  // formatting, slashes, dashes, etc. all preserved) — we don't
+  // validate the format because phone-number conventions vary widely
+  // by country and the merchant copies it from their own paperwork.
+  phone: string | null;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;

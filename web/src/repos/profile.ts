@@ -67,6 +67,9 @@ export interface UpsertProfileInput {
   legal_address?: string | null;
   fiscal_id?: string | null;
   default_vat_pct?: number | null;
+  // v0.5.2.7 — merchant phone for invoice header. Same semantics as
+  // the other invoicing fields: undefined preserves, null clears.
+  phone?: string | null;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -117,6 +120,7 @@ export async function upsertProfile(
         input.default_vat_pct === undefined
           ? (existing?.default_vat_pct ?? null)
           : input.default_vat_pct,
+      phone: input.phone === undefined ? (existing?.phone ?? null) : input.phone,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

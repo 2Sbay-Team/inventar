@@ -241,9 +241,11 @@ function InvoicingSection(): JSX.Element | null {
   const [legalAddressDraft, setLegalAddressDraft] = useState<string | null>(null);
   const [fiscalIdDraft, setFiscalIdDraft] = useState<string | null>(null);
   const [vatDraft, setVatDraft] = useState<string | null>(null);
+  const [phoneDraft, setPhoneDraft] = useState<string | null>(null);
   if (!profile) return null;
   const legalNameValue = legalNameDraft ?? profile.legal_name ?? '';
   const legalAddressValue = legalAddressDraft ?? profile.legal_address ?? '';
+  const phoneValue = phoneDraft ?? profile.phone ?? '';
   const fiscalIdValue = fiscalIdDraft ?? profile.fiscal_id ?? '';
   const vatValue =
     vatDraft ?? (profile.default_vat_pct == null ? '' : String(profile.default_vat_pct));
@@ -252,7 +254,8 @@ function InvoicingSection(): JSX.Element | null {
       | { legal_name: string | null }
       | { legal_address: string | null }
       | { fiscal_id: string | null }
-      | { default_vat_pct: number | null },
+      | { default_vat_pct: number | null }
+      | { phone: string | null },
   ): Promise<void> {
     if (!profile) return;
     await upsertProfile(db, {
@@ -317,6 +320,28 @@ function InvoicingSection(): JSX.Element | null {
             rows={3}
             maxLength={300}
             className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="settings-phone" className="text-ink-2 block text-xs font-medium">
+            {t('invoicing_phone')}
+          </label>
+          <input
+            id="settings-phone"
+            data-testid="settings-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={phoneValue}
+            placeholder={t('invoicing_phone_placeholder')}
+            onChange={(e) => setPhoneDraft(e.target.value)}
+            onBlur={(e) => {
+              void commit({ phone: trimToNullable(e.target.value) });
+              setPhoneDraft(null);
+            }}
+            maxLength={40}
+            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+            dir="ltr"
           />
         </div>
         <div className="space-y-1">

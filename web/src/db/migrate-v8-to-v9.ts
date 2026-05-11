@@ -214,6 +214,11 @@ function migrateProfile(p: V8ShopProfile, expiryMeta: number | null): ShopProfil
     legal_address: null,
     fiscal_id: null,
     default_vat_pct: null,
+    // v0.5.2.7: phone column added in v11. We default it here too so a
+    // v8→v9 in-isolation test run still produces a ShopProfile that
+    // satisfies the current TS shape. v9→v10 (invoice block) and the
+    // new v10→v11 (phone) upgrades backfill on existing installs.
+    phone: null,
     created_at: p.created_at,
     updated_at: p.updated_at,
     last_backup_at: p.last_backup_at,

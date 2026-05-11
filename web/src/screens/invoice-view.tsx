@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, Share2 } from 'lucide-react';
 
+import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
 import { useLocale } from '../hooks/use-locale';
@@ -10,6 +11,7 @@ import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
 import { getInvoice } from '../repos/invoices';
 import { invoicePdfFilename, renderInvoicePdf } from '../repos/invoice-pdf';
+import { getPhoto, photoToBlob } from '../repos/photos';
 import { type Invoice, type ShopProfile } from '../types';
 
 // v0.5.2.4 ADR-024 — minimal invoice view used as the post-issue
@@ -51,7 +53,17 @@ export function InvoiceViewScreen(): JSX.Element | null {
     setShareError(null);
     setSharing(true);
     try {
-      const bytes = await renderInvoicePdf({ invoice: inv, profile, locale });
+      // v0.5.2.7: pass the merchant's logo blob to the PDF renderer.
+      // Looked up via getPhoto so the renderer stays Dexie-free (kept
+      // testable without a DB). null when no logo is set.
+      let logo: { blob: Blob; mime: string } | null = null;
+      if (profile.logo_photo_id) {
+        const photo = await getPhoto(db, profile.logo_photo_id);
+        if (photo) {
+          logo = { blob: photoToBlob(photo), mime: photo.mime };
+        }
+      }
+      const bytes = await renderInvoicePdf({ invoice: inv, profile, locale, logo });
       const blob = new Blob([bytes], { type: 'application/pdf' });
       const file = new File([blob], invoicePdfFilename(inv), { type: 'application/pdf' });
       const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
@@ -159,9 +171,23 @@ export function InvoiceViewScreen(): JSX.Element | null {
         <section className="border-hair grid grid-cols-2 gap-4 rounded-2xl border bg-white p-4 text-xs">
           <div>
             <h3 className="text-ink-3 mb-1 text-[10px] uppercase tracking-wide">{t('issuer')}</h3>
+            {profile?.logo_photo_id ? (
+              <div className="mb-2">
+                <PhotoThumb
+                  photoId={profile.logo_photo_id}
+                  size={48}
+                  testId="invoice-issuer-logo"
+                />
+              </div>
+            ) : null}
             <p className="font-medium">{profile?.legal_name ?? profile?.name ?? ''}</p>
             {profile?.legal_address ? (
               <p className="text-ink-2 whitespace-pre-line">{profile.legal_address}</p>
+            ) : null}
+            {profile?.phone ? (
+              <p data-testid="invoice-issuer-phone" className="text-ink-2 mt-1 font-mono" dir="ltr">
+                {t('phone_label')}: {profile.phone}
+              </p>
             ) : null}
             {profile?.fiscal_id ? (
               <p className="text-ink-3 mt-1 font-mono" dir="ltr">

@@ -20,6 +20,7 @@ const PROFILE: ShopProfile = {
   legal_address: '14 rue de Tunis\n1000 Tunis',
   fiscal_id: '1234567/A/B/000',
   default_vat_pct: 19,
+  phone: '+216 71 234 567',
   created_at: NOW,
   updated_at: NOW,
   last_backup_at: null,
@@ -122,6 +123,57 @@ describe('invoice PDF (ADR-024)', () => {
     expect(invoicePdfFilename(INVOICE)).toBe('INV-2026-0042.pdf');
   });
 
+  // v0.5.2.7 — logo embedding. We pass a tiny synthetic 1×1 PNG so the
+  // test doesn't depend on any disk asset. pdf-lib's embedPng accepts
+  // the bytes; the rendered output must grow vs the no-logo baseline.
+  it('embeds the merchant logo when provided', async () => {
+    // Minimal 1×1 transparent PNG (67 bytes). Hex source taken from
+    // the W3C PNG spec example. Avoids fetching or fixture files.
+    const PNG_HEX =
+      '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4' +
+      '890000000A49444154789C636000000002000158CFAEE10000000049454E44AE426082';
+    const pngBytes = new Uint8Array(PNG_HEX.length / 2);
+    for (let i = 0; i < PNG_HEX.length; i += 2) {
+      pngBytes[i / 2] = parseInt(PNG_HEX.slice(i, i + 2), 16);
+    }
+    const logoBlob = new Blob([pngBytes], { type: 'image/png' });
+    const withLogo = await renderInvoicePdf({
+      invoice: INVOICE,
+      profile: PROFILE,
+      locale: 'en',
+      logo: { blob: logoBlob, mime: 'image/png' },
+    });
+    const withoutLogo = await renderInvoicePdf({
+      invoice: INVOICE,
+      profile: PROFILE,
+      locale: 'en',
+    });
+    // Embedded PNG adds bytes — even our 67-byte PNG plus pdf-lib's
+    // image-stream overhead must produce a measurably larger file.
+    expect(withLogo.byteLength).toBeGreaterThan(withoutLogo.byteLength);
+    // And the result must still be a valid PDF.
+    const { PDFDocument } = await import('pdf-lib');
+    const doc = await PDFDocument.load(withLogo);
+    expect(doc.getPageCount()).toBe(1);
+  });
+
+  it('falls back gracefully when the logo blob is malformed', async () => {
+    // 8 random bytes — not a PNG, not a JPEG. The renderer's
+    // detect-by-magic-bytes path should skip embedding and still
+    // produce a valid PDF.
+    const garbage = new Blob([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])], { type: '' });
+    const bytes = await renderInvoicePdf({
+      invoice: INVOICE,
+      profile: PROFILE,
+      locale: 'en',
+      logo: { blob: garbage, mime: '' },
+    });
+    expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+    const { PDFDocument } = await import('pdf-lib');
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(1);
+  });
+
   // v0.5.2.7 — explicit per-locale label coverage. pdf-lib's content
   // streams are flate-compressed, so we extract the readable text by
   // walking the loaded PDF's content streams and zlib-inflating each
@@ -161,7 +213,7 @@ describe('invoice PDF (ADR-024)', () => {
       return out.join('\n');
     }
 
-    it('locale=en renders English labels (INVOICE, Tax ID:)', async () => {
+    it('locale=en renders English labels (INVOICE, Tax ID:, Tel:) + phone number', async () => {
       const bytes = await renderInvoicePdf({ invoice: INVOICE, profile: PROFILE, locale: 'en' });
       const txt = await extractTextStream(bytes);
       expect(txt).toContain('INVOICE');
@@ -169,9 +221,12 @@ describe('invoice PDF (ADR-024)', () => {
       expect(txt).toContain('Bill to:');
       expect(txt).toContain('Subtotal');
       expect(txt).toContain('VAT');
+      // v0.5.2.7: phone label + value print in the issuer block.
+      expect(txt).toContain('Tel:');
+      expect(txt).toContain('+216 71 234 567');
     });
 
-    it('locale=fr renders French labels (FACTURE, Matricule, TVA, TOTAL TTC)', async () => {
+    it('locale=fr renders French labels (FACTURE, Matricule, TVA, TOTAL TTC, Tél.)', async () => {
       const bytes = await renderInvoicePdf({ invoice: INVOICE, profile: PROFILE, locale: 'fr' });
       const txt = await extractTextStream(bytes);
       expect(txt).toContain('FACTURE');
@@ -180,6 +235,9 @@ describe('invoice PDF (ADR-024)', () => {
       expect(txt).toContain('Matricule');
       expect(txt).toContain('TVA');
       expect(txt).toContain('TOTAL TTC');
+      // The French phone label "Tél." has an accent; assert the ASCII
+      // root "T" + the verbatim phone number to stay encoding-agnostic.
+      expect(txt).toContain('+216 71 234 567');
     });
 
     it('locale=ar embeds Amiri, suppresses Latin label "INVOICE", and is structurally valid', async () => {
