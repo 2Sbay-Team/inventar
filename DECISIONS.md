@@ -427,3 +427,70 @@ suddenly find their dashboard widgets shifting because Inventar
 shipped a new predefined. The category list is the merchant's
 declaration about THEIR shop, not a rolling inventory of
 Inventar's taxonomy.
+
+## ADR-030: Updates require explicit user consent. No silent service-worker activation.
+
+**v0.6.** Workbox-window's default lifecycle calls
+`registration.waiting.skipWaiting()` automatically whenever a new
+SW reaches the `waiting` state, swapping in the new shell on the
+next page load. Merchants experienced this as the app "changing
+under them" — a surprise version bump mid-day, sometimes with new
+UI affordances or moved buttons. For a small shop running on a
+single phone, that surprise erodes trust.
+
+**Decision.** A newly-installed SW stays in `waiting` until the
+merchant explicitly consents via a blocking modal
+(`AppUpdateModal`). The modal offers three choices:
+
+- **Install now** — `wb.messageSkipWaiting()` → wait for
+  `controllerchange` → `window.location.reload()`. Post-reload, a
+  one-shot toast surfaces the new version.
+- **Remind me tomorrow** — writes `update_snooze_until = now + 24 h`
+  + `update_snoozed_version = vX`. The modal is suppressed for that
+  exact version until the timestamp passes. A different waiting
+  version re-prompts immediately (snooze is per-version, not global).
+- **Skip this version** — appends to `update_skipped_versions`. The
+  modal NEVER re-prompts for that version. Future versions still
+  prompt normally.
+
+The active SW continues serving the cached shell while the new SW
+waits. Offline behaviour (ADR-001 / SPEC §7) is unchanged.
+
+**Whats-new.json.** Each release ships
+`/public/whats-new.json` with `{version, released_at, highlights:
+{en, fr, ar}}`. The hook cache-busts the fetch
+(`/whats-new.json?_=<Date.now()>`) so the active SW's precache
+doesn't intercept and serve the OLD version's highlights. The
+authoritative answer to "what version is available" is what the
+deployed file declares; no separate version source or build-time
+injection.
+
+**Fallback path.** If `/whats-new.json` is 404, malformed, or fails
+the shape guard (e.g. the merchant is offline when the SW finishes
+installing), the modal still appears with a generic "improvements
+and bug fixes" copy. The three buttons still work; snooze and skip
+use a `__unknown__` sentinel so the merchant doesn't get stuck in a
+re-prompt loop.
+
+**SPEC §7 amendment.** The pre-v0.6 wording "no forced reload
+mid-session" stays correct in spirit — the reload now happens only
+on the merchant's explicit click, not silently.
+
+**Why not banner / toast?** A passive banner is dismissable; the
+merchant can ignore it indefinitely while accumulating divergence
+between their installed code and the deployed reality. The blocking
+modal demands one of three explicit decisions, but each decision is
+respected: Snooze and Skip are first-class outcomes, not nags.
+
+**Why a 24 h snooze?** Matches OS-level update prompts (Windows,
+macOS). Short enough that a real fix lands soon; long enough that a
+merchant in the middle of inventory work isn't re-prompted every
+five minutes.
+
+**Cross-branch note.** This is ADR-030. The current in-flight ADR
+sequence is 026 (logo-autokey), 027 (qr-branding), 028 (location
+dropdown), with 029 reserved. If those land in a different order,
+the in-code `ADR-030` comments in `pwa/register-sw.ts`,
+`pwa/fetch-whats-new.ts`, `hooks/use-app-update.ts`,
+`components/app-update-modal.tsx`, `components/app-update-toast.tsx`,
+`repos/meta.ts`, and `screens/help.tsx` may need renumbering.

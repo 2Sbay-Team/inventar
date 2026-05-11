@@ -322,14 +322,18 @@ Search performance achieved by: (a) maintaining a denormalised search index (`se
 
 ## 7. Update delivery
 
-Service worker uses a "stale-while-revalidate" strategy for the app shell. When a new build is deployed:
+Service worker uses cache-first precache (workbox `precacheAndRoute`) for the app shell. When a new build is deployed:
 
 1. The current session continues with the old version uninterrupted.
-2. The service worker fetches the new shell in the background.
-3. On next launch, the new shell is active.
-4. The merchant sees a small "Updated to v1.X" toast on launch.
+2. The service worker downloads the new shell into a separate cache and reaches `waiting` state.
+3. **(v0.6 ADR-030 amendment.)** The new shell does NOT auto-activate. A blocking modal (`AppUpdateModal`) opens with the new version, the highlights from `/whats-new.json`, and three options:
+   - **Install now** — sends `SKIP_WAITING`, waits for `controllerchange`, reloads. After reload a one-shot "Welcome to vX" toast surfaces.
+   - **Remind me tomorrow** — writes `update_snooze_until = now + 24 h`. Modal is suppressed for the snoozed version until the timestamp passes. A different waiting version re-prompts immediately.
+   - **Skip this version** — appends to `update_skipped_versions`. Same version never prompts again; future versions still prompt.
+4. The modal is fully blocking (no outside-click dismiss, no Esc) but each of the three options is a first-class outcome. The active SW keeps serving the cached shell while the new SW waits.
+5. If `/whats-new.json` is missing or fails to load (404, malformed, offline), the modal still appears with a generic "improvements and bug fixes" copy and a `__unknown__` skip sentinel so the merchant isn't stuck in a re-prompt loop.
 
-No forced reload mid-session. No download progress UI.
+No forced reload mid-session — reload happens only on the merchant's explicit Install click. No background download progress UI.
 
 ---
 
