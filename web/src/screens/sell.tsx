@@ -19,7 +19,7 @@ import { createInvoice } from '../repos/invoices';
 import { newUUID } from '../utils/uuid';
 import { classifyScan } from '../utils/scan-classify';
 import { formatCurrency } from '../i18n/format-currency';
-import { type Article, type InvoiceLine, type Locale, type UUID } from '../types';
+import { type Article, type InvoiceLine, type Locale, type Uom, type UUID } from '../types';
 
 // v0.5 ADR-018 + ADR-019: scan-driven checkout. Mirror of /receive's
 // camera shape, but instead of one-scan-one-write the merchant builds a
@@ -68,7 +68,7 @@ interface CartRow {
   // v0.5.2.9 — snapshot the article's UoM at add-to-cart time so
   // the cart total + invoice line render correctly for non-piece
   // articles (the invoice repo doesn't fetch the article again).
-  unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+  unit_of_measure: Uom;
 }
 
 type ManualState = null | 'open';

@@ -30,6 +30,13 @@ export type Category = string;
 // runtime reads safe across the upgrade. Both are removed in v0.7+.
 export type StoreType = 'fashion' | 'shop' | 'shoes' | 'clothes';
 
+// v0.5.6 — extended from the v0.5.2.9 piece/kg/g/l/ml union with
+// three countable units (pair, pack, dozen) and meter for fabric.
+// See web/src/config/article-traits.ts for the conversion factors and
+// formatter. Article.unit_of_measure stores the literal string; the
+// type just constrains what new code can write.
+export type Uom = 'piece' | 'pair' | 'pack' | 'dozen' | 'kg' | 'g' | 'l' | 'ml' | 'meter';
+
 // Multi-select sub-categorisation for the shop vertical. v0.5 ADR-017:
 // the sub-types determine which default category list shows up in Add
 // Article and shape the dashboard widgets. v0.5.2 ADR-018 expands the
@@ -259,7 +266,7 @@ export interface Article {
   // sale_price_tnd is millimes per smallest unit — UI converts to/from
   // the merchant's preferred display unit (per-kg, per-l, …) at the
   // edit + read boundaries.
-  unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+  unit_of_measure: Uom;
   search_blob: string;
   updated_at: ISODate;
   archived_at: ISODate | null;
@@ -426,7 +433,7 @@ export interface InvoiceLine {
   // v0.5.2.9 — snapshot of the article's UoM at issue time. Optional
   // for back-compat with invoices issued before this field landed;
   // missing/null reads as 'piece' (the historical default).
-  unit_of_measure?: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+  unit_of_measure?: Uom;
 }
 
 export interface Invoice {

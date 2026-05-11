@@ -1,5 +1,9 @@
 import { STORE_TYPES } from './store-types';
-import { type Article, type ShopProfile, type StoreType } from '../types';
+import { type Article, type ShopProfile, type StoreType, type Uom } from '../types';
+
+// Re-export Uom so existing imports of `from '../config/article-traits'`
+// keep compiling unchanged. The canonical declaration lives in types/.
+export type { Uom };
 
 // v0.5.2.9 (Phase B + UoM) — single source of truth for the
 // "does this article need sizes / colours / expiry" question and
@@ -37,74 +41,127 @@ export function articleHasExpiry(article: Article, profile: ShopProfile | null):
 
 // ── Unit of measure ────────────────────────────────────────────────
 
-export type Uom = 'piece' | 'kg' | 'g' | 'l' | 'ml';
+// v0.5.6 — extended from the v0.5 piece/kg/g/l/ml set with three
+// additional countable units (pair, pack, dozen) and meter for fabric/
+// rope-style continuous goods. No schema migration: the field is a
+// plain string in storage; the union just expands what the merchant
+// picks from the Add Article dropdown.
+// (Uom type now lives in ../types and is re-exported at the top of
+// this file. The shape is duplicated in the SMALL_UNIT_FACTOR /
+// CONTINUOUS_UOMS maps below — adding a new variant in types/index.ts
+// requires updating those two maps too.)
 
 // For UoMs where the merchant types prices "per large unit" (kg, l)
 // the internal storage is "per small unit" (g, ml) so the existing
 // `|qty| * sale_price_tnd` revenue math stays in millimes×smallest-unit
 // and never needs special-casing. This is the conversion factor:
 // merchant types "price per kg" → divide by 1000 to get "millimes per g".
+// The countable units (piece / pair / pack / dozen) and meter all stay
+// at factor 1 — the merchant types whole counts / whole meters and
+// nothing is converted at storage time.
 const SMALL_UNIT_FACTOR: Record<Uom, number> = {
   piece: 1,
+  pair: 1,
+  pack: 1,
+  dozen: 1,
   kg: 1000, // 1 kg = 1000 g
   g: 1,
   l: 1000, // 1 l = 1000 ml
   ml: 1,
+  meter: 1,
 };
+
+// v0.5.6 — true for UoMs where stock is a measured/continuous quantity
+// (weight, volume, length). Articles in these UoMs don't have a per-
+// variant size + colour matrix — a 250 g packet of coffee or a roll
+// of fabric has no "size 42 in blue". Add Article suppresses the
+// size + colour pickers when this returns true.
+const CONTINUOUS_UOMS: ReadonlySet<Uom> = new Set(['kg', 'g', 'l', 'ml', 'meter']);
+
+export function isContinuousUom(uom: Uom): boolean {
+  return CONTINUOUS_UOMS.has(uom);
+}
 
 export function uomSmallUnitFactor(uom: Uom): number {
   return SMALL_UNIT_FACTOR[uom];
 }
 
+// v0.5.6 — initial Unit selection for the Add Article form.
+//   • Fashion + ONLY shoes / shoes_kids sub-types → 'pair'
+//   • Fashion + any other (or mixed) sub-type     → 'piece'
+//   • Shop / unset profile                        → 'piece'
+// Mixed defaults to 'piece' on purpose: a merchant whose profile has
+// shoes AND clothing_men is most likely adding a clothing item; a
+// silent 'Pair' default would be wrong nine times out of ten.
+export function defaultUomForProfile(
+  profile:
+    | {
+        store_type: StoreType;
+        fashion_subtypes?: readonly string[];
+      }
+    | null
+    | undefined,
+): Uom {
+  if (!profile || profile.store_type !== 'fashion') return 'piece';
+  const subs = profile.fashion_subtypes ?? [];
+  if (subs.length === 0) return 'piece';
+  const shoesRelated: ReadonlySet<string> = new Set(['shoes', 'shoes_kids']);
+  return subs.every((s) => shoesRelated.has(s)) ? 'pair' : 'piece';
+}
+
 // Converts a price the merchant typed in their preferred unit into the
 // internal "millimes per smallest unit" form.
-//   - piece: 15000 mil/piece → 15000
-//   - kg:    15000 mil/kg    → 15   (15 mil/g, 1 g is 1/1000 kg)
-//   - g:     15 mil/g        → 15
-//   - l:     2000 mil/l      → 2    (2 mil/ml)
-//   - ml:    2 mil/ml        → 2
+//   - piece / pair / pack / dozen / g / ml / meter: pass-through (factor 1)
+//   - kg / l: divide by 1000 to convert per-kg → per-g, per-l → per-ml
 // Rounds half-up so cheap items don't silently truncate to 0.
 export function inputPriceToInternal(displayMinor: number, uom: Uom): number {
-  if (uom === 'piece' || uom === 'g' || uom === 'ml') return Math.round(displayMinor);
-  return Math.round(displayMinor / SMALL_UNIT_FACTOR[uom]);
+  return SMALL_UNIT_FACTOR[uom] === 1
+    ? Math.round(displayMinor)
+    : Math.round(displayMinor / SMALL_UNIT_FACTOR[uom]);
 }
 
 // Reverse of inputPriceToInternal — converts internal "millimes per
 // smallest unit" to display millimes per UoM unit, for showing in the
 // price input on edit.
 export function internalPriceToInput(internalMinor: number, uom: Uom): number {
-  if (uom === 'piece' || uom === 'g' || uom === 'ml') return internalMinor;
-  return internalMinor * SMALL_UNIT_FACTOR[uom];
+  return SMALL_UNIT_FACTOR[uom] === 1 ? internalMinor : internalMinor * SMALL_UNIT_FACTOR[uom];
 }
 
 // Converts the merchant's typed quantity in display units to the
 // internal smallest-unit integer (also rounding half-up).
-//   - piece: 3 pieces       → 3
-//   - kg:    0.850 kg       → 850
-//   - g:     500 g          → 500
-//   - l:     1.25 l         → 1250
-//   - ml:    250 ml         → 250
+//   - piece / pair / pack / dozen / meter: pass-through, Math.round
+//   - kg:    0.850 kg → 850 (×1000 = g)
+//   - g:     500 g    → 500
+//   - l:     1.25 l   → 1250 (×1000 = ml)
+//   - ml:    250 ml   → 250
 export function inputQtyToInternal(displayQty: number, uom: Uom): number {
-  if (uom === 'piece') return Math.round(displayQty);
-  return Math.round(displayQty * SMALL_UNIT_FACTOR[uom]);
+  return SMALL_UNIT_FACTOR[uom] === 1
+    ? Math.round(displayQty)
+    : Math.round(displayQty * SMALL_UNIT_FACTOR[uom]);
 }
 
 // Formats an internal smallest-unit integer qty for display under the
-// article's UoM. Picks the larger unit (kg / l) when the magnitude is
-// ≥ 1000, otherwise the smaller unit. Pieces always render as integers.
+// article's UoM. Countable UoMs (piece / pair / pack / dozen / meter)
+// render as a bare integer — the unit is communicated by the dropdown
+// next to the value rather than appended as a suffix. kg / l auto-pick
+// the larger unit when magnitude crosses 1000.
+//
 // Returns a paired [number, suffix] so callers can apply locale-specific
 // number formatting (e.g. Eastern Arabic numerals) before concatenating.
 export function formatQtyWithUom(internalQty: number, uom: Uom): { value: number; suffix: string } {
   const abs = Math.abs(internalQty);
   switch (uom) {
     case 'piece':
+    case 'pair':
+    case 'pack':
+    case 'dozen':
+    case 'meter':
       return { value: internalQty, suffix: '' };
     case 'g':
       return { value: internalQty, suffix: 'g' };
     case 'ml':
       return { value: internalQty, suffix: 'ml' };
     case 'kg':
-      // ≥ 1 kg → render in kg with up to 3 decimal places.
       return abs >= 1000
         ? { value: internalQty / 1000, suffix: 'kg' }
         : { value: internalQty, suffix: 'g' };
@@ -113,11 +170,11 @@ export function formatQtyWithUom(internalQty: number, uom: Uom): { value: number
         ? { value: internalQty / 1000, suffix: 'l' }
         : { value: internalQty, suffix: 'ml' };
     default:
-      // Defensive fallback for un-migrated rows or fashion variants that
-      // sneak an undefined/unknown uom past the type checker at runtime.
-      // Without this every quantity surface (dashboard, alerts, quick
-      // adjust, search results) crashes the entire screen via the
-      // destructure `const { value, suffix } = formatQtyWithUom(...)`.
+      // Defensive fallback for un-migrated rows or fashion variants
+      // that sneak an undefined/unknown uom past the type checker at
+      // runtime. Without this every quantity surface (dashboard,
+      // alerts, quick-adjust, search results) crashes the screen via
+      // `const { value, suffix } = formatQtyWithUom(...)`.
       return { value: internalQty, suffix: '' };
   }
 }

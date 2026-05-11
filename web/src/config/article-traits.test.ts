@@ -3,11 +3,13 @@ import {
   articleHasColors,
   articleHasExpiry,
   articleHasSizes,
+  defaultUomForProfile,
   formatQtyString,
   formatQtyWithUom,
   inputPriceToInternal,
   inputQtyToInternal,
   internalPriceToInput,
+  isContinuousUom,
   uomSmallUnitFactor,
 } from './article-traits';
 import { type Article, type ShopProfile } from '../types';
@@ -114,6 +116,13 @@ describe('uomSmallUnitFactor', () => {
     expect(uomSmallUnitFactor('kg')).toBe(1000);
     expect(uomSmallUnitFactor('l')).toBe(1000);
   });
+
+  it('v0.5.6: returns 1 for the four new countable / length units', () => {
+    expect(uomSmallUnitFactor('pair')).toBe(1);
+    expect(uomSmallUnitFactor('pack')).toBe(1);
+    expect(uomSmallUnitFactor('dozen')).toBe(1);
+    expect(uomSmallUnitFactor('meter')).toBe(1);
+  });
 });
 
 describe('inputPriceToInternal — merchant input → storage', () => {
@@ -195,6 +204,16 @@ describe('formatQtyWithUom — storage → display pair', () => {
     expect(formatQtyWithUom(1500, 'l')).toEqual({ value: 1.5, suffix: 'l' });
   });
 
+  it('v0.5.6: pair / pack / dozen / meter render as bare integer (no suffix)', () => {
+    // The unit context lives in the dropdown next to the value, not in
+    // a suffix — keeps the number readable and avoids plural-rule
+    // gymnastics across the three locales.
+    expect(formatQtyWithUom(3, 'pair')).toEqual({ value: 3, suffix: '' });
+    expect(formatQtyWithUom(2, 'pack')).toEqual({ value: 2, suffix: '' });
+    expect(formatQtyWithUom(5, 'dozen')).toEqual({ value: 5, suffix: '' });
+    expect(formatQtyWithUom(7, 'meter')).toEqual({ value: 7, suffix: '' });
+  });
+
   it('falls back to piece-like display for undefined / unknown uom (defensive)', () => {
     // Pre-v12 rows or fashion variants can carry an undefined or
     // legacy-string uom value past the TS type at runtime. Without a
@@ -228,5 +247,70 @@ describe('formatQtyString — full display string', () => {
   it('g and ml stay integer with suffix', () => {
     expect(formatQtyString(500, 'g')).toBe('500 g');
     expect(formatQtyString(250, 'ml')).toBe('250 ml');
+  });
+
+  it('v0.5.6: pair / pack / dozen / meter render as bare integer', () => {
+    expect(formatQtyString(3, 'pair')).toBe('3');
+    expect(formatQtyString(2, 'pack')).toBe('2');
+    expect(formatQtyString(5, 'dozen')).toBe('5');
+    expect(formatQtyString(7, 'meter')).toBe('7');
+  });
+});
+
+describe('isContinuousUom — measured vs countable distinction (v0.5.6)', () => {
+  it('returns true for weight + volume + length UoMs', () => {
+    expect(isContinuousUom('kg')).toBe(true);
+    expect(isContinuousUom('g')).toBe(true);
+    expect(isContinuousUom('l')).toBe(true);
+    expect(isContinuousUom('ml')).toBe(true);
+    expect(isContinuousUom('meter')).toBe(true);
+  });
+
+  it('returns false for countable units (a "pair" of shoes still has sizes)', () => {
+    expect(isContinuousUom('piece')).toBe(false);
+    expect(isContinuousUom('pair')).toBe(false);
+    expect(isContinuousUom('pack')).toBe(false);
+    expect(isContinuousUom('dozen')).toBe(false);
+  });
+});
+
+describe('defaultUomForProfile — Add Article initial Unit (v0.5.6)', () => {
+  function fashion(subs: string[]): ShopProfile {
+    return { ...fashionProfile, fashion_subtypes: subs };
+  }
+
+  it('returns piece on a null / undefined profile', () => {
+    expect(defaultUomForProfile(null)).toBe('piece');
+    expect(defaultUomForProfile(undefined)).toBe('piece');
+  });
+
+  it('returns piece for shop vertical', () => {
+    expect(defaultUomForProfile(shopProfile)).toBe('piece');
+  });
+
+  it('returns pair when the profile stocks ONLY adult shoes', () => {
+    expect(defaultUomForProfile(fashion(['shoes']))).toBe('pair');
+  });
+
+  it('returns pair when the profile stocks ONLY kids shoes', () => {
+    expect(defaultUomForProfile(fashion(['shoes_kids']))).toBe('pair');
+  });
+
+  it('returns pair when both shoes-related sub-types are selected', () => {
+    expect(defaultUomForProfile(fashion(['shoes', 'shoes_kids']))).toBe('pair');
+  });
+
+  it('returns piece when ONLY clothing_men is selected', () => {
+    expect(defaultUomForProfile(fashion(['clothing_men']))).toBe('piece');
+  });
+
+  it('returns piece when the merchant has mixed shoes + clothing sub-types', () => {
+    // Mixed defaults to piece on purpose: a fashion merchant adding a
+    // shirt should not see the unit default to "Pair" silently.
+    expect(defaultUomForProfile(fashion(['shoes', 'clothing_men']))).toBe('piece');
+  });
+
+  it('returns piece for an empty sub-types array', () => {
+    expect(defaultUomForProfile(fashion([]))).toBe('piece');
   });
 });

@@ -10,6 +10,7 @@ import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
 import { formatQtyWithUom } from '../config/article-traits';
 import { quantityFor } from '../repos/quantity';
+import { type Uom } from '../types';
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -25,7 +26,7 @@ interface LowStockArticle {
   totalUnits: number;
   // v0.5.2.9 — snapshot the UoM so the list row can render
   // "850 g" / "1.25 kg" instead of a bare integer.
-  unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+  unit_of_measure: Uom;
 }
 
 interface OverviewMetrics {

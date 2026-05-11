@@ -8,8 +8,14 @@ import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
-import { sizeHintValuesForSubtypes } from '../config/fashion-subtypes';
-import { inputPriceToInternal, inputQtyToInternal, type Uom } from '../config/article-traits';
+import { SHOP_PACKAGE_SIZES, sizeHintValuesForCategory } from '../config/fashion-subtypes';
+import {
+  defaultUomForProfile,
+  inputPriceToInternal,
+  inputQtyToInternal,
+  isContinuousUom,
+  type Uom,
+} from '../config/article-traits';
 import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
@@ -168,17 +174,52 @@ export function AddArticleScreen(): JSX.Element {
     saleInput: '',
     notes: '',
     minStockInput: '',
-    unitOfMeasure: 'piece',
+    // Seed with the safe piece default; the effect below upgrades to
+    // 'pair' once the profile resolves IF the merchant exclusively
+    // stocks shoes (per ADR-031). A fashion+shoes-only merchant who
+    // lands on Add Article shouldn't have to switch the unit every
+    // time they add a pair.
+    unitOfMeasure: defaultUomForProfile(profile),
   }));
-  // v0.5.2.9 (UoM): non-piece UoM forces sizeless + colourless — a
-  // 250 g packet of coffee has no "size 42 in blue".
-  const nonPieceUom = basics.unitOfMeasure !== 'piece';
-  const hasColors = nonPieceUom
+  // v0.5.6 — promote the default UoM once the profile resolves. We
+  // only apply when the field is still at the initial 'piece' default
+  // — a merchant who has already opened the dropdown and picked
+  // something else keeps their choice.
+  useEffect(() => {
+    if (!profile) return;
+    const next = defaultUomForProfile(profile);
+    setBasics((b) =>
+      b.unitOfMeasure === 'piece' && next !== 'piece' ? { ...b, unitOfMeasure: next } : b,
+    );
+  }, [profile]);
+  // v0.5.6 — true for measured UoMs (kg/g/l/ml/meter); suppresses the
+  // size + colour matrix because a 250 g packet of coffee or a roll of
+  // fabric has no "size 42 in blue". The new countable UoMs (pair /
+  // pack / dozen) keep the matrix — a "pair" of shoes still has sizes.
+  const isMeasuredUom = isContinuousUom(basics.unitOfMeasure);
+  const hasColors = isMeasuredUom
     ? false
     : storeType === 'shop'
       ? shopWantsColors
       : storeCfg.has_colors;
-  const hasSizes = nonPieceUom ? false : storeType === 'shop' ? shopWantsSizes : storeCfg.has_sizes;
+  const hasSizes = isMeasuredUom
+    ? false
+    : storeType === 'shop'
+      ? shopWantsSizes
+      : storeCfg.has_sizes;
+
+  // v0.5.6 ADR-031 — quick-tap size suggestions for the merchant's
+  // current (vertical, sub-types, category) combination. Fashion uses
+  // sub-type + category to narrow (a clothing_men article shouldn't
+  // see EU shoe sizes). Shop uses a fixed package-size list when the
+  // sizeless block is opted into per-article sizes. Both verticals
+  // always accept free text — the hints just populate a <datalist>.
+  const sizeHintsForArticle = useMemo<readonly string[]>(() => {
+    if (!hasSizes) return [];
+    if (storeType === 'shop') return SHOP_PACKAGE_SIZES;
+    if (!profile) return [];
+    return sizeHintValuesForCategory(profile.fashion_subtypes ?? [], basics.category);
+  }, [hasSizes, storeType, profile, basics.category]);
 
   const [blocks, setBlocks] = useState<ColorBlock[]>(() => [emptyBlock()]);
   const [duplicate, setDuplicate] = useState<Article | null>(null);
@@ -435,8 +476,8 @@ export function AddArticleScreen(): JSX.Element {
         // and Article Detail rendered no SizeGrid even when sized
         // variants existed — a latent bug from before v0.5.2.9.
         unit_of_measure: uom,
-        has_sizes: nonPieceUom ? false : storeType === 'shop' ? shopWantsSizes : null,
-        has_colors: nonPieceUom ? false : storeType === 'shop' ? shopWantsColors : null,
+        has_sizes: isMeasuredUom ? false : storeType === 'shop' ? shopWantsSizes : null,
+        has_colors: isMeasuredUom ? false : storeType === 'shop' ? shopWantsColors : null,
       });
       // v0.5.2.3 — land on the printable-label page so the merchant
       // sees the QR for the just-created item and can stick it on the
@@ -521,6 +562,7 @@ export function AddArticleScreen(): JSX.Element {
               : null
           }
           allowDecimalQty={basics.unitOfMeasure === 'kg' || basics.unitOfMeasure === 'l'}
+          sizeHints={sizeHintsForArticle}
         />
       )}
 
@@ -580,7 +622,11 @@ function Step1({
 }: Step1Props): JSX.Element {
   const { t } = useTranslation('add');
   const { t: tCommon } = useTranslation('common');
-  const nonPieceUom = basics.unitOfMeasure !== 'piece';
+  // v0.5.6 — true for measured UoMs (kg/g/l/ml/meter); suppresses the
+  // size + colour matrix because a 250 g packet of coffee or a roll of
+  // fabric has no "size 42 in blue". The new countable UoMs (pair /
+  // pack / dozen) keep the matrix — a "pair" of shoes still has sizes.
+  const isMeasuredUom = isContinuousUom(basics.unitOfMeasure);
   return (
     <div data-testid="step-1" className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4">
       <button
@@ -670,18 +716,25 @@ function Step1({
             onChange={(e) => setBasics((b) => ({ ...b, unitOfMeasure: e.target.value as Uom }))}
             className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
           >
+            {/* v0.5.6 — countable units (piece / pair / pack / dozen)
+                first; measured units (kg / g / l / ml / meter) second.
+                The dropdown order mirrors the v0.5.6 brief. */}
             <option value="piece">{t('uom_piece')}</option>
+            <option value="pair">{t('uom_pair')}</option>
+            <option value="pack">{t('uom_pack')}</option>
+            <option value="dozen">{t('uom_dozen')}</option>
             <option value="kg">{t('uom_kg')}</option>
             <option value="g">{t('uom_g')}</option>
             <option value="l">{t('uom_l')}</option>
             <option value="ml">{t('uom_ml')}</option>
+            <option value="meter">{t('uom_meter')}</option>
           </select>
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field
             label={t('field_cost_uom', {
               currency,
-              uom: nonPieceUom ? t(`uom_${basics.unitOfMeasure}`) : t('uom_piece_short'),
+              uom: isMeasuredUom ? t(`uom_${basics.unitOfMeasure}`) : t('uom_piece_short'),
             })}
             hint={tCommon('optional')}
           >
@@ -697,7 +750,7 @@ function Step1({
           <Field
             label={t('field_sale_uom', {
               currency,
-              uom: nonPieceUom ? t(`uom_${basics.unitOfMeasure}`) : t('uom_piece_short'),
+              uom: isMeasuredUom ? t(`uom_${basics.unitOfMeasure}`) : t('uom_piece_short'),
             })}
             hint={tCommon('optional')}
           >
@@ -771,6 +824,13 @@ interface Step2Props {
   // are the only UoMs where the merchant may want fractional input
   // (0.85 kg, 1.25 l); 'g' and 'ml' stay integer.
   allowDecimalQty: boolean;
+  // v0.5.6 ADR-031 — quick-tap size suggestions for the merchant's
+  // current (vertical, sub-types, category) combination. The size
+  // input always also accepts free text; this list just populates a
+  // <datalist> for one-tap selection. Empty when no useful hint
+  // applies (custom category on a non-matching sub-type pool, or a
+  // shop merchant who hasn't opted into per-article sizes).
+  sizeHints: readonly string[];
 }
 
 function Step2(props: Step2Props): JSX.Element {
@@ -794,6 +854,7 @@ function Step2(props: Step2Props): JSX.Element {
     saveError,
     shopOptIn,
     allowDecimalQty,
+    sizeHints,
   } = props;
 
   return (
@@ -903,6 +964,7 @@ function Step2(props: Step2Props): JSX.Element {
           removeColorBlock={removeColorBlock}
           handleBlockPhoto={handleBlockPhoto}
           allowDecimalQty={allowDecimalQty}
+          sizeHints={sizeHints}
         />
       ))}
 
@@ -940,6 +1002,11 @@ interface BlockEditorProps {
   // for back-compat; only true when the merchant picked kg or l on
   // Step 1.
   allowDecimalQty?: boolean;
+  // v0.5.6 ADR-031 — quick-tap size suggestions for this article.
+  // Computed by the parent based on (vertical, sub-types, category)
+  // so all colour blocks render the same list. Empty array → no
+  // <datalist> rendered.
+  sizeHints?: readonly string[];
 }
 
 function BlockEditor(props: BlockEditorProps): JSX.Element {
@@ -948,16 +1015,6 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
   // floor/back Stepper inputs. Falls back to the locale + vertical
   // defaults if the profile field is unset.
   const labels = useLocationLabels();
-  // v0.5.2 commit 9: sub-type-aware size hint autocomplete. Reads
-  // the merchant's selected fashion subtypes from the profile and
-  // computes the union of their size_hint values. Empty array → no
-  // datalist rendered (sized verticals with size_hint='none' or
-  // non-fashion verticals where the entire size column is hidden).
-  const profile = useProfile();
-  const sizeHintValues = useMemo(
-    () => sizeHintValuesForSubtypes(profile?.fashion_subtypes ?? []),
-    [profile?.fashion_subtypes],
-  );
   const {
     index,
     block,
@@ -973,7 +1030,11 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
     removeColorBlock,
     handleBlockPhoto,
     allowDecimalQty = false,
+    sizeHints = [],
   } = props;
+  // v0.5.6 ADR-031 — alias to the prop so the existing JSX below (which
+  // already iterates `sizeHintValues`) keeps reading the same name.
+  const sizeHintValues = sizeHints;
   return (
     <section
       data-testid={`block-${index}`}

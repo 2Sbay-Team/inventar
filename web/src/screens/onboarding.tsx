@@ -93,6 +93,12 @@ export function OnboardingScreen(): JSX.Element {
   const [shopSubtypes, setShopSubtypes] = useState<ShopSubtype[]>([]);
   // v0.5.2 ADR-021: fashion-vertical analogue of shopSubtypes. Required
   // selection (≥1) when storeType === 'fashion'.
+  //
+  // v0.5.6 (Issue 7) — new profiles START with zero sub-types ticked.
+  // The merchant must explicitly pick at least one; Continue is gated
+  // on `fashionSubtypes.length === 0`. Migrated profiles never hit
+  // this state — they go through /migrations/confirm-subtypes where
+  // the v8→v9-assigned sub-types are pre-ticked from the profile row.
   const [fashionSubtypes, setFashionSubtypes] = useState<FashionSubtype[]>([]);
   // v0.5.2 ADR-022: location labels. Defaults are computed lazily from
   // (storeType, locale) so a vertical or locale change re-derives them
