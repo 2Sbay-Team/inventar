@@ -364,6 +364,7 @@
     "shop_logo_add": "Add logo",
     "shop_logo_change": "Change logo",
     "shop_logo_remove": "Remove logo",
+    "preview_label": "Preview label",
     "logo_too_large": "That logo is too big. Pick an image under 25 MB.",
     "logo_failed": "Couldn't read that image. Try a different file.",
     "install_section": "Install as app",
@@ -672,7 +673,9 @@
   "label": {
     "print": "Print",
     "done": "Done",
-    "not_found": "Article not found."
+    "not_found": "Article not found.",
+    "preview_article_name": "Sample article",
+    "preview_hint": "This is what your printed labels will look like."
   },
   "invoice": {
     "title": "Invoice",

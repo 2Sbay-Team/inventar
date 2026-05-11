@@ -798,6 +798,14 @@ export function SettingsScreen(): JSX.Element {
             </p>
           ) : null}
 
+          <Link
+            to="/settings/label-preview"
+            data-testid="settings-label-preview"
+            className="border-hair text-ink mt-3 inline-flex w-full items-center justify-center rounded-xl border bg-white py-2 text-sm"
+          >
+            {t('preview_label')}
+          </Link>
+
           <label htmlFor="settings-shop-name" className="text-ink-3 mt-4 mb-1 block text-xs">
             {t('shop_name')}
           </label>

@@ -1,26 +1,27 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Printer, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Check, Printer } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { ArticleQR } from '../components/article-qr';
-import { useArticleDetail } from '../hooks/use-article-detail';
 import { useProfile } from '../hooks/use-profile';
 import { useLogoDataUrl } from '../hooks/use-logo-data-url';
 import { type QrBrandingOptions } from '../utils/qr-branding';
 
-export function ArticleLabelScreen(): JSX.Element | null {
+// v0.6 ADR-027 — Settings → "Preview label". Renders a stub label so
+// the merchant can see how their printed labels look with the current
+// logo / store name, without picking a real article. Identical layout
+// to ArticleLabelScreen so the preview is faithful to what comes out
+// of the printer.
+
+const PREVIEW_ARTICLE_ID = 'SAMPLE-PREVIEW';
+
+export function LabelPreviewScreen(): JSX.Element | null {
   const { t } = useTranslation('label');
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const detail = useArticleDetail(id);
   const profile = useProfile();
   const logoDataUrl = useLogoDataUrl();
 
-  // v0.6 ADR-027 — branding for the printed-label QR. Logo wins when
-  // it's loaded; the store-name fallback covers the case where the
-  // merchant never uploaded a logo. Memo-stable across renders so the
-  // ArticleQR component doesn't re-inject the overlay needlessly.
   const branding = useMemo<QrBrandingOptions | undefined>(() => {
     if (!profile) return undefined;
     return {
@@ -29,29 +30,18 @@ export function ArticleLabelScreen(): JSX.Element | null {
     };
   }, [profile, logoDataUrl]);
 
-  if (detail === undefined || profile === undefined) return null;
-  const { article } = detail;
-  if (!article) {
-    return (
-      <ScreenLayout hideNav>
-        <div className="text-ink-3 p-6 text-center text-sm">{t('not_found')}</div>
-      </ScreenLayout>
-    );
-  }
-
   function handlePrint(): void {
     window.print();
   }
 
+  if (profile === undefined) return null;
+
   return (
     <ScreenLayout hideNav>
       <div
-        data-testid="label-screen"
+        data-testid="label-preview-screen"
         className="flex flex-1 flex-col items-center justify-between gap-6 p-6 print:p-0"
       >
-        {/* Printable label region. The print CSS in index.css promotes this
-            to the only visible block on the page so the browser's print
-            dialog produces a clean QR sheet without app chrome. */}
         <section
           data-testid="label-print-region"
           className="border-hair flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border bg-white p-8 print:m-0 print:max-w-none print:rounded-none print:border-0 print:p-12"
@@ -65,28 +55,32 @@ export function ArticleLabelScreen(): JSX.Element | null {
             </p>
           ) : null}
           <div className="border-hair rounded-xl border bg-white p-2 print:border-0 print:p-0">
-            <ArticleQR articleId={article.id} size={256} testId="label-qr" branding={branding} />
+            <ArticleQR
+              articleId={PREVIEW_ARTICLE_ID}
+              size={256}
+              testId="label-qr"
+              branding={branding}
+            />
           </div>
           <div className="text-center">
             <p
               data-testid="label-article-name"
               className="text-ink font-display text-lg font-semibold leading-tight"
             >
-              {article.name}
+              {t('preview_article_name')}
             </p>
             <p
               data-testid="label-internal-code"
               className="text-ink-3 mt-1 font-mono text-sm tracking-wide"
               dir="ltr"
             >
-              {article.internal_code}
+              FN-0042
             </p>
-            {article.brand ? <p className="text-ink-3 mt-1 text-xs">{article.brand}</p> : null}
           </div>
         </section>
 
-        {/* Action bar — hidden during print via print:hidden */}
         <div className="flex w-full max-w-sm flex-col gap-2 print:hidden">
+          <p className="text-ink-3 text-center text-xs">{t('preview_hint')}</p>
           <button
             type="button"
             data-testid="label-print"
@@ -99,7 +93,7 @@ export function ArticleLabelScreen(): JSX.Element | null {
           <button
             type="button"
             data-testid="label-done"
-            onClick={() => navigate(`/article/${article.id}`, { replace: true })}
+            onClick={() => navigate('/settings', { replace: true })}
             className="border-hair text-ink inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium"
           >
             <Check aria-hidden className="h-4 w-4" strokeWidth={2} />
