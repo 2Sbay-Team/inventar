@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
@@ -141,9 +141,6 @@ export function DashboardScreen(): JSX.Element {
     setExpRecurring('none');
     setExpenseOpen(false);
   }
-
-  const periodLabel = useMemo(() => `period_${period}` as const, [period]);
-  void periodLabel;
 
   return (
     <ScreenLayout>

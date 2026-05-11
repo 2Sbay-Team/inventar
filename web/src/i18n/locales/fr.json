@@ -162,6 +162,8 @@
     "photo_cta": "Appuyez pour prendre une photo",
     "photo_required": "obligatoire",
     "photo_retake": "Reprendre",
+    "photo_too_large": "Cette photo est trop volumineuse. Choisissez-en une de moins de 25 Mo.",
+    "photo_failed": "Impossible de lire cette photo. Essayez une autre image.",
     "field_code": "Code",
     "field_name": "Nom",
     "field_name_placeholder": "ex. Botte en cuir marron",

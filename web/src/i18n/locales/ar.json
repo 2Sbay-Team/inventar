@@ -162,6 +162,8 @@
     "photo_cta": "اضغط لالتقاط صورة",
     "photo_required": "إلزامي",
     "photo_retake": "إعادة التقاط",
+    "photo_too_large": "هذه الصورة كبيرة جداً. اختر صورة أقل من 25 ميغابايت.",
+    "photo_failed": "تعذر قراءة الصورة. جرّب صورة أخرى.",
     "field_code": "الرمز",
     "field_name": "الاسم",
     "field_name_placeholder": "مثال: حذاء جلدي بني",

@@ -162,6 +162,8 @@
     "photo_cta": "Tap to take photo",
     "photo_required": "required",
     "photo_retake": "Retake",
+    "photo_too_large": "That photo is too big. Pick one under 25 MB.",
+    "photo_failed": "Couldn't read that photo. Try a different image.",
     "field_code": "Code",
     "field_name": "Name",
     "field_name_placeholder": "e.g. Brown leather boot",

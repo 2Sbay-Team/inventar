@@ -12,7 +12,7 @@ import { sizeHintValuesForSubtypes } from '../config/fashion-subtypes';
 import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
-import { compressPhoto } from '../utils/compress-photo';
+import { compressPhoto, PhotoTooLargeError } from '../utils/compress-photo';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { useLive } from '../hooks/use-live';
@@ -82,6 +82,11 @@ interface ColorBlock {
   // duplication. ADR-013.
   photoId: UUID | null;
   photoPreviewUrl: string | null;
+  // Set when the last upload attempt for this block failed. Cleared
+  // when a new upload starts or succeeds. Mirrors article-detail.tsx's
+  // photoError state — without this the merchant saw the dropzone
+  // unchanged on compressor / IDB failure and assumed the upload took.
+  photoError: string | null;
   // Size rows. For sizeless verticals this stays a single-element array
   // with size='' so the storage shape is uniform.
   sizes: SizeRow[];
@@ -98,6 +103,7 @@ function emptyBlock(): ColorBlock {
     manufacturerCode: '',
     photoId: null,
     photoPreviewUrl: null,
+    photoError: null,
     sizes: [emptySizeRow()],
   };
 }
@@ -222,13 +228,23 @@ export function AddArticleScreen(): JSX.Element {
   }
 
   async function handleBlockPhoto(i: number, file: File): Promise<void> {
-    // v0.5.2.2: explicit error surface. Previously a thrown
-    // PhotoTooLargeError or a silent compressor / Blob failure left
-    // the merchant staring at the dropzone with no feedback. Log + set
-    // an inline error string per block so the UI can show why the
-    // upload didn't take.
+    // Clear any prior error before retrying.
+    patchBlock(i, { photoError: null });
     try {
-      const compressed = await compressPhoto(file);
+      let compressed;
+      try {
+        compressed = await compressPhoto(file);
+      } catch (err) {
+        // Surface PhotoTooLargeError (input > 25 MB) and any device-
+        // specific Blob / canvas failures distinctly so the merchant
+        // knows whether to pick a smaller photo or just retry.
+        if (err instanceof PhotoTooLargeError) {
+          patchBlock(i, { photoError: t('photo_too_large') });
+        } else {
+          patchBlock(i, { photoError: t('photo_failed') });
+        }
+        return;
+      }
       const stored = await storePhoto(db, {
         blob: compressed.blob,
         width: compressed.width,
@@ -238,14 +254,10 @@ export function AddArticleScreen(): JSX.Element {
       const previousUrl = blocks[i]?.photoPreviewUrl ?? null;
       if (previousUrl) URL.revokeObjectURL(previousUrl);
       const url = URL.createObjectURL(compressed.blob);
-      patchBlock(i, { photoId: stored.id, photoPreviewUrl: url });
+      patchBlock(i, { photoId: stored.id, photoPreviewUrl: url, photoError: null });
     } catch (err) {
-      const e = err as Error;
-      // Surfaces both PhotoTooLargeError (input too big) and any
-      // device-specific Blob / canvas / IDB failures. The boot
-      // fallback's unhandledrejection listener also captures this
-      // for the merchant who never sees DevTools.
-      console.error('Photo upload failed', e);
+      console.error('Photo upload failed', err);
+      patchBlock(i, { photoError: t('photo_failed') });
     }
   }
 
@@ -876,6 +888,11 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
         testIdBase={`block-${index}-photo`}
         onFile={(file) => void handleBlockPhoto(index, file)}
       />
+      {block.photoError ? (
+        <p data-testid={`block-${index}-photo-error`} role="alert" className="text-bad text-xs">
+          {block.photoError}
+        </p>
+      ) : null}
 
       {hasColors ? (
         <div data-testid={`block-${index}-color-chips`} className="flex flex-wrap gap-1.5">

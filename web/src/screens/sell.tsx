@@ -11,7 +11,6 @@ import { useCurrency } from '../hooks/use-currency';
 import { useEanValidator } from '../hooks/use-ean-validator';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
-import { STORE_TYPES } from '../config/store-types';
 import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
 import { recordMovement } from '../repos/movements';
 import { pickFifoLot } from '../repos/lots';
@@ -324,8 +323,6 @@ export function SellScreen(): JSX.Element {
   const cartTotal = cart.reduce((s, r) => s + r.qty * r.unit_price_tnd, 0);
 
   // ─── render ─────────────────────────────────────────────────────────
-  void profile;
-  void STORE_TYPES;
   return (
     <ScreenLayout hideNav>
       <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
@@ -388,7 +385,6 @@ export function SellScreen(): JSX.Element {
           scanErrorArticleId ? (
             <Link
               data-testid="sell-scan-error"
-              data-testid-action="sell-scan-error-open"
               to={`/article/${scanErrorArticleId}`}
               role="alert"
               className="text-bad bg-bad/10 border-bad/30 absolute left-3 right-3 top-3 inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-center text-xs"
