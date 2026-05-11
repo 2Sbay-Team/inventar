@@ -121,4 +121,103 @@ describe('invoice PDF (ADR-024)', () => {
   it('filename is derived from the invoice number', () => {
     expect(invoicePdfFilename(INVOICE)).toBe('INV-2026-0042.pdf');
   });
+
+  // v0.5.2.7 — explicit per-locale label coverage. pdf-lib's content
+  // streams are flate-compressed, so we extract the readable text by
+  // walking the loaded PDF's content streams and zlib-inflating each
+  // one. Latin labels (Helvetica) survive as ASCII inside (X) Tj /
+  // (X) Tj-style operators. Arabic labels render via embedded-font
+  // glyph IDs and are NOT searchable as literal text — that branch
+  // verifies font embedding + structural validity instead.
+  describe('per-locale labels (en / fr / ar)', () => {
+    async function extractTextStream(bytes: Uint8Array): Promise<string> {
+      const { PDFDocument, PDFRawStream } = await import('pdf-lib');
+      const zlib = await import('node:zlib');
+      const doc = await PDFDocument.load(bytes);
+      const out: string[] = [];
+      for (const obj of doc.context.enumerateIndirectObjects()) {
+        const [, pdfObject] = obj;
+        if (!(pdfObject instanceof PDFRawStream)) continue;
+        try {
+          const inflated = zlib.inflateSync(Buffer.from(pdfObject.contents));
+          const binary = inflated.toString('binary');
+          out.push(binary);
+          // pdf-lib emits Latin text inside content streams as
+          // hex-encoded literals like <494E564F494345> Tj — that's
+          // "INVOICE" in ASCII. Decode every <hex> token alongside
+          // the raw stream so a contain() check can find either form.
+          const decodedHex = binary.replace(/<([0-9A-Fa-f]+)>/g, (_, hex: string) => {
+            let s = '';
+            for (let i = 0; i + 1 < hex.length; i += 2) {
+              s += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+            }
+            return s;
+          });
+          out.push(decodedHex);
+        } catch {
+          // Not all streams are flate-compressed; skip silently.
+        }
+      }
+      return out.join('\n');
+    }
+
+    it('locale=en renders English labels (INVOICE, Tax ID:)', async () => {
+      const bytes = await renderInvoicePdf({ invoice: INVOICE, profile: PROFILE, locale: 'en' });
+      const txt = await extractTextStream(bytes);
+      expect(txt).toContain('INVOICE');
+      expect(txt).toContain('Tax ID:');
+      expect(txt).toContain('Bill to:');
+      expect(txt).toContain('Subtotal');
+      expect(txt).toContain('VAT');
+    });
+
+    it('locale=fr renders French labels (FACTURE, Matricule, TVA, TOTAL TTC)', async () => {
+      const bytes = await renderInvoicePdf({ invoice: INVOICE, profile: PROFILE, locale: 'fr' });
+      const txt = await extractTextStream(bytes);
+      expect(txt).toContain('FACTURE');
+      // Accented chars survive via WinAnsi single-byte codes; assert
+      // the unambiguous ASCII tokens only.
+      expect(txt).toContain('Matricule');
+      expect(txt).toContain('TVA');
+      expect(txt).toContain('TOTAL TTC');
+    });
+
+    it('locale=ar embeds Amiri, suppresses Latin label "INVOICE", and is structurally valid', async () => {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const fontPath = path.resolve(
+        process.cwd(),
+        'node_modules/@fontsource/amiri/files/amiri-arabic-400-normal.woff2',
+      );
+      const fontBytes = fs.readFileSync(fontPath);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () =>
+        new Response(new Uint8Array(fontBytes), { status: 200 })) as typeof fetch;
+      try {
+        const bytesAr = await renderInvoicePdf({
+          invoice: INVOICE,
+          profile: PROFILE,
+          locale: 'ar',
+        });
+        const bytesEn = await renderInvoicePdf({
+          invoice: INVOICE,
+          profile: PROFILE,
+          locale: 'en',
+        });
+        const { PDFDocument } = await import('pdf-lib');
+        const doc = await PDFDocument.load(bytesAr);
+        expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
+        // Amiri (~100 KB) makes the Arabic render substantially larger
+        // than the Latin-only Helvetica baseline.
+        expect(bytesAr.byteLength).toBeGreaterThan(bytesEn.byteLength + 50_000);
+        // Decompressed content streams must NOT contain the English
+        // label literal — Arabic is rendered via Amiri glyph IDs, not
+        // ASCII text.
+        const txtAr = await extractTextStream(bytesAr);
+        expect(txtAr).not.toContain('INVOICE');
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
 });
