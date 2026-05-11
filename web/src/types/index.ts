@@ -243,6 +243,23 @@ export interface Article {
   // with at least one Lot; ignored for fashion articles (which have no
   // expiry).
   expiry_alert_days: number | null;
+  // v0.5.2.9 (Phase B) — per-article trait overrides. Null = follow
+  // the store_type default (back-compat — every pre-v12 article reads
+  // as null). A concrete true/false overrides at the article level so
+  // a fashion-vertical merchant can add a single-SKU expiry-tracked
+  // drink (has_sizes=false, has_colors=false, has_expiry=true), and a
+  // shop-vertical merchant can add a sized T-shirt (has_sizes=true).
+  has_sizes: boolean | null;
+  has_colors: boolean | null;
+  has_expiry: boolean | null;
+  // v0.5.2.9 (UoM) — display + input precision. Internal storage of
+  // Movement.delta + Variant qty stays integer in the *smallest* unit
+  // (grams for kg/g, ml for l/ml, pieces for piece), so the existing
+  // `|delta| * sale_price_tnd` revenue math is unchanged. Article.
+  // sale_price_tnd is millimes per smallest unit — UI converts to/from
+  // the merchant's preferred display unit (per-kg, per-l, …) at the
+  // edit + read boundaries.
+  unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
   search_blob: string;
   updated_at: ISODate;
   archived_at: ISODate | null;

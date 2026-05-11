@@ -435,6 +435,51 @@ export class InventarDB extends Dexie {
             if (!('phone' in p)) p.phone = null;
           });
       });
+
+    // v0.5.2.9 (Phase B + UoM) — per-article trait overrides + unit-
+    // of-measure. Four new columns on Article:
+    //   - has_sizes / has_colors / has_expiry: nullable booleans. Null
+    //     means "follow the store_type default" (back-compat). A
+    //     concrete true/false overrides at the article level — lets a
+    //     fashion-vertical merchant add a single-SKU drink, or a shop-
+    //     vertical merchant add a sized T-shirt.
+    //   - unit_of_measure: required string, default 'piece'. Drives
+    //     display + qty input precision (kg / g / l / ml). Stored
+    //     deltas remain integer in the smallest unit (grams for
+    //     kg/g, ml for l/ml, pieces for piece) so the existing
+    //     revenue math `|delta| * sale_price_tnd` stays correct.
+    this.version(12)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('articles')
+          .toCollection()
+          .modify(
+            (a: {
+              has_sizes?: boolean | null;
+              has_colors?: boolean | null;
+              has_expiry?: boolean | null;
+              unit_of_measure?: 'piece' | 'kg' | 'g' | 'l' | 'ml';
+            }) => {
+              if (!('has_sizes' in a)) a.has_sizes = null;
+              if (!('has_colors' in a)) a.has_colors = null;
+              if (!('has_expiry' in a)) a.has_expiry = null;
+              if (!('unit_of_measure' in a)) a.unit_of_measure = 'piece';
+            },
+          );
+      });
   }
 }
 

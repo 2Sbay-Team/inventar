@@ -57,6 +57,15 @@ interface CreateArticleInputCommon {
   // Only meaningful for shop articles with at least one Lot; ignored
   // for fashion articles (which don't have expiry tracking).
   expiry_alert_days?: number | null;
+  // v0.5.2.9 (Phase B) — per-article trait overrides. Undefined / null
+  // = follow the store_type default at read time. Concrete true/false
+  // overrides at the article level.
+  has_sizes?: boolean | null;
+  has_colors?: boolean | null;
+  has_expiry?: boolean | null;
+  // v0.5.2.9 (UoM) — display + qty-input precision. Defaults to
+  // 'piece' when omitted, which matches the historical convention.
+  unit_of_measure?: 'piece' | 'kg' | 'g' | 'l' | 'ml';
 }
 
 export interface CreateArticleInputV2 extends CreateArticleInputCommon {
@@ -156,6 +165,10 @@ export async function createArticle(
       barcode_ean: input.barcode_ean ?? null,
       min_stock_threshold: input.min_stock_threshold ?? null,
       expiry_alert_days: input.expiry_alert_days ?? null,
+      has_sizes: input.has_sizes ?? null,
+      has_colors: input.has_colors ?? null,
+      has_expiry: input.has_expiry ?? null,
+      unit_of_measure: input.unit_of_measure ?? 'piece',
       search_blob: '', // filled in just below
       updated_at: ts,
       archived_at: null,
