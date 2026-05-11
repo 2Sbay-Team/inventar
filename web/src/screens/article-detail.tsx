@@ -532,7 +532,11 @@ export function ArticleDetailScreen(): JSX.Element {
 
       <section className="border-hair flex-1 overflow-y-auto border-t px-5 py-4">
         <h4 className="font-display mb-2 text-[13px] font-medium">{t('activity_title')}</h4>
-        <ActivityFeed movements={detail.recent} variantsById={variantsById} />
+        <ActivityFeed
+          movements={detail.recent}
+          variantsById={variantsById}
+          unitOfMeasure={article.unit_of_measure}
+        />
       </section>
 
       <div

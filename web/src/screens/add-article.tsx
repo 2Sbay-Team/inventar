@@ -428,9 +428,15 @@ export function AddArticleScreen(): JSX.Element {
         // unit and the derived sizeless/colourless overrides when
         // UoM != piece. Article reads these later via the trait
         // helpers (articleHasSizes / Colors / Expiry).
+        // For shop merchants, also persist the per-article opt-in
+        // flags so the Article Detail size grid renders for a
+        // shop-vertical T-shirt that the merchant explicitly added
+        // sizes to. Without this, article.has_sizes stayed null
+        // and Article Detail rendered no SizeGrid even when sized
+        // variants existed — a latent bug from before v0.5.2.9.
         unit_of_measure: uom,
-        has_sizes: nonPieceUom ? false : null,
-        has_colors: nonPieceUom ? false : null,
+        has_sizes: nonPieceUom ? false : storeType === 'shop' ? shopWantsSizes : null,
+        has_colors: nonPieceUom ? false : storeType === 'shop' ? shopWantsColors : null,
       });
       // v0.5.2.3 — land on the printable-label page so the merchant
       // sees the QR for the just-created item and can stick it on the
@@ -514,6 +520,7 @@ export function AddArticleScreen(): JSX.Element {
                 }
               : null
           }
+          allowDecimalQty={basics.unitOfMeasure === 'kg' || basics.unitOfMeasure === 'l'}
         />
       )}
 
@@ -760,6 +767,10 @@ interface Step2Props {
     setWantsSizes: (v: boolean) => void;
     setWantsColors: (v: boolean) => void;
   } | null;
+  // v0.5.2.9 — true when basics.unitOfMeasure is 'kg' or 'l'. Those
+  // are the only UoMs where the merchant may want fractional input
+  // (0.85 kg, 1.25 l); 'g' and 'ml' stay integer.
+  allowDecimalQty: boolean;
 }
 
 function Step2(props: Step2Props): JSX.Element {
@@ -782,6 +793,7 @@ function Step2(props: Step2Props): JSX.Element {
     errors,
     saveError,
     shopOptIn,
+    allowDecimalQty,
   } = props;
 
   return (
@@ -890,6 +902,7 @@ function Step2(props: Step2Props): JSX.Element {
           removeSizeRow={removeSizeRow}
           removeColorBlock={removeColorBlock}
           handleBlockPhoto={handleBlockPhoto}
+          allowDecimalQty={allowDecimalQty}
         />
       ))}
 
@@ -922,6 +935,11 @@ interface BlockEditorProps {
   removeSizeRow: (i: number, j: number) => void;
   removeColorBlock: (i: number) => void;
   handleBlockPhoto: (i: number, file: File) => Promise<void>;
+  // v0.5.2.9: drives whether the floor/back Steppers accept decimal
+  // input (kg / l) or stay integer (piece / g / ml). Defaults to false
+  // for back-compat; only true when the merchant picked kg or l on
+  // Step 1.
+  allowDecimalQty?: boolean;
 }
 
 function BlockEditor(props: BlockEditorProps): JSX.Element {
@@ -954,6 +972,7 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
     removeSizeRow,
     removeColorBlock,
     handleBlockPhoto,
+    allowDecimalQty = false,
   } = props;
   return (
     <section
@@ -1097,12 +1116,14 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
                     label={labels.floor}
                     value={row.floor}
                     onChange={(v) => patchBlockSize(index, j, { floor: v })}
+                    allowDecimal={allowDecimalQty}
                   />
                   <Stepper
                     testId={`block-${index}-size-${j}-back`}
                     label={labels.back}
                     value={row.back}
                     onChange={(v) => patchBlockSize(index, j, { back: v })}
+                    allowDecimal={allowDecimalQty}
                   />
                   {block.sizes.length > 1 ? (
                     <button
@@ -1144,12 +1165,14 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
             label={labels.floor}
             value={block.sizes[0]?.floor ?? 0}
             onChange={(v) => patchBlockSize(index, 0, { floor: v })}
+            allowDecimal={allowDecimalQty}
           />
           <Stepper
             testId={`block-${index}-back`}
             label={labels.back}
             value={block.sizes[0]?.back ?? 0}
             onChange={(v) => patchBlockSize(index, 0, { back: v })}
+            allowDecimal={allowDecimalQty}
           />
         </div>
       )}
@@ -1162,11 +1185,17 @@ function Stepper({
   label,
   value,
   onChange,
+  // v0.5.2.9 (UoM): when the article isn't 'piece' the merchant may
+  // want to enter 0.85 kg or 1.25 l. allowDecimal switches the input
+  // to inputMode="decimal" and parses with Number() (handles fractions);
+  // +/- buttons still step by 1 display unit (whole kg / l / g / ml).
+  allowDecimal = false,
 }: {
   testId: string;
   label: string;
   value: number;
   onChange: (v: number) => void;
+  allowDecimal?: boolean;
 }): JSX.Element {
   return (
     <div className="border-hair flex flex-1 items-center rounded-lg border bg-white">
@@ -1183,12 +1212,12 @@ function Stepper({
       </button>
       <input
         data-testid={testId}
-        type="number"
-        inputMode="numeric"
-        min={0}
+        type="text"
+        inputMode={allowDecimal ? 'decimal' : 'numeric'}
         value={value}
         onChange={(e) => {
-          const n = Number.parseInt(e.target.value, 10);
+          const raw = e.target.value.replace(',', '.');
+          const n = allowDecimal ? Number(raw) : Number.parseInt(raw, 10);
           onChange(Number.isFinite(n) && n >= 0 ? n : 0);
         }}
         className="w-12 bg-transparent text-center font-mono text-sm tabular-nums"

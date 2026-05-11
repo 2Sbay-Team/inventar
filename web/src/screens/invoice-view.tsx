@@ -12,6 +12,7 @@ import { formatCurrency } from '../i18n/format-currency';
 import { getInvoice } from '../repos/invoices';
 import { invoicePdfFilename, renderInvoicePdf } from '../repos/invoice-pdf';
 import { getPhoto, photoToBlob } from '../repos/photos';
+import { formatQtyWithUom } from '../config/article-traits';
 import { type Invoice, type ShopProfile } from '../types';
 
 // v0.5.2.4 ADR-024 — minimal invoice view used as the post-issue
@@ -234,7 +235,16 @@ export function InvoiceViewScreen(): JSX.Element | null {
                     ) : null}
                   </td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums" dir="ltr">
-                    {line.qty}
+                    {(() => {
+                      // v0.5.2.9 — show qty with the line's UoM suffix
+                      // (e.g. "0.85 kg" / "500 g") so the printed
+                      // invoice matches the merchant's product page.
+                      const { value, suffix } = formatQtyWithUom(
+                        line.qty,
+                        line.unit_of_measure ?? 'piece',
+                      );
+                      return suffix === '' ? value : `${value} ${suffix}`;
+                    })()}
                   </td>
                   <td className="px-3 py-2 text-end font-mono tabular-nums" dir="ltr">
                     {formatCurrency(line.unit_price_minor, locale, cur)}

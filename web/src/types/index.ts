@@ -411,11 +411,22 @@ export interface InvoiceLine {
   description: string;
   // Optional reference (article internal_code, EAN, etc). Display only.
   reference: string | null;
+  // Stored in the article's smallest unit at the time of issue
+  // (pieces for piece, grams for kg/g, ml for l/ml). Combined with
+  // `unit_of_measure` below, the renderer formats it for display:
+  // qty=850 + uom='kg' → "0.85 kg" / "850 g".
   qty: number;
   // Per-unit price in minor units of the invoice's currency
   // (millimes for TND, cents for EUR). Matches the rest of the
   // money-as-integer convention — see ADR-005.
+  // For non-piece UoM this is per-smallest-unit (per gram / per ml)
+  // so `qty * unit_price_minor` stays in millimes for ALL UoMs and
+  // the existing subtotal math is unchanged.
   unit_price_minor: number;
+  // v0.5.2.9 — snapshot of the article's UoM at issue time. Optional
+  // for back-compat with invoices issued before this field landed;
+  // missing/null reads as 'piece' (the historical default).
+  unit_of_measure?: 'piece' | 'kg' | 'g' | 'l' | 'ml';
 }
 
 export interface Invoice {

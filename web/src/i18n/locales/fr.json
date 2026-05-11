@@ -467,6 +467,7 @@
     "scan_sized_multi": "Cet article a plusieurs tailles — ouvrez-le manuellement.",
     "scan_open_arrow": "Ouvrir →",
     "scan_out_of_stock": "Rupture de stock pour cet article.",
+    "scan_uom_not_piece": "Vendu au {{uom}} — ouvrez l'article et utilisez Ajustement rapide pour saisir le poids.",
     "scan_internal_error": "Une erreur est survenue. Réessayez ou ouvrez-le depuis Recherche.",
     "peek_count": "{{n}} au panier",
     "cart_title": "Panier",

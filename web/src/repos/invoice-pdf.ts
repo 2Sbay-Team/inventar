@@ -9,7 +9,7 @@ import {
 import fontkit from '@pdf-lib/fontkit';
 import * as ArabicReshaperLib from 'arabic-reshaper';
 import amiriUrl from '@fontsource/amiri/files/amiri-arabic-400-normal.woff2?url';
-import { type Invoice, type Locale, type ShopProfile } from '../types';
+import { type Invoice, type InvoiceLine, type Locale, type ShopProfile } from '../types';
 
 // v0.5.2.5+ ADR-024 — render an Invoice into a real PDF byte stream so
 // the merchant can attach it to WhatsApp / email / Drive via the OS
@@ -107,6 +107,25 @@ function formatMoney(minor: number, currency: string): string {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   }).format(minor / 1000);
+}
+
+// v0.5.2.9 — format an InvoiceLine.qty (stored in smallest unit) with
+// the line's UoM suffix. Mirrors formatQtyWithUom in article-traits
+// but lives here so invoice-pdf stays free of a dependency on the
+// React + Dexie helper module (the PDF renderer runs server-side in
+// tests). Behaviour must stay aligned with formatQtyWithUom.
+function formatLineQty(qty: number, uom: InvoiceLine['unit_of_measure']): string {
+  const u = uom ?? 'piece';
+  if (u === 'piece') return String(qty);
+  if (u === 'g' || u === 'ml') return `${qty} ${u}`;
+  // kg / l: large unit when ≥ 1, else smallest.
+  const abs = Math.abs(qty);
+  if (abs >= 1000) {
+    const large = qty / 1000;
+    const text = Number.isInteger(large) ? String(large) : large.toFixed(3).replace(/\.?0+$/, '');
+    return `${text} ${u}`;
+  }
+  return `${qty} ${u === 'kg' ? 'g' : 'ml'}`;
 }
 
 interface PdfLabels {
@@ -500,7 +519,15 @@ export async function renderInvoicePdf({
 
   for (const line of invoice.lines) {
     drawText(ctx, line.description, { x: COL_DESC, size: 10 });
-    drawText(ctx, String(line.qty), { x: COL_QTY_R, rightAlign: true, size: 10 });
+    // v0.5.2.9 — qty column reads the line's unit_of_measure (snapshot
+    // at issue time) and formats accordingly: piece stays as a bare
+    // integer, kg / l render with the larger unit when ≥ 1, otherwise
+    // fall back to g / ml.
+    drawText(ctx, formatLineQty(line.qty, line.unit_of_measure), {
+      x: COL_QTY_R,
+      rightAlign: true,
+      size: 10,
+    });
     drawText(ctx, formatMoney(line.unit_price_minor, invoice.currency), {
       x: COL_PRICE_R,
       rightAlign: true,

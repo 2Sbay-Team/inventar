@@ -65,6 +65,10 @@ interface CartRow {
   qty: number;
   lot_id: UUID | null;
   available: number; // computed at add-time, not refreshed per scan
+  // v0.5.2.9 — snapshot the article's UoM at add-to-cart time so
+  // the cart total + invoice line render correctly for non-piece
+  // articles (the invoice repo doesn't fetch the article again).
+  unit_of_measure: 'piece' | 'kg' | 'g' | 'l' | 'ml';
 }
 
 type ManualState = null | 'open';
@@ -204,6 +208,22 @@ export function SellScreen(): JSX.Element {
       setScanError(t('scan_unknown'));
       return;
     }
+    // v0.5.2.9 — non-piece UoM (kg / g / l / ml) can't be sold via
+    // the scan-and-add-to-cart flow because each scan would mean
+    // "+1 smallest unit" (i.e. +1 gram), which is never what the
+    // merchant wants. These articles are weighed on a scale, then
+    // the merchant enters the weight via Article Detail → Quick
+    // Adjust. Surface a clear scan-error pointing at the right
+    // workflow instead of silently stocking 1 g per scan.
+    // Defensive `?? 'piece'` covers test-seeded articles (raw IDB
+    // writes bypass Dexie's v12 migration) and any pre-migration
+    // row that surfaces before the upgrade callback runs.
+    const articleUom = article.unit_of_measure ?? 'piece';
+    if (variant && articleUom !== 'piece') {
+      setScanError(t('scan_uom_not_piece', { uom: articleUom }));
+      setScanErrorArticleId(article.id);
+      return;
+    }
     // Same article already in cart → bump qty. Read from cartRef so
     // mount-time closures see the LATEST cart, not the empty one
     // captured at first render.
@@ -238,6 +258,7 @@ export function SellScreen(): JSX.Element {
         qty: 1,
         lot_id: lot?.id ?? null,
         available: stock,
+        unit_of_measure: article.unit_of_measure ?? 'piece',
       },
     ]);
   }
@@ -297,6 +318,7 @@ export function SellScreen(): JSX.Element {
           description: row.article_name,
           reference: row.internal_code,
           qty: row.qty,
+          unit_of_measure: row.unit_of_measure,
           unit_price_minor: row.unit_price_tnd,
         }));
         const overridePct = invoiceVatOverride.trim() === '' ? null : Number(invoiceVatOverride);

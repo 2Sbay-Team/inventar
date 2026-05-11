@@ -467,6 +467,7 @@
     "scan_sized_multi": "This article has multiple sizes — open it manually.",
     "scan_open_arrow": "Open →",
     "scan_out_of_stock": "Out of stock for that item.",
+    "scan_uom_not_piece": "Sold by {{uom}} — open the article and use Quick Adjust to enter the weight.",
     "scan_internal_error": "Something went wrong adding that item. Try again, or open it from Search.",
     "peek_count": "{{n}} in cart",
     "cart_title": "Cart",
