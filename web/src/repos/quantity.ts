@@ -77,6 +77,11 @@ export interface SizeGridCell {
   size: string | null;
   // Null for colourless store types.
   color: string | null;
+  // v0.5.2.8 — per-variant photo (the per-colour photo from Add Article).
+  // Null = fall back to Article.photo_id at render time. Carried through
+  // SizeGridCell so the Article Detail color-swatch strip can render a
+  // thumbnail per colour without a second round-trip to variants.
+  photo_id: UUID | null;
   qty: number;
   floor: number;
   back: number;
@@ -103,6 +108,7 @@ export async function sizeGridFor(db: InventarDB, articleId: UUID): Promise<Size
         variant_id: v.id,
         size: v.size,
         color: v.color,
+        photo_id: v.photo_id,
         qty: buckets.floor + buckets.back,
         floor: buckets.floor,
         back: buckets.back,

@@ -26,6 +26,7 @@ import { type SizeGridCell } from '../repos/quantity';
 export function ArticleDetailScreen(): JSX.Element {
   const { t } = useTranslation('article');
   const { t: tCommon } = useTranslation('common');
+  const { t: tColor } = useTranslation('color');
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const detail = useArticleDetail(id);
@@ -46,6 +47,12 @@ export function ArticleDetailScreen(): JSX.Element {
   const [qrOpen, setQrOpen] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  // v0.5.2.8 — industry-standard photo-per-colour pattern (Shopify /
+  // Lightspeed / WooCommerce / Magento style). The hero photo defaults
+  // to article.photo_id. Tapping a colour swatch below switches the
+  // hero to that colour's variant photo. Null = use the article-level
+  // fallback (current behaviour for first-load and sizeless articles).
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [minStockDraft, setMinStockDraft] = useState<string | null>(null);
   const [minStockSaving, setMinStockSaving] = useState(false);
   // v0.5.2 ADR-023: per-article expiry-alert override. Same shape as
@@ -54,6 +61,34 @@ export function ArticleDetailScreen(): JSX.Element {
   const [expiryAlertDraft, setExpiryAlertDraft] = useState<string | null>(null);
   const [expiryAlertSaving, setExpiryAlertSaving] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // v0.5.2.8 — one swatch per unique colour found in the article's
+  // variants, paired with the variant's photo_id so the strip can
+  // render a thumbnail. Order is the natural sort order returned by
+  // sizeGridFor (alphabetical with null first); first match for a
+  // colour wins, so the photo aligns with the first row of the size
+  // matrix for that colour. Empty for sizeless / colourless articles —
+  // the UI skips the strip when this list is empty.
+  const colorSwatches = useMemo(() => {
+    if (!detail?.sizes) return [] as Array<{ color: string; photoId: string | null }>;
+    const seen = new Map<string, string | null>();
+    for (const cell of detail.sizes) {
+      if (cell.color == null) continue;
+      if (seen.has(cell.color)) continue;
+      seen.set(cell.color, cell.photo_id);
+    }
+    return Array.from(seen.entries()).map(([color, photoId]) => ({ color, photoId }));
+  }, [detail?.sizes]);
+
+  // Hero photo: when the merchant has picked a colour, prefer that
+  // colour's variant photo; otherwise fall back to the article-level
+  // photo. Always falls back to article.photo_id when the variant has
+  // none — same fallback rule the storefront-style pattern uses.
+  const heroPhotoId = useMemo(() => {
+    if (selectedColor == null) return detail?.article?.photo_id ?? null;
+    const match = colorSwatches.find((s) => s.color === selectedColor);
+    return match?.photoId ?? detail?.article?.photo_id ?? null;
+  }, [selectedColor, colorSwatches, detail?.article?.photo_id]);
 
   const variantsById = useMemo(() => {
     const m = new Map<string, Variant>();
@@ -66,10 +101,10 @@ export function ArticleDetailScreen(): JSX.Element {
         id: cell.variant_id,
         article_id: detail.article.id,
         // Synthetic stub passed to ActivityFeed — the feed only renders
-        // size, so colour/photo are filled with the v6 defaults the schema
-        // requires.
+        // size, so colour/photo are filled with the cell's values so the
+        // colour-swatch strip below has its photo_id available too.
         color: cell.color ?? null,
-        photo_id: null,
+        photo_id: cell.photo_id,
         size: cell.size,
         hidden: cell.hidden,
         updated_at: '',
@@ -235,7 +270,7 @@ export function ArticleDetailScreen(): JSX.Element {
         className="bg-paper-deep relative mx-4 mt-4 aspect-[16/11] overflow-hidden rounded-2xl"
       >
         <PhotoThumb
-          photoId={article.photo_id}
+          photoId={heroPhotoId}
           size={320}
           className="!h-full !w-full !rounded-2xl border-0"
           testId="hero-photo-img"
@@ -271,6 +306,44 @@ export function ArticleDetailScreen(): JSX.Element {
           className="text-bad bg-bad/5 border-bad/20 mx-4 mt-2 rounded-xl border px-3 py-2 text-xs"
         >
           {photoError}
+        </div>
+      ) : null}
+
+      {colorSwatches.length > 0 ? (
+        <div data-testid="color-swatch-strip" className="mx-4 mt-3 flex gap-2 overflow-x-auto pb-1">
+          {colorSwatches.map((s) => {
+            const active = selectedColor === s.color;
+            return (
+              <button
+                key={s.color}
+                type="button"
+                data-testid={`color-swatch-${s.color}`}
+                aria-pressed={active}
+                onClick={() => setSelectedColor(active ? null : s.color)}
+                className={`flex flex-shrink-0 flex-col items-center gap-1 rounded-xl border bg-white px-2 py-1.5 transition-all active:scale-[0.97] ${
+                  active
+                    ? 'border-accent bg-accent-soft shadow-[0_2px_8px_rgba(255,107,53,0.18)]'
+                    : 'border-hair hover:border-accent/40'
+                }`}
+              >
+                <span className="block h-12 w-12 overflow-hidden rounded-lg">
+                  <PhotoThumb
+                    photoId={s.photoId}
+                    size={48}
+                    className="!h-full !w-full !rounded-lg border-0"
+                    testId={`color-swatch-thumb-${s.color}`}
+                  />
+                </span>
+                <span
+                  className={`text-[10px] font-medium leading-tight ${
+                    active ? 'text-accent-ink' : 'text-ink-2'
+                  }`}
+                >
+                  {tColor(s.color)}
+                </span>
+              </button>
+            );
+          })}
         </div>
       ) : null}
 
