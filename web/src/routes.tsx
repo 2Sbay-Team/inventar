@@ -30,6 +30,9 @@ const ArticleDetailScreen = lazy(() =>
 const ArticleLabelScreen = lazy(() =>
   import('./screens/article-label').then((m) => ({ default: m.ArticleLabelScreen })),
 );
+const LabelPreviewScreen = lazy(() =>
+  import('./screens/label-preview').then((m) => ({ default: m.LabelPreviewScreen })),
+);
 const InvoiceViewScreen = lazy(() =>
   import('./screens/invoice-view').then((m) => ({ default: m.InvoiceViewScreen })),
 );
@@ -199,6 +202,19 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <ArchiveBinScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    // v0.6 ADR-030 — Settings → Preview label. Renders a stub QR label
+    // so the merchant can see how their logo / store name will look on
+    // a printed sheet before they print a real article's label.
+    path: '/settings/label-preview',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <LabelPreviewScreen />
         </OnboardingGate>
       </Lazy>
     ),

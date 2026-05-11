@@ -369,6 +369,7 @@
     "shop_logo_add": "Ajouter un logo",
     "shop_logo_change": "Changer le logo",
     "shop_logo_remove": "Supprimer le logo",
+    "preview_label": "Aperçu de l'étiquette",
     "logo_too_large": "Ce logo est trop volumineux. Choisissez une image de moins de 25 Mo.",
     "logo_failed": "Impossible de lire cette image. Essayez un autre fichier.",
     "install_section": "Installer en tant qu'app",
@@ -675,7 +676,9 @@
   "label": {
     "print": "Imprimer",
     "done": "Terminer",
-    "not_found": "Article introuvable."
+    "not_found": "Article introuvable.",
+    "preview_article_name": "Article exemple",
+    "preview_hint": "Voici à quoi ressembleront vos étiquettes imprimées."
   },
   "invoice": {
     "title": "Facture",

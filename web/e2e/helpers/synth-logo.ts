@@ -1,11 +1,17 @@
 import { Buffer } from 'node:buffer';
 import { deflateSync } from 'node:zlib';
 
-// v0.5.4 ADR-028 — minimal PNG encoder for the logo-keying E2E specs.
-// Truecolor-with-alpha (color type 6) so we can fabricate exact pixel
-// layouts that exercise the keying threshold gate, the anti-alias band,
-// and the all-transparent rejection path deterministically — without
-// committing binary fixtures or pulling in `sharp` / `pngjs`.
+// Minimal PNG encoder for E2E specs that need to upload a controlled-
+// pixel-layout image without committing binary fixtures or pulling in
+// `sharp` / `pngjs`. Truecolor-with-alpha (color type 6) so callers
+// can fabricate exact RGBA pixels.
+//
+// Used by:
+//   • v0.5.4 ADR-028 — logo-keying specs (70-74_logo_*): exercises the
+//     keying threshold gate, the anti-alias band, and the all-transparent
+//     rejection path deterministically.
+//   • v0.6 ADR-030 — QR-branding spec 76_qr_label_branding: synthesises
+//     a controlled logo image to upload for the centre-overlay test.
 //
 // The encoder is intentionally tiny: PNG signature + IHDR + a single
 // IDAT (deflated raw scanlines, filter=None) + IEND. Good enough for

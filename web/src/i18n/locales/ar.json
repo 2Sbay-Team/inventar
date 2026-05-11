@@ -369,6 +369,7 @@
     "shop_logo_add": "إضافة شعار",
     "shop_logo_change": "تغيير الشعار",
     "shop_logo_remove": "إزالة الشعار",
+    "preview_label": "معاينة الملصق",
     "logo_too_large": "هذا الشعار كبير جداً. اختر صورة أقل من 25 ميغابايت.",
     "logo_failed": "تعذر قراءة الصورة. جرّب ملفاً آخر.",
     "install_section": "تثبيت كتطبيق",
@@ -675,7 +676,9 @@
   "label": {
     "print": "طباعة",
     "done": "إنهاء",
-    "not_found": "المنتج غير موجود."
+    "not_found": "المنتج غير موجود.",
+    "preview_article_name": "منتج نموذجي",
+    "preview_hint": "هكذا ستبدو ملصقاتك المطبوعة."
   },
   "invoice": {
     "title": "فاتورة",
