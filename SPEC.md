@@ -165,6 +165,39 @@ barcoded item is `/receive`, which auto-fills the EAN from the scan
 and creates the article via the same repo path. A merchant adding a
 non-barcoded item (fresh produce, bread) leaves `barcode_ean` null.
 
+**v0.5.6 — Unit field (formerly "Sold by").** Step 1 includes a
+dropdown labelled **Unit** / **Unité** / **وحدة** writing
+`Article.unit_of_measure`. Nine options, in two groups:
+
+| Group | Values | Behaviour |
+|---|---|---|
+| Countable | piece, pair, pack, dozen | Article keeps size + colour matrix; qty is integer |
+| Measured | kg, g, l, ml, meter | Article is sizeless + colourless; suppresses the colour × size matrix in Step 2 |
+
+Default per profile (Add Article picks this on mount; the merchant
+can change it):
+- Fashion + ONLY shoes / shoes_kids sub-types → **Pair**
+- Fashion + any other or mixed sub-types → **Piece**
+- Shop → **Piece**
+
+**v0.5.6 — Size suggestions (ADR-031).** The size input on Step 2
+exposes a `<datalist>` of quick-tap chips that adapt to context:
+
+| Profile state | Chip pool |
+|---|---|
+| Fashion + Adult shoes (Adult shoes & only) | `36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46` |
+| Fashion + Kids' shoes (only) | `20, 21, 22, 24, 26, 28, 30, 32` |
+| Fashion + Men's clothing (only) | `XS, S, M, L, XL, XXL, XXXL` |
+| Fashion + Women's clothing (only) | letter or numeric union (XS–XXXL, 36–46) |
+| Fashion + Kids' clothing (only) | `3M, 6M, 12M, 18M, 2Y, 3Y, 4Y, 5Y, 6Y, 8Y, 10Y, 12Y` |
+| Fashion + Accessories / Bags / Jewelry | (no chips — datalist absent) |
+| Fashion + multiple sub-types | UNION of matching chips; if the article's category matches one specific sub-type, narrow to that one |
+| Shop (sizeless block, sizes opted in) | `250ml, 500ml, 1L, 500g, 1Kg, 5Kg` |
+
+Free text is always accepted alongside the chips — typing `Petit`
+or `36.5` or `one size` saves verbatim to the variant's `size`
+field. The chips are a one-tap shortcut, not a hard constraint.
+
 ### 2.6 Dashboard
 
 Tab in bottom nav.
@@ -448,10 +481,15 @@ Anything not listed above. See `NON_GOALS.md`. The most important non-goals are:
 ADR-021 merged shoes + clothes → 'fashion' (parallel to ADR-017's
 kiosk + grocery → 'shop'). Onboarding offers two verticals:
 
-- **fashion** — sized + coloured, browse-driven, sku_prefix=`FN`. Sub-types: shoes, shoes_kids, clothing_men, clothing_women, clothing_kids, accessories, bags, jewelry. Each has a size_hint that drives Add Article's autocomplete.
+- **fashion** — sized + coloured, browse-driven, sku_prefix=`FN`. Sub-types: shoes (labelled "Adult shoes (men and women)" per v0.5.6), shoes_kids, clothing_men, clothing_women, clothing_kids, accessories, bags, jewelry. Each has a size_hint that drives Add Article's autocomplete.
 - **shop** — scan-driven, expiry-aware, sku_prefix=`SP`. Sub-types: 14 predefined (food_beverages, fresh_produce, bakery_pastry, snacks_confectionery, frozen_foods, personal_care, cosmetics_beauty, health_otc, household_cleaning, kitchenware_homegoods, stationery, toys_baby, pet_supplies, electronics_accessories) + custom strings.
 
 Legacy 'shoes' / 'clothes' / 'kiosk' / 'grocery' values stay readable for back-compat with v8 IDBs but are no longer in the picker. Removed in v0.7+.
+
+**v0.5.6 polish on the fashion-subtypes picker:**
+- "Shoes" → "Adult shoes (men and women)" (FR: "Chaussures adultes (hommes et femmes)"; AR: "أحذية للكبار (رجال ونساء)"). Internal sub-type ID stays `shoes`.
+- Description text uses the user-facing labels (Men's clothing / Women's clothing / Kids' clothing) and explains which size-hint each unlocks.
+- Pre-selection on the onboarding step (`OnboardingScreen`): ZERO sub-types ticked. Continue disabled until ≥1 is picked. Pre-selection on the migration-confirmation screen (`/migrations/confirm-subtypes`): the v8→v9 auto-assigned sub-types from the profile row are pre-ticked.
 
 ### 9.2 Custom subtypes
 

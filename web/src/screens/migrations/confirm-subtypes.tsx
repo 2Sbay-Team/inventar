@@ -42,6 +42,12 @@ export function ConfirmSubtypesScreen(): JSX.Element | null {
 
   // Local draft. Initialized from the profile values when the profile
   // resolves; subsequent edits stay in local state until Save commits.
+  //
+  // v0.5.6 — pre-tick the migration's auto-assigned sub-types so the
+  // merchant sees their starting setup. Per Issue 7 of the v0.5.6
+  // brief: a 'shoes' profile lands here with ['shoes'] pre-ticked; a
+  // 'clothes' profile lands with ['clothing_men', 'clothing_women']
+  // pre-ticked. The merchant adjusts as needed and saves.
   const [draft, setDraft] = useState<string[] | null>(null);
   useEffect(() => {
     if (!profile) return;

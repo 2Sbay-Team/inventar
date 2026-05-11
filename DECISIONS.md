@@ -427,3 +427,87 @@ suddenly find their dashboard widgets shifting because Inventar
 shipped a new predefined. The category list is the merchant's
 declaration about THEIR shop, not a rolling inventory of
 Inventar's taxonomy.
+
+## ADR-031: Size suggestions on Add Article are sub-type + category-aware quick chips; free text always accepted
+
+**v0.5.6.** Two related decisions about the size-input UX on the
+Add Article form:
+
+1. **Quick-tap chips reflect the merchant's stock.** The
+   `<datalist>` next to the size input draws its options from the
+   selected fashion sub-types' `size_hint` mapping. A shoes-only
+   merchant sees EU 36-46; a clothing_men-only merchant sees
+   letter sizes S-XXXL; an accessories merchant sees no chips.
+
+2. **The article's CATEGORY narrows the pool further.** A merchant
+   who stocks shoes AND clothing_men, adding an article with
+   category 'shirts' (which only belongs to clothing_men), sees
+   only letter sizes — the EU shoe chips don't pollute the list.
+   When the category doesn't match any sub-type (a custom typed
+   category, or a sub-type set whose categories don't include the
+   chosen one), we fall back to the all-sub-types union so the
+   merchant still has SOMETHING to tap. Implementation:
+   `sizeHintValuesForCategory(subtypes, category)` in
+   `web/src/config/fashion-subtypes.ts`.
+
+3. **Shop vertical surfaces six package-size chips** (`250ml` /
+   `500ml` / `1L` / `500g` / `1Kg` / `5Kg`) when the merchant opts
+   into per-article sizes on a sizeless block. Constant
+   `SHOP_PACKAGE_SIZES`, same file.
+
+**Free text is always accepted.** The chips are pure hints — the
+`<input>` accepts any string and stores it verbatim. A merchant
+typing 'Petit' or '36.5' or 'one size' persists exactly that.
+The chips trade off discoverability for breadth: they shorten the
+common case to one tap without locking the merchant out of
+arbitrary values.
+
+**Why narrow instead of union always?** The all-sub-types union
+that v0.5.2.9 shipped worked fine for single-vertical merchants
+but produced confusing 20+ chip rows for a fashion merchant who
+ticked both shoes and clothing_men. Real-world testing surfaced
+this as the #1 complaint on the Add Article form. Narrowing by
+category removes the noise without making the list user-
+configurable (which would have been another preference to manage).
+
+## ADR-032: Article master data is product-intrinsic only. Tax, expenses, discounts, and stock live in separate domains.
+
+**v0.5.6 — affirming an architectural boundary that came up
+during v0.5.6 polish discussions.** Several adjacent feature
+requests (tax rate per article, expense tracking on articles,
+discount fields) would each have added a column or two to the
+Article row. Each in isolation is small; together they collapse
+the Article table into a kitchen-sink dumping ground.
+
+**Decision.** The Article table holds ONLY product-intrinsic
+attributes: name, photo, brand, category, internal_code, EAN,
+cost / sale price, unit_of_measure, alert thresholds, and the
+boolean traits (has_sizes, has_colors, has_expiry). Anything that
+is NOT inherent to the product — every transactional, financial,
+or operational concern — lives in its own table:
+
+- **Tax** (rates, categories, included-vs-added) → deferred to
+  v0.7 with its own `TaxRate` and `ArticleTaxCategory` tables.
+  ADR to be written under the v0.7 work.
+- **Expenses** → already in the separate Expenses domain (per the
+  existing Dashboard / expense-modal flow). Articles never carry
+  an "expense" field.
+- **Discounts** → applied per-sale via the Quick Adjust modal's
+  `unit_price_tnd` override (ADR-014). Not an article field.
+- **Stock** → ADR-002 (Movement-as-truth). Articles never store a
+  `quantity` column.
+- **Customer / document references** → forthcoming v0.8 document
+  layer; will live in `Document` and `RecentCustomer` tables.
+
+**Why this matters.** Each candidate field looks innocent on its
+own, but every column on Article that ISN'T product-intrinsic
+fights the cache-locality of the catalogue (one row read pulls
+in irrelevant data), erodes the mental model ("what is an
+Article, exactly?"), and tempts callers to read fields they
+shouldn't (a tax rate read off Article instead of TaxRate would
+silently use a stale value after a tax-rule change). Drawing the
+line now — explicitly — saves us from a cleanup pass later.
+
+**If a future contributor wonders whether tax / expense /
+discount / stock belongs on Article: the answer is NO.** Add a
+new domain table and reference it by `article_id` instead.
