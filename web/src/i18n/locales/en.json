@@ -112,6 +112,7 @@
     "price_cost": "Cost",
     "price_sale": "Sale",
     "in_stock_total": "{{n}} in stock",
+    "in_stock_total_uom": "{{n}} {{uom}} in stock",
     "out_of_stock": "Out of stock",
     "min_stock_label": "Reorder under",
     "min_stock_placeholder": "off",
@@ -141,6 +142,7 @@
   "adjust": {
     "title": "Size {{size}} of \"{{name}}\"",
     "current": "Current: {{n}} pairs",
+    "current_uom": "Current: {{n}} {{uom}}",
     "reason": "Reason",
     "reason_sale": "Sale",
     "reason_return": "Return",

@@ -7,6 +7,7 @@ import { formatNumber } from '../i18n/format-number';
 import { type SearchResult } from '../query/search';
 import { PhotoThumb } from './photo-thumb';
 import { StockBadge } from './stock-badge';
+import { internalPriceToInput } from '../config/article-traits';
 
 interface ResultCardProps {
   result: SearchResult;
@@ -46,7 +47,16 @@ export function ResultCard({ result, featured }: ResultCardProps): JSX.Element {
             {article.name}
           </span>
           <span className="text-ink-2 flex-shrink-0 font-mono text-[11.5px] font-medium" dir="ltr">
-            {formatCurrency(article.sale_price_tnd, locale, currency)}
+            {/* v0.5.2.9 (UoM): sale_price_tnd is stored per smallest
+                unit (millimes per g for kg/g, per ml for l/ml). Convert
+                back to the merchant's display unit for the badge:
+                "15.000 TND" for piece, "15.000 TND/kg" for kg, etc. */}
+            {formatCurrency(
+              internalPriceToInput(article.sale_price_tnd, article.unit_of_measure),
+              locale,
+              currency,
+            )}
+            {article.unit_of_measure === 'piece' ? '' : `/${article.unit_of_measure}`}
           </span>
         </div>
         <span className="text-ink-4 font-mono text-[10.5px]" dir="ltr">

@@ -11,6 +11,7 @@ import { db } from '../db/db';
 import { findMostRecentSale, recordMovement } from '../repos/movements';
 import { lotsForVariant, remainingForLot } from '../repos/lots';
 import { type Lot, type Movement, type MovementType, type UUID } from '../types';
+import { formatQtyWithUom, inputQtyToInternal, type Uom } from '../config/article-traits';
 
 export interface QuickAdjustTarget {
   variantId: UUID;
@@ -23,6 +24,11 @@ export interface QuickAdjustTarget {
   // sale / refund total when reason is sale or return; required so the
   // sheet doesn't have to fetch the article on its own.
   unitPriceTnd: number;
+  // v0.5.2.9 (UoM): article's unit of measure drives whether the
+  // qty input is a +/- stepper (piece) or a decimal text input
+  // (kg / g / l / ml). Defaults to 'piece' for back-compat with
+  // any caller that doesn't pass it.
+  unitOfMeasure?: Uom;
 }
 
 interface QuickAdjustSheetProps {
@@ -55,6 +61,12 @@ export function QuickAdjustSheet({
   const { locale } = useLocale();
   const currency = useCurrency();
   const [step, setStep] = useState(1);
+  // v0.5.2.9 (UoM): when the article isn't piece, the merchant types
+  // a decimal in display units (e.g. "0.850" for kg). On every
+  // change we convert to internal smallest-unit (grams) and store
+  // in `step` so the existing total preview + recordMovement code
+  // path is unchanged. Empty string = qty 0 → submit disabled below.
+  const [qtyInput, setQtyInput] = useState('1');
   const [reason, setReason] = useState<MovementType>(defaultReason);
   const [note, setNote] = useState('');
   // Optional per-sale price override. Empty string = use the article's
@@ -78,6 +90,7 @@ export function QuickAdjustSheet({
   useEffect(() => {
     if (open) {
       setStep(1);
+      setQtyInput('1');
       setReason(defaultReason);
       setNote('');
       setDiscountInput('');
@@ -234,37 +247,86 @@ export function QuickAdjustSheet({
               ? t('title', { size: target.size, name: target.articleName })
               : target.articleName}
           </Dialog.Title>
-          <p data-testid="adjust-current" className="text-ink-3 mt-1 font-mono text-xs">
-            {t('current', { n: formatNumber(target.currentQty, locale) })}
-          </p>
+          {(() => {
+            const uom = target.unitOfMeasure ?? 'piece';
+            const { value: currentVal, suffix: currentSuf } = formatQtyWithUom(
+              target.currentQty,
+              uom,
+            );
+            return (
+              <p data-testid="adjust-current" className="text-ink-3 mt-1 font-mono text-xs">
+                {currentSuf === ''
+                  ? t('current', { n: formatNumber(currentVal, locale) })
+                  : t('current_uom', {
+                      n: formatNumber(currentVal, locale),
+                      uom: currentSuf,
+                    })}
+              </p>
+            );
+          })()}
 
-          <div
-            data-testid="adjust-stepper"
-            className="border-hair mt-4 flex items-center rounded-xl border bg-white p-2"
-          >
-            <button
-              type="button"
-              data-testid="stepper-minus"
-              onClick={() => setStep((s) => Math.max(1, s - 1))}
-              className="bg-paper border-hair h-8 w-8 rounded-lg border text-base"
+          {/* v0.5.2.9 (UoM): piece UoM keeps the +/- stepper (existing
+              flow). Non-piece UoM (kg / g / l / ml) renders a decimal
+              text input — `qtyInput` holds the merchant's typed display
+              value, and on every change we convert via
+              inputQtyToInternal to keep `step` in internal smallest
+              units so the existing recordMovement + total-preview code
+              never has to special-case UoM. */}
+          {(target.unitOfMeasure ?? 'piece') === 'piece' ? (
+            <div
+              data-testid="adjust-stepper"
+              className="border-hair mt-4 flex items-center rounded-xl border bg-white p-2"
             >
-              −
-            </button>
-            <span
-              data-testid="stepper-value"
-              className="flex-1 text-center font-mono text-sm font-semibold tabular-nums"
+              <button
+                type="button"
+                data-testid="stepper-minus"
+                onClick={() => setStep((s) => Math.max(1, s - 1))}
+                className="bg-paper border-hair h-8 w-8 rounded-lg border text-base"
+              >
+                −
+              </button>
+              <span
+                data-testid="stepper-value"
+                className="flex-1 text-center font-mono text-sm font-semibold tabular-nums"
+              >
+                {formatNumber(step, locale)}
+              </span>
+              <button
+                type="button"
+                data-testid="stepper-plus"
+                onClick={() => setStep((s) => s + 1)}
+                className="bg-paper border-hair h-8 w-8 rounded-lg border text-base"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <div
+              data-testid="adjust-qty-input"
+              className="border-hair mt-4 flex items-center gap-2 rounded-xl border bg-white p-3"
             >
-              {formatNumber(step, locale)}
-            </span>
-            <button
-              type="button"
-              data-testid="stepper-plus"
-              onClick={() => setStep((s) => s + 1)}
-              className="bg-paper border-hair h-8 w-8 rounded-lg border text-base"
-            >
-              +
-            </button>
-          </div>
+              <input
+                data-testid="adjust-qty-input-field"
+                type="text"
+                inputMode="decimal"
+                value={qtyInput}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  setQtyInput(text);
+                  const parsed = Number(text.replace(',', '.'));
+                  if (Number.isFinite(parsed) && parsed >= 0) {
+                    const internal = inputQtyToInternal(parsed, target.unitOfMeasure ?? 'piece');
+                    setStep(Math.max(0, internal));
+                  } else {
+                    setStep(0);
+                  }
+                }}
+                className="flex-1 rounded-lg bg-paper px-3 py-2 text-end font-mono text-sm font-semibold tabular-nums"
+                dir="ltr"
+              />
+              <span className="text-ink-3 text-xs">{target.unitOfMeasure}</span>
+            </div>
+          )}
 
           {/* v0.5.2 ADR-020: Lot picker. Only renders when this variant
               has ≥2 alive lots AND the reason is sale/return (the only

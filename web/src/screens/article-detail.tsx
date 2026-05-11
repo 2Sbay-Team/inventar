@@ -10,7 +10,12 @@ import { PhotoThumb } from '../components/photo-thumb';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Camera, Minus, Plus, QrCode, X } from 'lucide-react';
 import { ArticleQR } from '../components/article-qr';
-import { articleHasExpiry, articleHasSizes } from '../config/article-traits';
+import {
+  articleHasExpiry,
+  articleHasSizes,
+  formatQtyWithUom,
+  internalPriceToInput,
+} from '../config/article-traits';
 import { useArticleDetail } from '../hooks/use-article-detail';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
@@ -144,6 +149,8 @@ export function ArticleDetailScreen(): JSX.Element {
       // Pass the catalogue price so the sheet can preview sale / refund
       // totals without a separate fetch.
       unitPriceTnd: article.sale_price_tnd,
+      // v0.5.2.9 (UoM): drives the qty-input variant (stepper vs decimal).
+      unitOfMeasure: article.unit_of_measure,
     });
   }
 
@@ -366,7 +373,12 @@ export function ArticleDetailScreen(): JSX.Element {
               className="font-mono text-[13px] font-semibold tabular-nums"
               dir="ltr"
             >
-              {formatCurrency(article.cost_price_tnd, locale, currency)}
+              {formatCurrency(
+                internalPriceToInput(article.cost_price_tnd, article.unit_of_measure),
+                locale,
+                currency,
+              )}
+              {article.unit_of_measure === 'piece' ? '' : `/${article.unit_of_measure}`}
             </span>
           </div>
           <div className="flex flex-col">
@@ -378,7 +390,12 @@ export function ArticleDetailScreen(): JSX.Element {
               className="font-mono text-[13px] font-semibold tabular-nums"
               dir="ltr"
             >
-              {formatCurrency(article.sale_price_tnd, locale, currency)}
+              {formatCurrency(
+                internalPriceToInput(article.sale_price_tnd, article.unit_of_measure),
+                locale,
+                currency,
+              )}
+              {article.unit_of_measure === 'piece' ? '' : `/${article.unit_of_measure}`}
             </span>
           </div>
           <span
@@ -386,7 +403,16 @@ export function ArticleDetailScreen(): JSX.Element {
             className={`ms-auto rounded-full px-3 py-1 text-[11px] font-medium ${totalQty > 0 ? 'bg-ok-soft text-ok' : 'bg-paper-deep text-ink-3'}`}
           >
             {totalQty > 0
-              ? t('in_stock_total', { n: formatNumber(totalQty, locale) })
+              ? (() => {
+                  // v0.5.2.9 (UoM): format stock total with the article's
+                  // unit (e.g. "850 g", "1.25 kg"). For 'piece' UoM the
+                  // suffix is empty so the existing string stays clean.
+                  const { value, suffix } = formatQtyWithUom(totalQty, article.unit_of_measure);
+                  const formatted = formatNumber(value, locale);
+                  return suffix === ''
+                    ? t('in_stock_total', { n: formatted })
+                    : t('in_stock_total_uom', { n: formatted, uom: suffix });
+                })()
               : t('out_of_stock')}
           </span>
         </div>
@@ -498,6 +524,7 @@ export function ArticleDetailScreen(): JSX.Element {
           </div>
           <SizeGrid
             cells={detail.sizes}
+            unitOfMeasure={article.unit_of_measure}
             onCellClick={(cell) => openAdjust(cell, cell.qty > 0 ? 'sale' : 'purchase')}
           />
         </section>

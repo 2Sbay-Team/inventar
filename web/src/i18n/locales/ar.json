@@ -112,6 +112,7 @@
     "price_cost": "التكلفة",
     "price_sale": "البيع",
     "in_stock_total": "{{n}} في المخزون",
+    "in_stock_total_uom": "{{n}} {{uom}} في المخزون",
     "out_of_stock": "نفد",
     "min_stock_label": "إعادة الطلب تحت",
     "min_stock_placeholder": "إيقاف",
@@ -141,6 +142,7 @@
   "adjust": {
     "title": "المقاس {{size}} من «{{name}}»",
     "current": "الحالي: {{n}} زوج",
+    "current_uom": "الحالي: {{n}} {{uom}}",
     "reason": "السبب",
     "reason_sale": "بيع",
     "reason_return": "إرجاع",

@@ -1,5 +1,6 @@
 import { useLocale } from '../hooks/use-locale';
 import { formatNumber } from '../i18n/format-number';
+import { formatQtyWithUom, type Uom } from '../config/article-traits';
 import { type SizeGridCell } from '../repos/quantity';
 
 interface SizeGridProps {
@@ -8,9 +9,19 @@ interface SizeGridProps {
   // the user came from on the search screen.
   focusSize?: string | null;
   onCellClick: (cell: SizeGridCell) => void;
+  // v0.5.2.9 (UoM): article's UoM determines how each cell's qty is
+  // formatted. Defaults to 'piece' for back-compat with screens that
+  // don't yet pass it. Piece pass-through is identical to the prior
+  // bare-integer behaviour.
+  unitOfMeasure?: Uom;
 }
 
-export function SizeGrid({ cells, focusSize, onCellClick }: SizeGridProps): JSX.Element {
+export function SizeGrid({
+  cells,
+  focusSize,
+  onCellClick,
+  unitOfMeasure = 'piece',
+}: SizeGridProps): JSX.Element {
   const { locale } = useLocale();
   const visible = cells.filter((c) => !c.hidden);
   return (
@@ -43,7 +54,11 @@ export function SizeGrid({ cells, focusSize, onCellClick }: SizeGridProps): JSX.
               className="font-mono text-[9.5px] tabular-nums"
               dir="ltr"
             >
-              {formatNumber(c.qty, locale)}
+              {(() => {
+                const { value, suffix } = formatQtyWithUom(c.qty, unitOfMeasure);
+                const num = formatNumber(value, locale);
+                return suffix === '' ? num : `${num} ${suffix}`;
+              })()}
             </span>
           </button>
         );

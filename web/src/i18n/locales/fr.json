@@ -112,6 +112,7 @@
     "price_cost": "Coût",
     "price_sale": "Vente",
     "in_stock_total": "{{n}} en stock",
+    "in_stock_total_uom": "{{n}} {{uom}} en stock",
     "out_of_stock": "Épuisé",
     "min_stock_label": "Réappro sous",
     "min_stock_placeholder": "off",
@@ -141,6 +142,7 @@
   "adjust": {
     "title": "Taille {{size}} de « {{name}} »",
     "current": "Actuel : {{n}} paires",
+    "current_uom": "Actuel : {{n}} {{uom}}",
     "reason": "Motif",
     "reason_sale": "Vente",
     "reason_return": "Retour",

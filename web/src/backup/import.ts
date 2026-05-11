@@ -216,6 +216,15 @@ function backfillV05Defaults(rows: AppliedRows): AppliedRows {
           ...a,
           barcode_ean: (a as Article).barcode_ean ?? null,
           min_stock_threshold: (a as Article).min_stock_threshold ?? null,
+          // v0.5.2.9 (Phase B + UoM): older backups don't carry the
+          // per-article trait overrides or unit_of_measure. Default
+          // overrides to null (= follow store_type), unit_of_measure
+          // to 'piece' so the existing |qty| * price math is
+          // identical to pre-UoM behaviour.
+          has_sizes: (a as Article).has_sizes ?? null,
+          has_colors: (a as Article).has_colors ?? null,
+          has_expiry: (a as Article).has_expiry ?? null,
+          unit_of_measure: (a as Article).unit_of_measure ?? 'piece',
         }) as Article,
     ),
     variants: rows.variants,

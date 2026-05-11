@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocale } from '../hooks/use-locale';
 import { formatNumber } from '../i18n/format-number';
 import { type SearchResult } from '../query/search';
+import { formatQtyWithUom } from '../config/article-traits';
 
 interface StockBadgeProps {
   result: SearchResult;
@@ -14,6 +15,15 @@ interface StockBadgeProps {
 export function StockBadge({ result }: StockBadgeProps): JSX.Element {
   const { t } = useTranslation('search');
   const { locale } = useLocale();
+  const uom = result.article.unit_of_measure;
+  // v0.5.2.9 (UoM): format a stored smallest-unit qty as "850 g" /
+  // "1.25 kg" when the article isn't sold by piece. Piece falls
+  // through unchanged.
+  const fmtQty = (n: number): string => {
+    const { value, suffix } = formatQtyWithUom(n, uom);
+    const num = formatNumber(value, locale);
+    return suffix === '' ? num : `${num} ${suffix}`;
+  };
   const fmt = (n: number): string => formatNumber(n, locale);
   const inStockSizes = result.sizeStock.filter((s) => s.qty > 0);
 
@@ -56,7 +66,7 @@ export function StockBadge({ result }: StockBadgeProps): JSX.Element {
       }`}
     >
       {sizeless
-        ? t('summary_units', { n: fmt(result.totalQty) })
+        ? t('summary_units', { n: fmtQty(result.totalQty) })
         : t('summary', { pairs: fmt(result.totalQty), sizes: fmt(inStockSizes.length) })}
     </span>
   );
