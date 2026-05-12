@@ -639,6 +639,45 @@ export class InventarDB extends Dexie {
             if (!('size_standard' in p)) p.size_standard = 'EU';
           });
       });
+
+    // v0.9 ADR-041 — per-article tax category. Two new nullable
+    // columns on articles. Null on every existing row so the resolver
+    // (utils/tax-rate.ts) keeps falling back to the shop's
+    // ShopProfile.default_vat_pct — the pre-v17 behaviour. No index
+    // changes: tax fields are read by primary-key lookup at invoice
+    // time, never queried by index.
+    //
+    // Idempotent: each field guarded with `if (!(key in a))` so a
+    // re-run (Dexie history replay, manual db.open()) leaves merchant-
+    // set values alone instead of clobbering them back to null.
+    this.version(17)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('articles')
+          .toCollection()
+          .modify(
+            (a: {
+              tax_category?: 'standard' | 'reduced' | 'zero' | 'custom' | null;
+              tax_custom_rate?: number | null;
+            }) => {
+              if (!('tax_category' in a)) a.tax_category = null;
+              if (!('tax_custom_rate' in a)) a.tax_custom_rate = null;
+            },
+          );
+      });
   }
 }
 

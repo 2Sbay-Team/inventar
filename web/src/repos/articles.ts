@@ -4,6 +4,7 @@ import {
   type Article,
   type Category,
   type Movement,
+  type TaxCategory,
   type Uom,
   type UUID,
   type Variant,
@@ -73,6 +74,12 @@ interface CreateArticleInputCommon {
   // v0.5.2.9 (UoM) — display + qty-input precision. Defaults to
   // 'piece' when omitted, which matches the historical convention.
   unit_of_measure?: Uom;
+  // v0.9 ADR-041 — per-article tax. Both default to null when
+  // omitted; that's the "follow shop default VAT" behaviour. Only
+  // pass tax_custom_rate when tax_category === 'custom' — for every
+  // other category we coerce the rate back to null on the way in.
+  tax_category?: TaxCategory | null;
+  tax_custom_rate?: number | null;
 }
 
 export interface CreateArticleInputV2 extends CreateArticleInputCommon {
@@ -176,6 +183,12 @@ export async function createArticle(
       has_colors: input.has_colors ?? null,
       has_expiry: input.has_expiry ?? null,
       unit_of_measure: input.unit_of_measure ?? 'piece',
+      tax_category: input.tax_category ?? null,
+      // Guard: tax_custom_rate is only meaningful in the 'custom'
+      // bucket. Any other category (including null) zeros it out so
+      // we don't carry stale custom percentages forward when the
+      // merchant later switches an article back to "shop default".
+      tax_custom_rate: input.tax_category === 'custom' ? (input.tax_custom_rate ?? null) : null,
       search_blob: '', // filled in just below
       updated_at: ts,
       archived_at: null,
@@ -254,6 +267,10 @@ export type UpdateArticleInput = Partial<
     | 'barcode_ean'
     | 'min_stock_threshold'
     | 'expiry_alert_days'
+    // v0.9 ADR-041 — surface both tax fields so a future Edit-Article
+    // form can patch them via the same shared update path.
+    | 'tax_category'
+    | 'tax_custom_rate'
   >
 >;
 
