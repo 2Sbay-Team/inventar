@@ -16,11 +16,12 @@ function fashion(overrides: Partial<Parameters<typeof getSizeSuggestions>[0]>) {
 }
 
 describe('getSizeSuggestions — weight/volume UoMs', () => {
-  // The screen hides the size field for these; this helper conservatively
-  // returns no chips too so nothing leaks if a future caller forgets the
-  // hide guard. Spec tests N+1..N+4 — these UoMs never produce chips.
+  // N+4 — weight/volume UoMs hide the size field at the screen level
+  // (add-article.tsx: `hidesSizeField = isWeightOrVolumeUom(uom)`),
+  // and this helper conservatively returns no chips too so nothing
+  // leaks if a future caller forgets the hide guard.
   for (const u of ['kg', 'g', 'l', 'ml'] as const) {
-    it(`unit '${u}' → no chips`, () => {
+    it(`N+4 — unit '${u}' (weight/volume) → no chips`, () => {
       expect(fashion({ unit: u })).toEqual([]);
     });
   }
@@ -128,7 +129,7 @@ describe('getSizeSuggestions — bug-fix: chip range follows profile sub-types',
     );
   });
 
-  // N+4
+  // Spec-adjacent guard: men's clothing should not borrow shoe numerics.
   it("men's clothing → letter sizes (XS..XXXL), no shoe numerics", () => {
     const chips = fashion({ fashionSubtypes: ['clothing_men'], unit: 'piece' });
     expect(chips).toContain('XS');
