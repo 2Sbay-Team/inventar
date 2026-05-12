@@ -1,6 +1,7 @@
 {
   "version": "0.5.4",
   "released_at": "2026-05-11",
+  "risk_level": "safe",
   "highlights": {
     "en": [
       "Faster article search across large catalogues",

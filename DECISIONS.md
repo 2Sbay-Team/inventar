@@ -717,3 +717,90 @@ respected: Snooze and Skip are first-class outcomes, not nags.
 macOS). Short enough that a real fix lands soon; long enough that a
 merchant in the middle of inventory work isn't re-prompted every
 five minutes.
+
+## ADR-032: Update modal adapts to a `risk_level` field on whats-new.json — safe / migration / breaking layouts with mandatory backup gate on breaking
+
+**v0.6.2.** The v0.6 consent modal (ADR-031) treats every release
+identically: three buttons, no information about whether the update
+modifies the merchant's data or changes the backup format. A
+merchant who taps Install on a migration update without warning
+could face a backup that no longer round-trips, or a data shape
+they didn't expect. For a single-phone retail app where the
+merchant IS the IT department, that loss of agency is unacceptable.
+
+**Decision.** `whats-new.json` gains an optional `risk_level` field
+with three values, plus optional `migration` and
+`backup_format_change` blocks describing the change. The same
+`AppUpdateModal` renders three layouts keyed off the value:
+
+| Level       | Header             | Body                                   | Primary           | Secondary               |
+|-------------|--------------------|----------------------------------------|-------------------|-------------------------|
+| `safe`      | Sparkles, accent   | Highlights + ✓ data unaffected lines   | **Install now**   | Snooze / Skip           |
+| `migration` | Package, warn      | Highlights + warning block + export hint | **Install now**   | Snooze / Skip           |
+| `breaking`  | AlertTriangle, bad | Highlights + strong warning + REQUIRED export | **Cancel — I'll prepare first** | Install (disabled until export tapped); no Snooze / Skip |
+
+The `migration` block carries `{summary: {en,fr,ar},
+data_affected[], data_preservation, rollback_supported}`. The
+`backup_format_change` block carries `{from, to,
+backwards_compatible_import, forwards_compatible_export}`.
+
+**Strict validator.** A `risk_level` of `migration` or `breaking`
+WITHOUT a fully-shaped migration block fails `isValidWhatsNew`. The
+caller falls through to the `SKIP_SENTINEL_UNKNOWN` fallback path —
+generic copy, no warning. This is deliberate: silently downgrading
+a malformed risky update to a reassuring safe layout would defeat
+the purpose. Missing `risk_level` (legacy v0.6 files) normalizes
+to `safe`, so the schema is fully backwards-compatible for the
+files that already ship to production devices.
+
+**Snooze key is composite — `(version, risk_level)`.** When the
+same version is republished with a higher risk level (e.g. safe →
+migration after a hotfix to whats-new.json), the mismatch
+invalidates an in-flight snooze and the modal re-prompts at the
+heavier warning. Stored as a new meta key
+`update_snoozed_risk_level`.
+
+**Breaking updates bypass both snooze AND the skipped-versions
+list.** A 'breaking' risk_level forces `shouldPromptForUpdate` to
+return true regardless of prior consent state. The merchant cannot
+suppress a non-rollback-able update; they can only **Cancel — I'll
+prepare first**, which closes the modal transiently. The next page
+load (or hook re-mount with the SW still waiting) re-prompts. This
+is the "force consideration" rule.
+
+**Known limitation: skip is not invalidated on safe → migration
+upgrade.** Skipped versions are stored as plain version strings, not
+(version, risk_level) tuples. A merchant who tapped Skip on v0.5.7
+as 'safe' will NOT re-see the modal if v0.5.7's whats-new is later
+republished as 'migration'. The brief's clarifying question only
+asked about snooze; the migration risk level is the lighter tier
+(no rollback warning), so the silent suppression is acceptable.
+'breaking' republishes bypass skip anyway, so the worst case is
+always covered. Revisit if real-world authoring patterns produce
+many safe → migration upgrades.
+
+**Export-backup state is local, not persistent.** The merchant's
+"I've exported a backup" toggle is React state inside the modal
+component. It resets every time the modal re-opens. A backup taken
+yesterday isn't a pre-install snapshot for today's upgrade —
+forcing a fresh export per modal session keeps the implied
+commitment honest. The export pipeline itself is shared with
+Settings → Export Data via `web/src/backup/download.ts`; both
+callers take the same `exportBackupBlob → anchor click →
+markBackedUp` path.
+
+**Trust limit on Export.** The browser's save dialog isn't
+observable from JS. The modal can detect that the click handler
+completed without throwing (anchor click dispatched, blob handed
+to the browser), not that the merchant actually picked a save
+destination. This matches the existing Settings flow, which has
+treated `markBackedUp` as a post-click side-effect since v0.1. A
+merchant who hits Export and then cancels the OS save dialog still
+gets the ✓ indicator and the Install button enabled on breaking —
+ergonomic, but not a security boundary.
+
+**SPEC §10 amendment.** `APP_VERSION` is still duplicated as
+`const APP_VERSION = '1.0.0'` in three callers
+(`settings.tsx`, `use-auto-backup.ts`, `app-update-modal.tsx`). The
+TODO to thread it through Vite's `define` config remains open;
+nothing in this commit makes the situation worse.
