@@ -81,21 +81,32 @@ export const META_KEYS = {
   // /sell-side invoice issuer reads + increments this atomically
   // inside the same Dexie transaction that writes the invoice row.
   invoice_counter: 'invoice_counter',
-  // v0.6 ADR-031: user-controlled update consent flow. The picker on
-  // a waiting SW honours these.
-  //   update_snooze_until    — ISO timestamp; modal suppressed while
-  //                            now() < this
-  //   update_snoozed_version — version string the snooze was set for;
-  //                            cleared automatically when a different
-  //                            version becomes available
-  //   update_skipped_versions— array<string>; modal never re-shows for
-  //                            any version in this list
-  //   update_just_installed  — version string written immediately
-  //                            before reload-on-consent; on next boot
-  //                            we surface a one-shot "Welcome to vX"
-  //                            toast and clear the key
+  // v0.6 ADR-031 / v0.6.2 ADR-032: user-controlled update consent
+  // flow. The picker on a waiting SW honours these.
+  //   update_snooze_until        — ISO timestamp; snooze suppressed
+  //                                while now() < this
+  //   update_snoozed_version     — version string the snooze was set
+  //                                for; cleared automatically when a
+  //                                different version becomes available
+  //   update_snoozed_risk_level  — risk_level the snooze was set for
+  //                                ('safe' | 'migration'). If the same
+  //                                version's whats-new.json is later
+  //                                republished at a higher risk level,
+  //                                the snooze is invalidated by the
+  //                                mismatch and the modal re-prompts.
+  //                                Never written for 'breaking' since
+  //                                breaking updates have no snooze.
+  //   update_skipped_versions    — array<string>; modal never re-shows
+  //                                for any version in this list. Note:
+  //                                'breaking' updates bypass this list
+  //                                (force consideration).
+  //   update_just_installed      — version string written immediately
+  //                                before reload-on-consent; on next
+  //                                boot we surface a one-shot
+  //                                "Welcome to vX" toast and clear it.
   update_snooze_until: 'update_snooze_until',
   update_snoozed_version: 'update_snoozed_version',
+  update_snoozed_risk_level: 'update_snoozed_risk_level',
   update_skipped_versions: 'update_skipped_versions',
   update_just_installed: 'update_just_installed',
 } as const;

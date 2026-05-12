@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { db } from '../db/db';
 import { getMeta, META_KEYS, setMeta } from '../repos/meta';
 import { getSwHandle } from '../pwa/register-sw';
-import { fetchWhatsNew, type WhatsNew } from '../pwa/fetch-whats-new';
+import { fetchWhatsNew, type RiskLevel, type WhatsNew } from '../pwa/fetch-whats-new';
 
 // v0.6 ADR-031 — orchestrates the update-consent modal.
 //
@@ -15,6 +15,18 @@ import { fetchWhatsNew, type WhatsNew } from '../pwa/fetch-whats-new';
 // Per the brief, the modal is fully blocking — the merchant must pick
 // one of the three options. The hook exposes status + actions; the
 // consumer (AppUpdateModal) renders Radix Dialog around them.
+//
+// v0.6.2 ADR-032 — risk-aware variant. The hook surfaces the
+// normalized risk_level + migration metadata for the consumer to
+// render warning/breaking branches. Two consent-gate rules change:
+//
+//   • Snooze key is composite (version, risk_level). When the same
+//     version's whats-new.json is republished at a higher risk level
+//     (safe → migration), the mismatch invalidates the snooze and the
+//     modal re-prompts on the next probe.
+//   • Breaking updates ALWAYS prompt — they bypass both snooze and
+//     skipped-versions. The brief calls this "force consideration":
+//     a merchant cannot suppress a non-rollback-able update.
 
 export type UpdateStatus = 'idle' | 'loading' | 'prompting' | 'installing';
 
@@ -28,6 +40,9 @@ export interface AppUpdate {
   status: UpdateStatus;
   whatsNew: WhatsNew | null;
   promptVersion: string | null;
+  // Surfaced separately so the modal can branch even on the
+  // fallback path where whatsNew is null (always 'safe' there).
+  riskLevel: RiskLevel;
   installNow(): Promise<void>;
   snooze(): Promise<void>;
   skip(): Promise<void>;
@@ -35,23 +50,44 @@ export interface AppUpdate {
 
 // ── Pure async helpers (exported for unit tests) ────────────────────
 
-export async function shouldPromptForUpdate(version: string): Promise<boolean> {
+export async function shouldPromptForUpdate(
+  version: string,
+  riskLevel: RiskLevel,
+): Promise<boolean> {
+  // Breaking updates bypass snooze + skip — the merchant must see the
+  // warning every probe until they install or downgrade. This is the
+  // "force consideration" rule from ADR-032.
+  if (riskLevel === 'breaking') return true;
+
   const skipped = (await getMeta<readonly string[]>(db, META_KEYS.update_skipped_versions)) ?? [];
   if (skipped.includes(version)) return false;
+
   const snoozeUntil = await getMeta<string>(db, META_KEYS.update_snooze_until);
   const snoozedVersion = await getMeta<string>(db, META_KEYS.update_snoozed_version);
-  if (snoozeUntil && snoozedVersion === version) {
-    if (new Date().toISOString() < snoozeUntil) return false;
+  const snoozedRiskLevel = await getMeta<string>(db, META_KEYS.update_snoozed_risk_level);
+  // The snooze only suppresses when ALL THREE match: version, risk
+  // level, and active window. A risk-level mismatch (e.g. snoozed at
+  // 'safe', the same version republished as 'migration') means the
+  // merchant hasn't yet consented to the heavier warning — re-prompt.
+  if (
+    snoozeUntil &&
+    snoozedVersion === version &&
+    snoozedRiskLevel === riskLevel &&
+    new Date().toISOString() < snoozeUntil
+  ) {
+    return false;
   }
   return true;
 }
 
 export async function recordUpdateSnoozed(
   version: string,
+  riskLevel: RiskLevel,
   nowMs: number = Date.now(),
 ): Promise<void> {
   const until = new Date(nowMs + SNOOZE_MS).toISOString();
   await setMeta(db, META_KEYS.update_snoozed_version, version);
+  await setMeta(db, META_KEYS.update_snoozed_risk_level, riskLevel);
   await setMeta(db, META_KEYS.update_snooze_until, until);
 }
 
@@ -73,17 +109,24 @@ export function useAppUpdate(): AppUpdate {
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [whatsNew, setWhatsNew] = useState<WhatsNew | null>(null);
   const [promptVersion, setPromptVersion] = useState<string | null>(null);
+  // Mirrored from whatsNew?.risk_level so the modal and the snooze
+  // callback can read it without re-deriving on every render.
+  // Defaults to 'safe' on the fallback path so the snooze/skip
+  // affordances remain available there.
+  const [riskLevel, setRiskLevel] = useState<RiskLevel>('safe');
 
   const handleWaiting = useCallback(async () => {
     setStatus('loading');
     const fetched = await fetchWhatsNew();
     const version = fetched?.version ?? SKIP_SENTINEL_UNKNOWN;
-    if (!(await shouldPromptForUpdate(version))) {
+    const risk: RiskLevel = fetched?.risk_level ?? 'safe';
+    if (!(await shouldPromptForUpdate(version, risk))) {
       setStatus('idle');
       return;
     }
     setWhatsNew(fetched);
     setPromptVersion(fetched?.version ?? null);
+    setRiskLevel(risk);
     setStatus('prompting');
   }, []);
 
@@ -124,11 +167,12 @@ export function useAppUpdate(): AppUpdate {
 
   const snooze = useCallback(async () => {
     const version = promptVersion ?? SKIP_SENTINEL_UNKNOWN;
-    await recordUpdateSnoozed(version);
+    await recordUpdateSnoozed(version, riskLevel);
     setStatus('idle');
     setWhatsNew(null);
     setPromptVersion(null);
-  }, [promptVersion]);
+    setRiskLevel('safe');
+  }, [promptVersion, riskLevel]);
 
   const skip = useCallback(async () => {
     const version = promptVersion ?? SKIP_SENTINEL_UNKNOWN;
@@ -136,7 +180,8 @@ export function useAppUpdate(): AppUpdate {
     setStatus('idle');
     setWhatsNew(null);
     setPromptVersion(null);
+    setRiskLevel('safe');
   }, [promptVersion]);
 
-  return { status, whatsNew, promptVersion, installNow, snooze, skip };
+  return { status, whatsNew, promptVersion, riskLevel, installNow, snooze, skip };
 }
