@@ -203,13 +203,24 @@ function transformV1ToApplied(backup: BackupV1): AppliedRows {
 // already have the v0.5 fields pass through unchanged.
 function backfillV05Defaults(rows: AppliedRows): AppliedRows {
   return {
-    profile: rows.profile.map(
-      (p) =>
-        ({
-          ...p,
-          shop_subtypes: ((p as ShopProfile).shop_subtypes ?? []) as ShopProfile['shop_subtypes'],
-        }) as ShopProfile,
-    ),
+    profile: rows.profile.map((p) => {
+      const sp = p as ShopProfile;
+      // v0.6.5: qr_center_mode landed in Dexie v14. v1/v2/v3 backups
+      // exported before that don't carry the field. Backfill from
+      // logo presence — matches the v13→v14 upgrade rule so imported
+      // rows look identical to in-place-migrated rows.
+      const qrMode: ShopProfile['qr_center_mode'] =
+        sp.qr_center_mode === 'logo' || sp.qr_center_mode === 'name'
+          ? sp.qr_center_mode
+          : sp.logo_photo_id
+            ? 'logo'
+            : 'name';
+      return {
+        ...sp,
+        shop_subtypes: (sp.shop_subtypes ?? []) as ShopProfile['shop_subtypes'],
+        qr_center_mode: qrMode,
+      } as ShopProfile;
+    }),
     articles: rows.articles.map(
       (a) =>
         ({

@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, Check } from 'lucide-react';
@@ -6,8 +5,7 @@ import { ScreenLayout } from '../components/screen-layout';
 import { ArticleQR } from '../components/article-qr';
 import { useArticleDetail } from '../hooks/use-article-detail';
 import { useProfile } from '../hooks/use-profile';
-import { useLogoDataUrl } from '../hooks/use-logo-data-url';
-import { type QrBrandingOptions } from '../utils/qr-branding';
+import { useQrBranding } from '../hooks/use-qr-branding';
 
 export function ArticleLabelScreen(): JSX.Element | null {
   const { t } = useTranslation('label');
@@ -15,19 +13,11 @@ export function ArticleLabelScreen(): JSX.Element | null {
   const { id } = useParams<{ id: string }>();
   const detail = useArticleDetail(id);
   const profile = useProfile();
-  const logoDataUrl = useLogoDataUrl();
 
-  // v0.6 ADR-030 — branding for the printed-label QR. Logo wins when
-  // it's loaded; the store-name fallback covers the case where the
-  // merchant never uploaded a logo. Memo-stable across renders so the
-  // ArticleQR component doesn't re-inject the overlay needlessly.
-  const branding = useMemo<QrBrandingOptions | undefined>(() => {
-    if (!profile) return undefined;
-    return {
-      logoDataUrl: logoDataUrl ?? null,
-      text: profile.name ?? null,
-    };
-  }, [profile, logoDataUrl]);
+  // v0.6.5 — branding follows profile.qr_center_mode (logo / name).
+  // The hook handles the auto-fallback when 'logo' is selected but
+  // no logo is available, so this screen doesn't need to retry.
+  const branding = useQrBranding();
 
   if (detail === undefined || profile === undefined) return null;
   const { article } = detail;

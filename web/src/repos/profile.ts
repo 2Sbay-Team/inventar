@@ -3,6 +3,7 @@ import {
   type CurrencyCode,
   type FashionSubtype,
   type Locale,
+  type QrCenterMode,
   type ShopProfile,
   type ShopSubtype,
   type StoreType,
@@ -70,6 +71,12 @@ export interface UpsertProfileInput {
   // v0.5.2.7 — merchant phone for invoice header. Same semantics as
   // the other invoicing fields: undefined preserves, null clears.
   phone?: string | null;
+  // v0.6.5 — printed-QR-label centre. Undefined preserves the existing
+  // value (or seeds based on logo presence on first create). Explicit
+  // 'logo' is overridden to 'name' at write time when no logo is set
+  // — guarantees the renderer never sees ('logo', null) as a paired
+  // state, so it doesn't need its own fallback logic.
+  qr_center_mode?: QrCenterMode;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -121,6 +128,12 @@ export async function upsertProfile(
           ? (existing?.default_vat_pct ?? null)
           : input.default_vat_pct,
       phone: input.phone === undefined ? (existing?.phone ?? null) : input.phone,
+      qr_center_mode: deriveQrCenterMode(
+        input.qr_center_mode,
+        existing?.qr_center_mode,
+        existing?.logo_photo_id ?? null,
+        nextLogo,
+      ),
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,
@@ -128,6 +141,33 @@ export async function upsertProfile(
     await db.profile.put(next);
     return next;
   });
+}
+
+// v0.6.5 — resolve the next qr_center_mode given the caller's input,
+// the existing stored value, and the logo transition for this
+// write. Three load-bearing behaviours:
+//
+//   1. Caller-supplied input wins, except 'logo' with no logo → 'name'
+//      (auto-fallback so the renderer never sees an unrenderable pair).
+//   2. Existing 'logo' with no logo now → 'name' (auto-fallback applied
+//      to the existing-row case so the renderer doesn't have to).
+//   3. Existing 'name' AND previously no logo AND now has logo → 'logo'
+//      (auto-promote on first-logo upload — the brief's "Default: 'logo'
+//      if logo exists" rule applied at the moment the logo appears).
+//      Replacing one logo with another preserves the existing choice
+//      so a merchant who explicitly picked 'name' isn't reset.
+//   4. No input, no existing: first-create default — 'logo' if logo,
+//      else 'name'.
+export function deriveQrCenterMode(
+  input: QrCenterMode | undefined,
+  existing: QrCenterMode | undefined,
+  existingLogo: UUID | null | undefined,
+  nextLogo: UUID | null,
+): QrCenterMode {
+  if (input !== undefined) return input === 'logo' && !nextLogo ? 'name' : input;
+  if (existing === 'name' && !existingLogo && nextLogo) return 'logo';
+  if (existing !== undefined) return existing === 'logo' && !nextLogo ? 'name' : existing;
+  return nextLogo ? 'logo' : 'name';
 }
 
 // ADR-009: Settings → Export Data calls this after a successful share so

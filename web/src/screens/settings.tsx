@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
@@ -38,9 +39,13 @@ import {
   type CurrencyCode,
   type FashionSubtype,
   type Locale,
+  type QrCenterMode,
   type ShopSubtype,
   type StoreType,
 } from '../types';
+import { ArticleQR } from '../components/article-qr';
+import { useLogoDataUrl } from '../hooks/use-logo-data-url';
+import { type QrBrandingOptions } from '../utils/qr-branding';
 
 const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 
@@ -139,6 +144,115 @@ function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): 
             {t('expiry_threshold_unit', { n })}
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+// v0.6.5 — Settings → Shop profile → QR label branding picker.
+// Two radio options + a small live preview that mirrors what the
+// printed label will look like. The "logo" option hides when no
+// logo is uploaded; the renderer auto-falls-back to 'name' via
+// useQrBranding so the preview stays accurate even if the stored
+// mode is still 'logo'. Both writes go through upsertProfile, which
+// normalises ('logo', null-logo) → 'name' via deriveQrCenterMode so
+// the DB never holds an unrenderable pair.
+const QR_BRANDING_PREVIEW_ARTICLE_ID = 'SAMPLE-PREVIEW';
+function QrBrandingPicker(): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  const profile = useProfile();
+  const logoDataUrl = useLogoDataUrl();
+  if (!profile) return null;
+  const hasLogo = !!profile.logo_photo_id;
+  // What the picker shows as the active choice. The stored value can
+  // be 'logo' on a row whose logo was just removed — render-side we
+  // treat that as 'name' so the preview matches what'll actually
+  // print. The next merchant write will normalise the row.
+  const effectiveMode: QrCenterMode =
+    profile.qr_center_mode === 'logo' && !hasLogo ? 'name' : profile.qr_center_mode;
+  const previewBranding: QrBrandingOptions =
+    effectiveMode === 'logo' && hasLogo && logoDataUrl
+      ? { logoDataUrl, text: null }
+      : { logoDataUrl: null, text: profile.name };
+
+  async function setMode(mode: QrCenterMode): Promise<void> {
+    if (!profile) return;
+    if (mode === profile.qr_center_mode && effectiveMode === mode) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      qr_center_mode: mode,
+    });
+  }
+
+  // v0.6.5 — Radix RadioGroup over a raw <input type="radio">. The
+  // raw-input approach hit a controlled-radio-vs-async-side-effect
+  // race in playwright: the browser flipped the radio's native
+  // `checked` attribute on click, but React didn't re-render until
+  // upsertProfile resolved, leaving the radio temporarily in a
+  // DOM state that contradicted `effectiveMode`. RadioGroup is a
+  // button-based primitive that drives `data-state` from `value` —
+  // no native checked attribute, no race.
+  return (
+    <section
+      data-testid="qr-branding"
+      data-effective-mode={effectiveMode}
+      data-stored-mode={profile.qr_center_mode}
+      className="mt-5"
+    >
+      <h4 className="text-ink font-display text-sm font-medium">{t('qr_branding_title')}</h4>
+      <p className="text-ink-3 mb-2 mt-1 text-xs leading-relaxed">{t('qr_branding_hint')}</p>
+      <div className="flex items-start gap-3">
+        <RadioGroup.Root
+          value={effectiveMode}
+          onValueChange={(v) => void setMode(v as QrCenterMode)}
+          className="flex flex-1 flex-col gap-1.5"
+        >
+          {hasLogo ? (
+            <label
+              data-testid="qr-branding-row-logo"
+              className="border-hair data-[checked=true]:border-accent flex cursor-pointer items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm"
+              data-checked={effectiveMode === 'logo'}
+            >
+              <RadioGroup.Item
+                value="logo"
+                data-testid="qr-branding-radio-logo"
+                className="border-hair data-[state=checked]:border-accent data-[state=checked]:bg-accent flex h-4 w-4 items-center justify-center rounded-full border bg-white"
+                aria-label={t('qr_branding_logo')}
+              >
+                <RadioGroup.Indicator className="block h-1.5 w-1.5 rounded-full bg-white" />
+              </RadioGroup.Item>
+              {t('qr_branding_logo')}
+            </label>
+          ) : null}
+          <label
+            data-testid="qr-branding-row-name"
+            className="border-hair data-[checked=true]:border-accent flex cursor-pointer items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm"
+            data-checked={effectiveMode === 'name'}
+          >
+            <RadioGroup.Item
+              value="name"
+              data-testid="qr-branding-radio-name"
+              className="border-hair data-[state=checked]:border-accent data-[state=checked]:bg-accent flex h-4 w-4 items-center justify-center rounded-full border bg-white"
+              aria-label={t('qr_branding_name')}
+            >
+              <RadioGroup.Indicator className="block h-1.5 w-1.5 rounded-full bg-white" />
+            </RadioGroup.Item>
+            {t('qr_branding_name')}
+          </label>
+        </RadioGroup.Root>
+        <div
+          data-testid="qr-branding-preview"
+          className="border-hair flex h-[120px] w-[120px] flex-shrink-0 items-center justify-center rounded-xl border bg-white p-2"
+          aria-label={t('qr_branding_preview_label')}
+        >
+          <ArticleQR
+            articleId={QR_BRANDING_PREVIEW_ARTICLE_ID}
+            size={104}
+            testId="qr-branding-preview-qr"
+            branding={previewBranding}
+          />
+        </div>
       </div>
     </section>
   );
@@ -951,6 +1065,8 @@ export function SettingsScreen(): JSX.Element {
               onCancel={() => setLogoKeyingCandidate(null)}
             />
           ) : null}
+
+          <QrBrandingPicker />
 
           <Link
             to="/settings/label-preview"

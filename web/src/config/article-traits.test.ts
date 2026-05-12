@@ -55,6 +55,7 @@ const fashionProfile: ShopProfile = {
   fiscal_id: null,
   default_vat_pct: null,
   phone: null,
+  qr_center_mode: 'name',
   created_at: '2026-05-11T00:00:00.000Z',
   updated_at: '2026-05-11T00:00:00.000Z',
   last_backup_at: null,

@@ -15,8 +15,8 @@ describe('InventarDB schema (v13)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 13', () => {
-    expect(db.verno).toBe(13);
+  it('opens at version 14', () => {
+    expect(db.verno).toBe(14);
   });
 
   it('has the nine tables from DATA_MODEL §3 (v0.5.2.4 adds invoices)', () => {
@@ -171,6 +171,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
       fiscal_id: '1234567/A/B/000',
       default_vat_pct: 19,
       phone: null,
+      qr_center_mode: 'name',
       created_at: NOW,
       updated_at: NOW,
       last_backup_at: null,

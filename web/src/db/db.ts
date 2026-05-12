@@ -522,6 +522,33 @@ export class InventarDB extends Dexie {
             }
           });
       });
+
+    // v0.6.5 — qr_center_mode lands on every profile row. Backfill
+    // from logo state: rows with a logo get 'logo', the rest get
+    // 'name'. Idempotent — already-set rows skip the modify.
+    this.version(14)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: { qr_center_mode?: 'logo' | 'name'; logo_photo_id?: string | null }) => {
+            if (p.qr_center_mode === 'logo' || p.qr_center_mode === 'name') return;
+            p.qr_center_mode = p.logo_photo_id ? 'logo' : 'name';
+          });
+      });
   }
 }
 

@@ -21,6 +21,7 @@ const PROFILE: ShopProfile = {
   fiscal_id: '1234567/A/B/000',
   default_vat_pct: 19,
   phone: '+216 71 234 567',
+  qr_center_mode: 'name',
   created_at: NOW,
   updated_at: NOW,
   last_backup_at: null,

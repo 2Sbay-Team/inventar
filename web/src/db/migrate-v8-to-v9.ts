@@ -219,6 +219,12 @@ function migrateProfile(p: V8ShopProfile, expiryMeta: number | null): ShopProfil
     // satisfies the current TS shape. v9→v10 (invoice block) and the
     // new v10→v11 (phone) upgrades backfill on existing installs.
     phone: null,
+    // v0.6.5: qr_center_mode column added in v14. Derived from
+    // logo presence so a v8→v9 in-isolation test run still returns
+    // a fully-typed ShopProfile. The v13→v14 upgrade re-derives
+    // the same value on existing installs, so this default lines
+    // up with what the production migration writes.
+    qr_center_mode: p.logo_photo_id ? 'logo' : 'name',
     created_at: p.created_at,
     updated_at: p.updated_at,
     last_backup_at: p.last_backup_at,

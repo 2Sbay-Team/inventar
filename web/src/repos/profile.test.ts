@@ -124,4 +124,77 @@ describe('profile repo', () => {
     await upsertProfile(db, { name: 'C', locale: 'fr' });
     expect(await db.profile.count()).toBe(1);
   });
+
+  it("qr_center_mode auto-promotes from 'name' to 'logo' on first-logo upload", async () => {
+    // Mirror the Settings "merchant uploads their first logo" flow.
+    // The row starts qr_center_mode='name' (no logo → first-create
+    // default). A later upsert that adds a logo without explicitly
+    // touching qr_center_mode should promote it to 'logo'.
+    let p = await upsertProfile(db, { name: 'A', locale: 'fr' });
+    expect(p.qr_center_mode).toBe('name');
+    expect(p.logo_photo_id).toBeNull();
+
+    await db.photos.add({
+      id: 'logo-photo',
+      blob: new Blob(['x'], { type: 'image/png' }),
+      width: 1,
+      height: 1,
+      bytes: 1,
+      mime: 'image/png',
+      created_at: '2026-05-07T08:00:00.000Z',
+      deleted_at: null,
+    });
+    p = await upsertProfile(db, { name: 'A', locale: 'fr', logo_photo_id: 'logo-photo' });
+    expect(p.qr_center_mode).toBe('logo');
+  });
+
+  it("qr_center_mode preserves an explicit 'name' choice when the logo is replaced", async () => {
+    // Merchant uploaded a logo, then deliberately picked 'name' in
+    // the Settings picker, then later swapped the logo. The replace
+    // should NOT undo the explicit choice — only first-logo-upload
+    // promotes; subsequent changes preserve the merchant's pick.
+    await db.photos.add({
+      id: 'logo-old',
+      blob: new Blob(['x'], { type: 'image/png' }),
+      width: 1,
+      height: 1,
+      bytes: 1,
+      mime: 'image/png',
+      created_at: '2026-05-07T08:00:00.000Z',
+      deleted_at: null,
+    });
+    await db.photos.add({
+      id: 'logo-new',
+      blob: new Blob(['x'], { type: 'image/png' }),
+      width: 1,
+      height: 1,
+      bytes: 1,
+      mime: 'image/png',
+      created_at: '2026-05-07T08:00:00.000Z',
+      deleted_at: null,
+    });
+    let p = await upsertProfile(db, { name: 'A', locale: 'fr', logo_photo_id: 'logo-old' });
+    expect(p.qr_center_mode).toBe('logo'); // first-create default
+    p = await upsertProfile(db, { name: 'A', locale: 'fr', qr_center_mode: 'name' });
+    expect(p.qr_center_mode).toBe('name'); // explicit choice persisted
+    p = await upsertProfile(db, { name: 'A', locale: 'fr', logo_photo_id: 'logo-new' });
+    expect(p.qr_center_mode).toBe('name'); // preserved across logo replace
+  });
+
+  it("qr_center_mode auto-falls-back to 'name' when the logo is removed", async () => {
+    await db.photos.add({
+      id: 'logo-photo',
+      blob: new Blob(['x'], { type: 'image/png' }),
+      width: 1,
+      height: 1,
+      bytes: 1,
+      mime: 'image/png',
+      created_at: '2026-05-07T08:00:00.000Z',
+      deleted_at: null,
+    });
+    let p = await upsertProfile(db, { name: 'A', locale: 'fr', logo_photo_id: 'logo-photo' });
+    expect(p.qr_center_mode).toBe('logo');
+    p = await upsertProfile(db, { name: 'A', locale: 'fr', logo_photo_id: null });
+    expect(p.qr_center_mode).toBe('name');
+  });
 });

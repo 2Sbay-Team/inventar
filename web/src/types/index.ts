@@ -210,10 +210,20 @@ export interface ShopProfile {
   // validate the format because phone-number conventions vary widely
   // by country and the merchant copies it from their own paperwork.
   phone: string | null;
+  // v0.6.5 — what to overlay in the centre of printed QR labels.
+  // 'logo' = render logo_photo_id (auto-falls back to 'name' if the
+  // logo has been deleted since this was set); 'name' = render the
+  // shop's display name as styled text. Backfilled by the v13→v14
+  // migration: 'logo' when logo_photo_id is set at upgrade time,
+  // 'name' otherwise. Stored even when no logo exists so the picker
+  // in Settings has a deterministic initial state.
+  qr_center_mode: 'logo' | 'name';
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
 }
+
+export type QrCenterMode = 'logo' | 'name';
 
 export interface Article {
   id: UUID;

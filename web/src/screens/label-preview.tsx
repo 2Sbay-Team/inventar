@@ -1,12 +1,10 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Check, Printer } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { ArticleQR } from '../components/article-qr';
 import { useProfile } from '../hooks/use-profile';
-import { useLogoDataUrl } from '../hooks/use-logo-data-url';
-import { type QrBrandingOptions } from '../utils/qr-branding';
+import { useQrBranding } from '../hooks/use-qr-branding';
 
 // v0.6 ADR-030 — Settings → "Preview label". Renders a stub label so
 // the merchant can see how their printed labels look with the current
@@ -20,15 +18,11 @@ export function LabelPreviewScreen(): JSX.Element | null {
   const { t } = useTranslation('label');
   const navigate = useNavigate();
   const profile = useProfile();
-  const logoDataUrl = useLogoDataUrl();
 
-  const branding = useMemo<QrBrandingOptions | undefined>(() => {
-    if (!profile) return undefined;
-    return {
-      logoDataUrl: logoDataUrl ?? null,
-      text: profile.name ?? null,
-    };
-  }, [profile, logoDataUrl]);
+  // v0.6.5 — driven by profile.qr_center_mode; see useQrBranding for
+  // the auto-fallback behaviour when the merchant picked 'logo' but
+  // their logo has since been removed.
+  const branding = useQrBranding();
 
   function handlePrint(): void {
     window.print();
