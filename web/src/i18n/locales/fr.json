@@ -335,6 +335,11 @@
     "currency_change_warning": "Changer de devise ne convertit pas vos prix existants — leur valeur numérique stockée reste la même, simplement affichée dans la nouvelle devise. Continuer ?",
     "store_type": "Type de boutique",
     "store_type_change_warning": "Changer le type de boutique ne migre pas vos articles existants — ils gardent leurs catégories et leurs tailles. Les nouveaux articles utiliseront les valeurs par défaut du nouveau type. Continuer ?",
+    "size_standard": "Système de tailles",
+    "size_standard_EU": "EU / Européen",
+    "size_standard_US": "US / Américain",
+    "size_standard_UK": "UK / Britannique",
+    "size_standard_JP": "JP / Japonais",
     "shop_subtypes_title": "Sous-types de boutique",
     "shop_subtypes_hint": "Activez chaque sous-type que votre boutique vend. Détermine la liste des catégories par défaut dans Ajouter un article et façonne les widgets du tableau de bord.",
     "shop_subtypes_min_one": "Choisissez au moins un sous-type",
@@ -803,7 +808,6 @@
     "total": "Total TTC",
     "not_found": "Facture introuvable.",
     "past_invoices_title": "Factures émises",
-    "past_invoices_link": "Voir les factures émises",
     "past_invoices_empty": "Aucune facture émise pour l'instant."
   },
   "logo": {

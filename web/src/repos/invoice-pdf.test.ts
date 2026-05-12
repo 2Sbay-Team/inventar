@@ -13,6 +13,7 @@ const PROFILE: ShopProfile = {
   store_type: 'fashion',
   shop_subtypes: [],
   fashion_subtypes: ['shoes'],
+  size_standard: 'EU',
   location_floor_label: 'Boutique',
   location_back_label: 'Réserve',
   expiry_warning_days: 7,

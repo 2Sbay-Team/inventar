@@ -145,6 +145,13 @@ export type ExpenseCategory =
 
 export type RecurringPeriod = 'none' | 'weekly' | 'monthly';
 
+// Size-numbering standard the merchant uses when stocking sized
+// articles (shoes, women's clothing, jewelry, …). Drives which numeric
+// chips Add Article surfaces — a EU/US/UK switch on shoes turns 36–46
+// into 6–13 / 3–12 respectively. Default 'EU' for new and migrated
+// profiles. Letter sizes (XS–XXXL) and age sizes (3M–16Y) ignore this.
+export type SizeStandard = 'EU' | 'US' | 'UK' | 'JP';
+
 export interface ShopProfile {
   id: 'singleton';
   name: string;
@@ -170,6 +177,11 @@ export interface ShopProfile {
   // legacy shoes → ['shoes'] and clothes → ['clothing_men',
   // 'clothing_women']; merchants confirm via the migration banner.
   fashion_subtypes: FashionSubtype[];
+  // Size-numbering standard for sized articles (shoes, women's clothing,
+  // rings). Default 'EU' — backfilled by the v15→v16 migration on
+  // existing rows. Only narrows numeric chips; letter / age sizes are
+  // identical across standards.
+  size_standard: SizeStandard;
   // v0.5.2 ADR-022: merchant-customisable label for the front / display
   // zone (e.g. "Boutique", "Rayon", "Shop floor"). Internal Movement.
   // location enum stays 'floor' / 'back' for storage and indexing —
@@ -272,6 +284,19 @@ export type QrCenterMode = 'logo' | 'name';
 // release wires real dark-mode coverage across every component.
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
+// v0.9 ADR-041 — per-article tax category. See Article.tax_category
+// for the field-level narration. Exported separately so the Add /
+// Edit Article forms can iterate over the radio options without
+// recreating the literal union by hand.
+export type TaxCategory = 'standard' | 'reduced' | 'zero' | 'custom';
+
+// v0.9 ADR-041 — the percent the 'reduced' bucket resolves to.
+// Tunisia's secondary VAT band is 7% (rate for cultural / basic
+// foodstuffs); we anchor it here so the resolver + the Add form
+// label stay in sync. A later release can make this configurable
+// per-shop (ShopProfile.reduced_vat_pct); for now it's a constant.
+export const REDUCED_VAT_PCT_DEFAULT = 7 as const;
+
 // v0.9 ADR-039 — per-day opening hours. `open: false` means the shop
 // is closed that day and the from/to strings are ignored by the
 // renderer (we keep them stored so the merchant can toggle a day
@@ -352,6 +377,23 @@ export interface Article {
   // the merchant's preferred display unit (per-kg, per-l, …) at the
   // edit + read boundaries.
   unit_of_measure: Uom;
+  // v0.9 ADR-041 — per-article tax category. Null = follow the shop's
+  // ShopProfile.default_vat_pct at read time (the resolution boundary
+  // is `getTaxRate(article, profile)` in utils/tax-rate.ts). Concrete
+  // values let merchants flag a single SKU as zero-rated (medical
+  // supplies, books in some markets), as the "reduced" bucket
+  // (cultural goods, basic foodstuffs in EU regimes), or as 'custom'
+  // when neither preset fits — `tax_custom_rate` carries the percent
+  // for the 'custom' case and is null for every other value.
+  // 'standard' is semantically equivalent to null today (both resolve
+  // to the shop default), but keeping it as a distinct value lets the
+  // merchant *explicitly* anchor an article to "always whatever the
+  // shop standard is" — useful when later UX adds article-level
+  // overrides that we don't want to silently swallow a null into.
+  tax_category: 'standard' | 'reduced' | 'zero' | 'custom' | null;
+  // Whole-percent override, only meaningful when tax_category =
+  // 'custom'. Validated at the input boundary (0..100 integer).
+  tax_custom_rate: number | null;
   search_blob: string;
   updated_at: ISODate;
   archived_at: ISODate | null;

@@ -22,6 +22,8 @@ function mkArticle(overrides: Partial<Article> & Pick<Article, 'id' | 'internal_
     has_colors: null,
     has_expiry: null,
     unit_of_measure: 'piece',
+    tax_category: null,
+    tax_custom_rate: null,
     search_blob: '',
     updated_at: NOW,
     archived_at: null,

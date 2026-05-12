@@ -613,6 +613,32 @@ export class InventarDB extends Dexie {
             },
           );
       });
+
+    // size_standard lands on the singleton profile row. Backfilled to
+    // 'EU' on every existing row — the dominant standard for the
+    // EMEA region the app ships to. Idempotent.
+    this.version(16)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: { size_standard?: 'EU' | 'US' | 'UK' | 'JP' }) => {
+            if (!('size_standard' in p)) p.size_standard = 'EU';
+          });
+      });
   }
 }
 

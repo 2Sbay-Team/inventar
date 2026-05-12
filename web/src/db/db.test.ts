@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v15)', () => {
+describe('InventarDB schema (v16)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,8 +15,8 @@ describe('InventarDB schema (v15)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 15', () => {
-    expect(db.verno).toBe(15);
+  it('opens at version 16', () => {
+    expect(db.verno).toBe(16);
   });
 
   it('has the nine tables from DATA_MODEL §3 (v0.5.2.4 adds invoices)', () => {
@@ -163,6 +163,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
       store_type: 'shoes',
       shop_subtypes: [],
       fashion_subtypes: [],
+      size_standard: 'EU',
       location_floor_label: 'Boutique',
       location_back_label: 'Réserve',
       expiry_warning_days: 7,

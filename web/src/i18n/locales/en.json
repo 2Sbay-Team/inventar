@@ -335,6 +335,11 @@
     "currency_change_warning": "Switching currency does not convert your existing prices — they keep their stored numeric value, just shown in the new currency. Continue?",
     "store_type": "Store type",
     "store_type_change_warning": "Switching store type does not migrate your existing articles — they keep their categories and sizes. New articles will use the new store-type defaults. Continue?",
+    "size_standard": "Size standard",
+    "size_standard_EU": "EU / European",
+    "size_standard_US": "US / American",
+    "size_standard_UK": "UK / British",
+    "size_standard_JP": "JP / Japanese",
     "shop_subtypes_title": "Shop sub-types",
     "shop_subtypes_hint": "Toggle each sub-type your shop sells. Drives the default category list in Add Article and shapes the dashboard widgets.",
     "shop_subtypes_min_one": "Pick at least one sub-type",
@@ -805,7 +810,6 @@
     "total": "Total",
     "not_found": "Invoice not found.",
     "past_invoices_title": "Past invoices",
-    "past_invoices_link": "View past invoices",
     "past_invoices_empty": "No invoices issued yet."
   },
   "logo": {

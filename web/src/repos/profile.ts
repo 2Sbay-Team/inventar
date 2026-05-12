@@ -7,6 +7,7 @@ import {
   type QrCenterMode,
   type ShopProfile,
   type ShopSubtype,
+  type SizeStandard,
   type StoreType,
   type ThemeMode,
   type UUID,
@@ -20,6 +21,10 @@ export const DEFAULT_CURRENCY: CurrencyCode = 'TND';
 // fashion; onboarding always passes one explicitly.
 export const DEFAULT_STORE_TYPE: StoreType = 'fashion';
 export const DEFAULT_EXPIRY_WARNING_DAYS = 7;
+// Default size-numbering standard for new profiles. EU covers Tunisia,
+// France, and most of the EMEA region the app ships to; merchants can
+// switch in Settings → Store.
+export const DEFAULT_SIZE_STANDARD: SizeStandard = 'EU';
 
 // SPEC §2.1 onboarding produces exactly one ShopProfile row, primary key
 // is the literal string "singleton" (DATA_MODEL §2). We never insert a
@@ -52,6 +57,9 @@ export interface UpsertProfileInput {
   // meaningful when store_type is 'fashion'. Preserved on omit, [] on
   // first-time creation.
   fashion_subtypes?: FashionSubtype[];
+  // Size-numbering standard for sized articles. Preserved on omit;
+  // defaults to DEFAULT_SIZE_STANDARD ('EU') on first create.
+  size_standard?: SizeStandard;
   // v0.5.2 ADR-022: per-vertical merchant-customisable location labels.
   // When omitted, defaults are derived from store_type + locale via
   // defaultLocationLabels(); when explicitly set, the merchant's
@@ -134,6 +142,7 @@ export async function upsertProfile(
       store_type: nextStoreType,
       shop_subtypes: input.shop_subtypes ?? existing?.shop_subtypes ?? [],
       fashion_subtypes: input.fashion_subtypes ?? existing?.fashion_subtypes ?? [],
+      size_standard: input.size_standard ?? existing?.size_standard ?? DEFAULT_SIZE_STANDARD,
       location_floor_label:
         input.location_floor_label ?? existing?.location_floor_label ?? labelDefaults.floor,
       location_back_label:

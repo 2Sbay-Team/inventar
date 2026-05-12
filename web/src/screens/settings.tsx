@@ -61,6 +61,7 @@ import {
   type Locale,
   type QrCenterMode,
   type ShopSubtype,
+  type SizeStandard,
   type StoreType,
 } from '../types';
 import { ArticleQR } from '../components/article-qr';
@@ -462,8 +463,15 @@ function AutosaveBadge({ status }: { status: AutosaveStatus }): JSX.Element | nu
 // each field uses (`setField(key, value)`) plus the current status.
 // The patch accumulator is held in a ref so rapid cross-field edits
 // inside the 800ms window all batch into a single upsertProfile call.
+//
+// `flush` lets discrete actions (a swatch tap, a checkbox toggle)
+// commit immediately instead of waiting on the 800ms debounce. The
+// brief's "no perceived lag on a tap" UX demands that pickers don't
+// share the text-typing latency; flush() bypasses the wait while
+// keeping the same single-source-of-truth save path.
 function useSubsectionAutosave(profile: ShopProfile): {
   setField: <K extends keyof UpsertProfileInput>(key: K, value: UpsertProfileInput[K]) => void;
+  flush: () => void;
   status: AutosaveStatus;
 } {
   const patchRef = useRef<Partial<UpsertProfileInput>>({});
@@ -487,7 +495,7 @@ function useSubsectionAutosave(profile: ShopProfile): {
     },
     [autosave],
   );
-  return { setField, status: autosave.status };
+  return { setField, flush: autosave.flush, status: autosave.status };
 }
 
 // v0.9 Phase 6 — Digital business card. The brief gates this
@@ -528,7 +536,7 @@ function BusinessCardSubsection({
 
 function BrandColorSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
   const { t } = useTranslation('settings');
-  const { setField, status } = useSubsectionAutosave(profile);
+  const { setField, flush, status } = useSubsectionAutosave(profile);
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -539,7 +547,12 @@ function BrandColorSubsection({ profile }: { profile: ShopProfile }): JSX.Elemen
       <BrandColorPicker
         brandPrimaryColor={profile.brand_primary_color}
         logoDominantColor={profile.logo_dominant_color}
-        onChange={(hex) => setField('brand_primary_color', hex)}
+        onChange={(hex) => {
+          setField('brand_primary_color', hex);
+          // Discrete tap — flush so the app re-paints on the next
+          // frame, not 800ms later.
+          flush();
+        }}
       />
     </div>
   );
@@ -547,7 +560,7 @@ function BrandColorSubsection({ profile }: { profile: ShopProfile }): JSX.Elemen
 
 function AppThemeSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
   const { t } = useTranslation('settings');
-  const { setField, status } = useSubsectionAutosave(profile);
+  const { setField, flush, status } = useSubsectionAutosave(profile);
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -558,7 +571,10 @@ function AppThemeSubsection({ profile }: { profile: ShopProfile }): JSX.Element 
       <AppThemePicker
         themeBgColor={profile.theme_bg_color}
         brandPrimaryColor={profile.brand_primary_color}
-        onChange={(hex) => setField('theme_bg_color', hex)}
+        onChange={(hex) => {
+          setField('theme_bg_color', hex);
+          flush();
+        }}
       />
     </div>
   );
@@ -736,9 +752,14 @@ function SocialSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
 // Generic text field used across every Shop Identity subsection.
 // `initial` is the persisted value; the input renders local draft
 // state until the merchant commits. `onCommit` fires on every
-// keystroke (the debouncer in the parent coalesces them) AND on
-// blur — so the autosave pipeline always sees the latest value
-// even if the merchant tabs away before the 800ms debounce.
+// keystroke — the debouncer in the parent coalesces them.
+//
+// Draft lifecycle: the local draft sits "above" the prop until the
+// autosave round-trip completes and the prop reflects the committed
+// value. The useEffect below clears the draft once that happens —
+// NOT on blur, because clearing on blur reverts the input to the
+// stale prop for the 800ms before autosave flushes (the typed text
+// visibly disappears, then reappears once the save lands).
 function IdentityTextField(props: {
   testId: string;
   label: string;
@@ -755,15 +776,16 @@ function IdentityTextField(props: {
     props;
   const [draft, setDraft] = useState<string | null>(null);
   const displayValue = draft ?? initial ?? '';
+  // Sync down: once the persisted prop matches whatever we've drafted
+  // (i.e. the autosave has flushed and the profile re-rendered), drop
+  // the local copy so subsequent prop updates from elsewhere (e.g.
+  // a backup import) show through immediately.
+  useEffect(() => {
+    setDraft(null);
+  }, [initial]);
   function handleChange(value: string): void {
     setDraft(value);
     onCommit(trimToNullable(value));
-  }
-  function handleBlur(): void {
-    // Drop the local draft once the persisted profile catches up.
-    // The autosave debouncer in the parent flushes its pending value
-    // before the value reflects back via useProfile.
-    setDraft(null);
   }
   const Tag = multiline ? 'textarea' : 'input';
   return (
@@ -785,7 +807,6 @@ function IdentityTextField(props: {
         onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
           handleChange(e.target.value)
         }
-        onBlur={handleBlur}
         className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
       />
       {(hint || maxLength) && (
@@ -821,6 +842,11 @@ function IdentityEmailField(props: {
   const [draft, setDraft] = useState<string | null>(null);
   const displayValue = draft ?? initial ?? '';
   const looksLikeEmail = isLikelyEmail(displayValue);
+  // Same sync-down rule as IdentityTextField — clearing on blur was
+  // visibly reverting the typed text for 800ms until autosave landed.
+  useEffect(() => {
+    setDraft(null);
+  }, [initial]);
   return (
     <div className="space-y-1">
       <label htmlFor={testId} className="text-ink-2 block text-xs font-medium">
@@ -836,7 +862,6 @@ function IdentityEmailField(props: {
           setDraft(e.target.value);
           onCommit(trimToNullable(e.target.value));
         }}
-        onBlur={() => setDraft(null)}
         className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
       />
       {!looksLikeEmail && displayValue.trim() !== '' ? (
@@ -850,7 +875,6 @@ function IdentityEmailField(props: {
 
 function InvoicingSection(): JSX.Element | null {
   const { t } = useTranslation('settings');
-  const { t: tInvoice } = useTranslation('invoice');
   const profile = useProfile();
   const [legalNameDraft, setLegalNameDraft] = useState<string | null>(null);
   const [legalAddressDraft, setLegalAddressDraft] = useState<string | null>(null);
@@ -1003,13 +1027,6 @@ function InvoicingSection(): JSX.Element | null {
           />
           <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
         </div>
-        <Link
-          to="/invoices"
-          data-testid="settings-past-invoices"
-          className="text-accent inline-flex items-center text-sm font-medium"
-        >
-          {tInvoice('past_invoices_link')}
-        </Link>
       </div>
     </section>
   );
@@ -1439,6 +1456,15 @@ export function SettingsScreen(): JSX.Element {
     setPendingStoreType(null);
   }
 
+  async function selectSizeStandard(std: SizeStandard): Promise<void> {
+    if (!profile || profile.size_standard === std) return;
+    await upsertProfile(db, {
+      name: profile.name,
+      locale: profile.locale,
+      size_standard: std,
+    });
+  }
+
   // v0.5.1: immediate save on toggle (no draft / no Save button).
   // Validation: the merchant can't end up with zero sub-types — the
   // last selected chip can't be deselected. Onboarding enforces ≥1
@@ -1691,6 +1717,31 @@ export function SettingsScreen(): JSX.Element {
               </div>
             </div>
           ) : null}
+
+          <fieldset className="mt-4">
+            <legend className="text-ink-3 mb-1 block text-xs">{t('size_standard')}</legend>
+            <div data-testid="settings-size-standard" className="grid grid-cols-2 gap-2">
+              {(['EU', 'US', 'UK', 'JP'] as const).map((std) => {
+                const active = (profile?.size_standard ?? 'EU') === std;
+                return (
+                  <button
+                    key={std}
+                    type="button"
+                    data-testid={`settings-size-standard-${std}`}
+                    aria-pressed={active}
+                    onClick={() => void selectSizeStandard(std)}
+                    className={`rounded-xl border px-3 py-2 text-sm ${
+                      active
+                        ? 'border-accent bg-accent-soft text-accent-ink'
+                        : 'border-hair bg-white'
+                    }`}
+                  >
+                    {t(`size_standard_${std}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
         </section>
 
         {/* v0.9 Phase 4a — Shop Identity section. Sits just below
@@ -1815,9 +1866,11 @@ export function SettingsScreen(): JSX.Element {
         ) : null}
 
         {/* v0.5.2.7: surfaced Invoicing higher in the list — merchants
-            reported they couldn't find legal name / address / fiscal ID /
-            VAT or the Past Invoices link when these lived at the bottom
-            of Settings. */}
+            reported they couldn't find legal name / address / fiscal ID
+            / VAT when these lived at the bottom of Settings.
+            v0.9: the "View past invoices" link moved out — Past Invoices
+            belongs on the Sale tab → Documents sub-tab, not Settings.
+            The /invoices route still resolves direct links. */}
         <InvoicingSection />
 
         <section

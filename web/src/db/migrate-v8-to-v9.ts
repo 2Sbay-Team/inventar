@@ -203,6 +203,11 @@ function migrateProfile(p: V8ShopProfile, expiryMeta: number | null): ShopProfil
     store_type: storeType,
     shop_subtypes: p.shop_subtypes,
     fashion_subtypes,
+    // size_standard column added in v16. Defaulted to 'EU' so a v8→v9
+    // in-isolation test run still produces a fully-typed current-shape
+    // ShopProfile; the v15→v16 upgrade writes the same default on
+    // existing installs.
+    size_standard: 'EU',
     location_floor_label: floorLabel,
     location_back_label: backLabel,
     expiry_warning_days: expiryWarningDays,

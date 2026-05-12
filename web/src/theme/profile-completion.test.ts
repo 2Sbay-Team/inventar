@@ -15,6 +15,7 @@ function emptyProfile(overrides: Partial<ShopProfile> = {}): ShopProfile {
     store_type: 'fashion',
     shop_subtypes: [],
     fashion_subtypes: [],
+    size_standard: 'EU',
     location_floor_label: 'Floor',
     location_back_label: 'Back',
     expiry_warning_days: 7,
