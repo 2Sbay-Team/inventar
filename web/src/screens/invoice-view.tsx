@@ -145,7 +145,16 @@ export function InvoiceViewScreen(): JSX.Element | null {
               <button
                 type="button"
                 data-testid="invoice-back"
-                onClick={() => navigate('/', { replace: true })}
+                // v0.6.6 — navigate(-1) returns to whichever screen
+                // brought the merchant here: /invoices when they tapped
+                // a row in the past-invoices list, /search (or wherever
+                // /sell was navigated from) when they just committed a
+                // sale — /sell uses `replace:true` on its way to the
+                // invoice view so its own history entry is gone, and
+                // back lands one further up the stack. Previous code
+                // always slammed home to '/', which dumped merchants
+                // coming from /invoices on Search instead of the list.
+                onClick={() => navigate(-1)}
                 className="border-hair text-ink rounded-xl border px-3 py-1.5 text-xs"
               >
                 {t('done')}

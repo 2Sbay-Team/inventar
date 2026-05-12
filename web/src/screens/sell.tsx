@@ -337,6 +337,10 @@ export function SellScreen(): JSX.Element {
           currency,
           vat_pct: vatPct,
           vat_enabled: invoiceVatEnabled,
+          // TODO(v0.7) — see Invoice.notes in types/index.ts. The
+          // PDF renderer and locale labels support a notes field;
+          // no Sell UI captures one yet. v0.6.6 audit decided not
+          // to build the input in-scope.
           notes: null,
         });
         navigate(`/invoice/${inv.id}`, { replace: true });

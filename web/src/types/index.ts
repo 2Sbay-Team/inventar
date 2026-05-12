@@ -475,6 +475,14 @@ export interface Invoice {
   // behaviour (VAT always shown) is preserved on every existing row.
   vat_enabled?: boolean;
   total_minor: number;
+  // TODO(v0.7) — `notes` is plumbed end-to-end (row, PDF renderer in
+  // invoice-pdf.ts, locale labels `notes:` in EN/FR/AR) but no UI
+  // currently writes it: sell.tsx hardcodes `notes: null` and the
+  // /invoice/:id view doesn't render it. A future commit either
+  // wires an input + on-screen render OR strips the renderer +
+  // locale labels — decided per the v0.6.6 invoice audit. The field
+  // stays in the row so a backup import that carries notes survives
+  // round-trip and shows up correctly on the printed PDF.
   notes: string | null;
   // Link back to the /sell transaction this invoice was generated from.
   // Null when the invoice was issued manually (no sale on record).

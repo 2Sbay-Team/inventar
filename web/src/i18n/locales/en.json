@@ -495,7 +495,7 @@
     "cart_total": "Total",
     "cart_remove": "Remove",
     "continue_scanning": "Continue scanning",
-    "invoice_toggle": "Generate invoice (Facture)",
+    "invoice_toggle": "Generate invoice",
     "invoice_customer_name": "Customer name (optional)",
     "invoice_customer_address": "Customer address (optional)",
     "invoice_customer_fiscal_id": "Customer fiscal ID (optional)",
