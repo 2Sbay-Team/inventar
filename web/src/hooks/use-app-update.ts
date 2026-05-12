@@ -46,6 +46,12 @@ export interface AppUpdate {
   installNow(): Promise<void>;
   snooze(): Promise<void>;
   skip(): Promise<void>;
+  // Closes the modal without recording snooze or skip. Used by the
+  // breaking-update Cancel button — the snooze/skip suppression
+  // mechanism doesn't apply to 'breaking' (force consideration), so
+  // a transient dismiss is the only way out. The modal re-prompts
+  // on the next probe (page reload, hook re-mount with waiting SW).
+  dismiss(): void;
 }
 
 // ── Pure async helpers (exported for unit tests) ────────────────────
@@ -183,5 +189,12 @@ export function useAppUpdate(): AppUpdate {
     setRiskLevel('safe');
   }, [promptVersion]);
 
-  return { status, whatsNew, promptVersion, riskLevel, installNow, snooze, skip };
+  const dismiss = useCallback(() => {
+    setStatus('idle');
+    setWhatsNew(null);
+    setPromptVersion(null);
+    setRiskLevel('safe');
+  }, []);
+
+  return { status, whatsNew, promptVersion, riskLevel, installNow, snooze, skip, dismiss };
 }

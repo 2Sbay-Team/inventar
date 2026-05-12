@@ -19,9 +19,9 @@ import {
 } from '../utils/auto-backup';
 import { getMeta, META_KEYS, setMeta } from '../repos/meta';
 import { db, resetDatabase } from '../db/db';
-import { getProfile, upsertProfile, markBackedUp } from '../repos/profile';
+import { getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
-import { exportBackupBlob, backupFilename } from '../backup/export';
+import { downloadBackupFile } from '../backup/download';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
@@ -539,16 +539,9 @@ export function SettingsScreen(): JSX.Element {
   }
 
   async function exportData(): Promise<void> {
-    const { blob } = await exportBackupBlob(db, { appVersion: APP_VERSION });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = backupFilename();
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    await markBackedUp(db);
+    // v0.6.2 — delegate to the shared helper so the v0.6.2 update
+    // modal and Settings → Export Data take the exact same code path.
+    await downloadBackupFile({ appVersion: APP_VERSION });
   }
 
   function pickImportFile(): void {
