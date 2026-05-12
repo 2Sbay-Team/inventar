@@ -26,31 +26,38 @@ interface ScreenLayoutProps {
 //   ≥ 1280px : 880px (desktop)
 export function ScreenLayout({ children, hideNav }: ScreenLayoutProps): JSX.Element {
   // v0.6.8 — shell uses `h-[100dvh]` (dynamic viewport height) instead
-  // of `min-h-screen`. The merchant-reported "bottom nav scrolls with
-  // the article list" symptom traced to `min-h-screen` allowing the
-  // shell to grow past viewport whenever inner content
-  // (ShopHeader + 5 banners + a long result list) couldn't fit; the
-  // BottomNav, sitting at the bottom of the shell, then went off-screen
-  // and the window scrolled. With `h-dvh` the shell is constrained to
-  // exactly the visible viewport (dynamic = adapts to iOS Safari's URL
-  // bar showing/hiding), so the nav stays at the visible bottom and
-  // overflow happens inside the children area instead. The `min-h-0`
-  // on the children flex container lets its `flex-1` actually shrink
-  // — without it, a flex item's default `min-height: auto` blocks
-  // the constraint and `overflow-y-auto` on the inner `<main>` would
-  // never engage.
+  // of `min-h-screen` so the layout boundary stays at the visible
+  // viewport edge even when inner content exceeds viewport. `min-h-0`
+  // on the children flex container lets `flex-1` actually shrink so
+  // the inner `<main overflow-y-auto>` engages.
+  //
+  // v0.6.9 — BottomNav now uses `position: fixed` and floats above the
+  // shell. The shell's flex flow no longer reserves space for it,
+  // which would cause the last article to slip behind the nav. The
+  // children container takes `pb-[4rem+safe-area]` (64 px + the iOS
+  // home-indicator inset) so visible content ends with a comfortable
+  // gap above the nav's translucent backdrop. AppFooter still sits in
+  // the flow below children — it's a small "powered by" credit and
+  // landing behind the nav is acceptable; users don't need it
+  // always-visible.
   return (
     <div className="bg-paper flex min-h-screen w-full flex-col items-center">
       <div
         data-testid="app-shell"
         className="border-hair relative flex h-[100dvh] w-full flex-col bg-paper min-[600px]:max-w-[540px] min-[600px]:border-x min-[600px]:shadow-sm min-[768px]:max-w-[640px] min-[1024px]:max-w-[768px] min-[1280px]:max-w-[880px]"
       >
-        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        <div
+          className={`flex min-h-0 flex-1 flex-col ${
+            hideNav ? '' : 'pb-[calc(4rem+env(safe-area-inset-bottom))]'
+          }`}
+        >
+          {children}
+        </div>
         <AppFooter />
         {hideNav ? null : <BottomNav />}
         {/* v0.6.4 — global FAB self-determines visibility per route
             (see web/src/components/fab.tsx). Mounted inside the shell
-            so its `absolute end-6 bottom-20` positioning hugs the
+            so its `absolute end-6 bottom-X` positioning hugs the
             shell edge on wide viewports instead of the raw viewport. */}
         <Fab />
       </div>

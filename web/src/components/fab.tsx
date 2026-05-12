@@ -106,13 +106,18 @@ interface FabButtonProps {
 // itself. If the AA threshold becomes load-bearing later, swap to
 // bg-accent-ink (#C44417 → ~5.0 : 1).
 function FabButton({ testId, ariaLabel, onClick }: FabButtonProps): JSX.Element {
+  // v0.6.9 — `bottom-20` (80 px) cleared the v0.6.8 in-flow nav, but the
+  // v0.6.9 floating nav is ~62 px tall + iOS safe-area inset (≈ 34 px
+  // on iPhone X+ class). Bump the FAB to `calc(5rem + safe-area)` so
+  // it always sits with a comfortable gap above the nav's rounded top
+  // edge regardless of device chrome.
   return (
     <button
       type="button"
       data-testid={testId}
       aria-label={ariaLabel}
       onClick={onClick}
-      className="bg-accent absolute bottom-20 end-6 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="bg-accent absolute end-6 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 bottom-[calc(5rem+env(safe-area-inset-bottom))]"
     >
       <Plus aria-hidden className="h-6 w-6" strokeWidth={2.5} />
     </button>
