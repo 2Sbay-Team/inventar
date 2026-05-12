@@ -604,6 +604,21 @@ things; carrying two separate option lists in code split the choices
 without a corresponding mental-model split for the merchants. The
 brief explicitly mandates this.
 
+**v0.6.1 amendment — Settings reads the runtime UI locale, not
+`profile.locale`.** The Settings dropdown originally indexed
+`LOCATION_OPTIONS[profile.locale]`, which is the locale frozen at
+onboarding time. A merchant who onboarded in EN and later switched
+the UI to FR/AR via the language picker still saw the EN option
+list, even though the labels above the dropdown translated
+correctly via i18next. `StockLocationsSection` now reads the
+current locale through `useLocale()` so the option list tracks the
+live UI language. Onboarding was already correct (it consumes
+`useLocale()` for the same reason). Stored merchant values stay
+verbatim — when a profile carries an EN-locale value like "Shop
+floor" and the UI is in FR, the dropdown drops into its custom-
+input fallback and pre-fills the existing string, exactly as it
+does for legacy migrated values. No data migration.
+
 ## ADR-030: QR labels gain centered branding (logo or store name); error correction M → Q; in-app scan QR stays plain
 
 **v0.6.** Printed QR labels used to show only the QR pattern.
