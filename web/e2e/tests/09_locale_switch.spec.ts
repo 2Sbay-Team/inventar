@@ -17,7 +17,7 @@ test.describe('Locale switching live (no restart)', () => {
     expect(dir).toBe('rtl');
     const lang = await page.evaluate(() => document.documentElement.lang);
     expect(lang).toBe('ar');
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     // The result count count chip on Search appears in Eastern Arabic digits.
     const counts = await page.getByTestId('shop-counts').innerText();
     expect(counts).toMatch(/[٠-٩]/);
@@ -30,14 +30,14 @@ test.describe('Locale switching live (no restart)', () => {
     expect(dir).toBe('ltr');
     const lang = await page.evaluate(() => document.documentElement.lang);
     expect(lang).toBe('en');
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await expect(page.getByTestId('shop-counts')).toContainText(/articles/);
   });
 
   test('SKU codes and TND symbol stay LTR/Western under AR (ADR-006)', async ({ page }) => {
     await page.getByTestId('nav-settings').click();
     await page.getByTestId('settings-lang-ar').click();
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await page.getByTestId('search-input').fill('white');
     await expect(page.getByTestId('result-card')).toHaveCount(1);
     const skuText = await page.getByTestId('result-card').first().textContent();

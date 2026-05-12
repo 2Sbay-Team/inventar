@@ -27,11 +27,15 @@ test('no console errors during a representative flow', async ({ page }) => {
   await page.getByTestId('adjust-confirm').click();
   await page.getByTestId('detail-back').click();
 
+  // v0.8 — /list redirects to /products (which renders SearchScreen).
+  // The pre-v0.8 ListScreen + sort-az interaction is no longer in the
+  // catalogue flow; Phase 1 will re-introduce sort chips on the
+  // merged Products screen. For now, just confirm the redirect
+  // resolves without console noise.
   await page.goto('/list');
-  await expect(page.getByTestId('list-screen')).toBeVisible();
-  await page.getByTestId('sort-az').click();
+  await expect(page.getByTestId('search-screen')).toBeVisible();
 
-  await page.getByTestId('nav-dashboard').click();
+  await page.getByTestId('nav-reports').click();
   await expect(page.getByTestId('dashboard-screen')).toBeVisible();
   await page.getByTestId('period-week').click();
 

@@ -16,7 +16,7 @@ test.describe('Inventory overview (shoes)', () => {
   test('dashboard inventory tiles show units, articles, and category breakdown', async ({
     page,
   }) => {
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await expect(page.getByTestId('inventory-overview')).toBeVisible();
 
@@ -28,7 +28,7 @@ test.describe('Inventory overview (shoes)', () => {
   });
 
   test('shoes shop shows "Pairs in stock", not "Units in stock"', async ({ page }) => {
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     const tile = page.getByTestId('inv-units');
     await expect(tile).toContainText(/Pairs/i);
     await expect(tile).not.toContainText(/Units/i);
@@ -53,7 +53,7 @@ test.describe('Inventory overview (shop — sizeless)', () => {
     await page.getByTestId('continue').click();
     await page.getByTestId('got-it').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     const tile = page.getByTestId('inv-units');
     await expect(tile).toContainText(/Units/i);
     await expect(tile).not.toContainText(/Pairs/i);
@@ -72,7 +72,7 @@ test.describe('Stock report screen + print path', () => {
   test('navigates from dashboard, lists every alive article with per-size counts', async ({
     page,
   }) => {
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await page.getByTestId('open-stock-report').click();
 
     await expect(page.getByTestId('stock-report')).toBeVisible();
@@ -89,7 +89,7 @@ test.describe('Stock report screen + print path', () => {
   });
 
   test('print button is wired and visible (Print / PDF)', async ({ page }) => {
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await page.getByTestId('open-stock-report').click();
     const print = page.getByTestId('report-print');
     await expect(print).toBeVisible();
@@ -97,7 +97,7 @@ test.describe('Stock report screen + print path', () => {
   });
 
   test('back button returns to the previous screen', async ({ page }) => {
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await page.getByTestId('open-stock-report').click();
     await expect(page.getByTestId('stock-report')).toBeVisible();
     await page.getByTestId('report-back').click();

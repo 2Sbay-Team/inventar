@@ -24,20 +24,20 @@ test.describe('bottom nav active pill (v0.7)', () => {
   });
 
   test('Articles has the pill on /, then moves to Dashboard after navigation', async ({ page }) => {
-    await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute('data-state', 'active');
-    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
+    await expect(page.getByTestId('nav-products-indicator')).toHaveAttribute(
+      'data-state',
+      'active',
+    );
+    await expect(page.getByTestId('nav-reports-indicator')).toHaveAttribute(
       'data-state',
       'inactive',
     );
 
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
 
-    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
-      'data-state',
-      'active',
-    );
-    await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute(
+    await expect(page.getByTestId('nav-reports-indicator')).toHaveAttribute('data-state', 'active');
+    await expect(page.getByTestId('nav-products-indicator')).toHaveAttribute(
       'data-state',
       'inactive',
     );
@@ -51,10 +51,10 @@ test.describe('bottom nav active pill (v0.7)', () => {
     // default transparent on inactive. Match the alpha pattern rather
     // than hard-coding values so a theme tweak doesn't break this spec.
     const active = await page
-      .getByTestId('nav-search-indicator')
+      .getByTestId('nav-products-indicator')
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     const inactive = await page
-      .getByTestId('nav-dashboard-indicator')
+      .getByTestId('nav-reports-indicator')
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     // Active: rgba(r, g, b, α) with 0 < α < 1.
     expect(active).toMatch(/rgba?\(.*,\s*0?\.\d+\s*\)$/);

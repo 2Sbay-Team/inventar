@@ -59,7 +59,7 @@ test.describe('Backup export → reset → import round-trip', () => {
     await expect(page.getByTestId('import-prompt')).toBeHidden();
 
     // Verify the article + post-sale quantities survived.
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await page.getByTestId('search-input').fill('Round shoe');
     await expect(page.getByTestId('result-card')).toHaveCount(1);
     await page.getByTestId('result-card').first().click();

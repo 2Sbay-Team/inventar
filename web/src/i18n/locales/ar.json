@@ -32,9 +32,9 @@
     "fab_add_expense": "إضافة مصروف"
   },
   "nav": {
-    "articles": "المنتجات",
-    "sell": "بيع",
-    "dashboard": "لوحة التحكم",
+    "products": "المنتجات",
+    "sale": "بيع",
+    "reports": "التقارير",
     "settings": "الإعدادات"
   },
   "header": {

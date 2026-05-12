@@ -33,7 +33,7 @@ test('zero same-origin network calls during steady-state use', async ({ page, co
   await page.getByTestId('reason-sale').click();
   await page.getByTestId('adjust-confirm').click();
   await page.getByTestId('detail-back').click();
-  await page.getByTestId('nav-dashboard').click();
+  await page.getByTestId('nav-reports').click();
 
   // The SW navigation handler may issue a single navigation revalidation;
   // anything beyond that is a regression.

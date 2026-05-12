@@ -51,7 +51,7 @@ test.describe('Sale-time discount affects dashboard math', () => {
 
     // Dashboard should show 40 TND revenue, not 60 TND.
     await page.getByTestId('detail-back').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await page.getByTestId('period-today').click();
 
@@ -125,7 +125,7 @@ test.describe('Sale-time discount affects dashboard math', () => {
     await expect(page.getByTestId('quick-adjust-sheet')).toHaveCount(0);
 
     await page.getByTestId('detail-back').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await page.getByTestId('period-today').click();
     const revenueText = (await page.getByTestId('big-revenue').textContent()) ?? '';
     expect(revenueText).toMatch(/60[.,]000/);

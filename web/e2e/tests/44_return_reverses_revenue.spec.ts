@@ -46,14 +46,14 @@ test.describe('Returns reverse the dashboard cash impact', () => {
     // detail uses hideNav, so we step back to Search first to reach
     // the bottom nav.
     await page.getByTestId('detail-back').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('big-revenue')).toContainText(/60/);
     // Net items sold = 1 (the sale).
     await expect(page.getByTestId('big-pairs')).toContainText('1');
 
     // 2. Return one. Reason=Return, no refund override (catalogue
     // price applies), confirm.
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await page.getByTestId('search-input').fill('returnable');
     await page.getByTestId('result-card').first().click();
     await page.getByTestId('size-cell-42').click();
@@ -67,7 +67,7 @@ test.describe('Returns reverse the dashboard cash impact', () => {
 
     // 3. Dashboard now shows the net: 0 revenue / 0 items sold.
     await page.getByTestId('detail-back').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     // Revenue formats as the currency-with-millimes string; "0" is
     // present in any localisation. Use a stricter check via the
     // computed grossProfit to make sure it's truly net-zero.
@@ -124,7 +124,7 @@ test.describe('Returns reverse the dashboard cash impact', () => {
     // Net revenue = 60 sold − 50 refunded = 10. Items sold = 0 (sale 1
     // − return 1 = 0).
     await page.getByTestId('detail-back').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
   });
 
   // v0.5.1 Movement.refunds_movement_id: returns capture the LINKED
@@ -200,7 +200,7 @@ test.describe('Returns reverse the dashboard cash impact', () => {
     // refund had defaulted to the new catalogue (50), revenue would
     // wrongly show 10 — that's the bug this test guards.
     await page.getByTestId('detail-back').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('big-pairs')).toContainText('0');
     await expect(page.getByTestId('cash-block')).toContainText(/0([.,]0+)?/);
   });

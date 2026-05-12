@@ -50,7 +50,7 @@ test.describe('v0.6.2 — logo renders without a visible backdrop', () => {
     expect(await backgroundColor(page, 'shop-logo-preview')).toBe(TRANSPARENT_RGBA);
 
     // Navigate to a screen that mounts the shop-header (search).
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
     await expect(page.locator('[data-testid="shop-logo"] img')).toBeVisible({ timeout: 5_000 });
     expect(await backgroundColor(page, 'shop-logo')).toBe(TRANSPARENT_RGBA);

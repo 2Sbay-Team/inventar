@@ -11,7 +11,9 @@ const OnboardingScreen = lazy(() =>
 const SearchScreen = lazy(() =>
   import('./screens/search').then((m) => ({ default: m.SearchScreen })),
 );
-const ListScreen = lazy(() => import('./screens/list').then((m) => ({ default: m.ListScreen })));
+// v0.8 — ListScreen is no longer routed. /list redirects to /products,
+// which serves SearchScreen. The lazy import stays in the codebase
+// (Phase 1 will merge the two screens) but no longer in this file.
 const AddArticleScreen = lazy(() =>
   import('./screens/add-article').then((m) => ({ default: m.AddArticleScreen })),
 );
@@ -98,6 +100,22 @@ export const routes: RouteObject[] = [
       </Lazy>
     ),
   },
+  // v0.8 — canonical routes are now /products, /sale, /reports (per
+  // the POS-naming brief). The old paths (/, /list, /add, /sell,
+  // /dashboard) remain reachable: / is a SearchScreen alias (kept
+  // because nine internal `navigate('/')` call sites use it as the
+  // "home" shorthand — flipping it to a Navigate redirect adds a
+  // double-history flash on every onboarding completion / archive /
+  // delete / post-sale return); the others are <Navigate> redirects
+  // so bookmarks bounce to the new URLs.
+  //
+  // Phase 1 of the brief (merge Search + List into a real
+  // /products screen with sort chips + show-archived) and Phase 2
+  // (new fashion-flavoured Sale screen with quick-sell + recents
+  // + 3-tap variant flow) are deferred to follow-up sessions; for
+  // now /products renders the existing SearchScreen, /sale renders
+  // the existing SellScreen, /reports renders DashboardScreen.
+
   {
     path: '/',
     element: (
@@ -109,17 +127,25 @@ export const routes: RouteObject[] = [
     ),
   },
   {
-    path: '/list',
+    // v0.8 — canonical Products route. Same SearchScreen as / for
+    // now; Phase 1 swaps in the merged Search+List component here.
+    path: '/products',
     element: (
       <Lazy>
         <OnboardingGate>
-          <ListScreen />
+          <SearchScreen />
         </OnboardingGate>
       </Lazy>
     ),
   },
   {
-    path: '/add',
+    // Old /list bookmarks bounce to the new canonical.
+    path: '/list',
+    element: <Navigate to="/products" replace />,
+  },
+  {
+    // v0.8 — Add-product route under the new namespace.
+    path: '/products/new',
     element: (
       <Lazy>
         <OnboardingGate>
@@ -127,6 +153,11 @@ export const routes: RouteObject[] = [
         </OnboardingGate>
       </Lazy>
     ),
+  },
+  {
+    // Old /add bookmarks + the FAB's legacy target bounce here.
+    path: '/add',
+    element: <Navigate to="/products/new" replace />,
   },
   {
     path: '/article/:id',
@@ -177,7 +208,9 @@ export const routes: RouteObject[] = [
     ),
   },
   {
-    path: '/dashboard',
+    // v0.8 — canonical Reports route. Same DashboardScreen content
+    // for now; Phase 3 of the brief renamed the route only.
+    path: '/reports',
     element: (
       <Lazy>
         <OnboardingGate>
@@ -185,6 +218,11 @@ export const routes: RouteObject[] = [
         </OnboardingGate>
       </Lazy>
     ),
+  },
+  {
+    // Old /dashboard bookmarks bounce to /reports.
+    path: '/dashboard',
+    element: <Navigate to="/reports" replace />,
   },
   {
     path: '/settings',
@@ -254,10 +292,11 @@ export const routes: RouteObject[] = [
     ),
   },
   {
-    // v0.5 ADR-018: scan-driven checkout. Shop's other primary entry
-    // alongside /receive. Other verticals don't expose this in the nav
-    // but the route stays accessible if needed.
-    path: '/sell',
+    // v0.8 — canonical Sale route. Existing SellScreen renders here
+    // for now (the v0.5 ADR-018 scan-driven cart + invoice flow);
+    // Phase 2 of the brief swaps in a fashion-flavoured variant with
+    // quick-sell cards, recent-sales feed, and 3-tap variant flow.
+    path: '/sale',
     element: (
       <Lazy>
         <OnboardingGate>
@@ -265,6 +304,11 @@ export const routes: RouteObject[] = [
         </OnboardingGate>
       </Lazy>
     ),
+  },
+  {
+    // Old /sell bookmarks bounce to /sale.
+    path: '/sell',
+    element: <Navigate to="/sale" replace />,
   },
   {
     // v0.5.2 ADR-018: consolidated alerts screen with two tabs.

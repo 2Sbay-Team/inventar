@@ -208,7 +208,7 @@ test('dashboard: shop merchant sees the three widgets with correct counts', asyn
   await page.reload();
 
   // Open Dashboard via nav (shop nav has /dashboard slot).
-  await page.getByTestId('nav-dashboard').click();
+  await page.getByTestId('nav-reports').click();
   await expect(page.getByTestId('dashboard-screen')).toBeVisible();
 
   const widgets = page.getByTestId('shop-widgets');
@@ -238,7 +238,7 @@ test('dashboard: shoes merchant does not see the shop widgets', async ({ page })
     // storeType omitted → default shoes.
   });
   await page.reload();
-  await page.getByTestId('nav-dashboard').click();
+  await page.getByTestId('nav-reports').click();
   await expect(page.getByTestId('dashboard-screen')).toBeVisible();
   await expect(page.getByTestId('shop-widgets')).toHaveCount(0);
   await expect(page.getByTestId('widget-today-close')).toHaveCount(0);

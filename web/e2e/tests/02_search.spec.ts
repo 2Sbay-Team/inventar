@@ -19,7 +19,7 @@ test.describe('Search screen — buttons + nav', () => {
     // testid is preserved on the Articles tab so this file's other
     // tests don't churn; the new Sell tab gets `nav-sell`.
     await expect(page.getByTestId('bottom-nav')).toBeVisible();
-    for (const id of ['nav-search', 'nav-sell', 'nav-dashboard', 'nav-settings']) {
+    for (const id of ['nav-products', 'nav-sale', 'nav-reports', 'nav-settings']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     // Dropped tabs are gone from the nav.
@@ -27,16 +27,18 @@ test.describe('Search screen — buttons + nav', () => {
     await expect(page.getByTestId('nav-add')).toHaveCount(0);
     await expect(page.getByTestId('nav-receive')).toHaveCount(0);
 
-    // /list is still a reachable route via deep link / muscle memory.
+    // v0.8 — /list and /add now redirect to /products and
+    // /products/new. Direct-URL bookmarks still bounce cleanly.
     await page.goto('/list');
-    await expect(page.getByTestId('list-screen')).toBeVisible();
-    await page.getByTestId('nav-search').click();
+    await expect(page).toHaveURL(/\/products$/);
     await expect(page.getByTestId('search-screen')).toBeVisible();
-    // /add likewise — accessed via FAB on the Articles screen now.
+    await page.getByTestId('nav-products').click();
+    await expect(page.getByTestId('search-screen')).toBeVisible();
     await page.goto('/add');
+    await expect(page).toHaveURL(/\/products\/new$/);
     await expect(page.getByTestId('add-cancel')).toBeVisible();
     await page.getByTestId('add-cancel').click();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await page.getByTestId('nav-settings').click();
     await expect(page.getByTestId('settings-screen')).toBeVisible();

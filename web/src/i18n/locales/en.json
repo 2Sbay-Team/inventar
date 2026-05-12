@@ -32,9 +32,9 @@
     "fab_add_expense": "Add expense"
   },
   "nav": {
-    "articles": "Articles",
-    "sell": "Sell",
-    "dashboard": "Dashboard",
+    "products": "Products",
+    "sale": "Sale",
+    "reports": "Reports",
     "settings": "Settings"
   },
   "header": {

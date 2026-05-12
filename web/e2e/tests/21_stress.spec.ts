@@ -71,7 +71,7 @@ test('stress: 200 articles — dashboard renders within budget', async ({ page }
   await expect(page.getByTestId('search-screen')).toBeVisible();
 
   const t0 = Date.now();
-  await page.getByTestId('nav-dashboard').click();
+  await page.getByTestId('nav-reports').click();
   await expect(page.getByTestId('dashboard-screen')).toBeVisible({ timeout: 5000 });
   // The big metric tiles are the slowest thing on the page.
   await expect(page.getByTestId('big-revenue')).toBeVisible();

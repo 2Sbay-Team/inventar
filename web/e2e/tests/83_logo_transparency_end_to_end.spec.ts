@@ -67,7 +67,7 @@ test.describe('v0.6.3 — logo transparency end-to-end matrix (N+1..N+5)', () =>
     await uploadAndKeyLogo(page);
 
     // Land on a screen that mounts ShopHeader (Search tab).
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
     await expect(page.locator('[data-testid="shop-logo"] img')).toBeVisible({ timeout: 5_000 });
     expect(await backgroundColor(page, 'shop-logo')).toBe(TRANSPARENT_RGBA);
@@ -165,13 +165,13 @@ test.describe('v0.6.3 — logo transparency end-to-end matrix (N+1..N+5)', () =>
     expect(await backgroundColor(page, 'shop-logo-preview')).toBe(TRANSPARENT_RGBA);
 
     // Header on Search.
-    await page.getByTestId('nav-search').click();
+    await page.getByTestId('nav-products').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
     await expect(page.locator('[data-testid="shop-logo"] img')).toBeVisible({ timeout: 5_000 });
     expect(await backgroundColor(page, 'shop-logo')).toBe(TRANSPARENT_RGBA);
 
     // Header on Dashboard.
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await expect(page.locator('[data-testid="shop-logo"] img')).toBeVisible({ timeout: 5_000 });
     expect(await backgroundColor(page, 'shop-logo')).toBe(TRANSPARENT_RGBA);

@@ -26,7 +26,7 @@ test.describe('v0.7 — unified 4-tab nav', () => {
     page,
   }) => {
     await gotoSearch(page);
-    for (const id of ['nav-search', 'nav-sell', 'nav-dashboard', 'nav-settings']) {
+    for (const id of ['nav-products', 'nav-sale', 'nav-reports', 'nav-settings']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     for (const id of ['nav-list', 'nav-add', 'nav-receive']) {
@@ -44,7 +44,7 @@ test.describe('v0.7 — unified 4-tab nav', () => {
     });
     await page.reload();
     await expect(page.getByTestId('search-screen')).toBeVisible({ timeout: 10_000 });
-    for (const id of ['nav-search', 'nav-sell', 'nav-dashboard', 'nav-settings']) {
+    for (const id of ['nav-products', 'nav-sale', 'nav-reports', 'nav-settings']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     await expect(page.getByTestId('nav-list')).toHaveCount(0);
@@ -52,44 +52,53 @@ test.describe('v0.7 — unified 4-tab nav', () => {
     await expect(page.getByTestId('nav-receive')).toHaveCount(0);
   });
 
-  test('EN labels: Articles / Sell / Dashboard / Settings', async ({ page }) => {
+  test('EN labels: Products / Sale / Reports / Settings', async ({ page }) => {
+    // v0.8 — POS-standard labels (was Articles / Sell / Dashboard).
     await gotoSearch(page, 'en');
-    // DOM holds the title-cased translation; CSS `lowercase` makes it
-    // visually lowercase but Playwright reads source text. Case-insensitive
-    // regex matches either.
-    await expect(page.getByTestId('nav-search')).toContainText(/articles/i);
-    await expect(page.getByTestId('nav-sell')).toContainText(/sell/i);
-    await expect(page.getByTestId('nav-dashboard')).toContainText(/dashboard/i);
+    await expect(page.getByTestId('nav-products')).toContainText(/products/i);
+    await expect(page.getByTestId('nav-sale')).toContainText(/sale/i);
+    await expect(page.getByTestId('nav-reports')).toContainText(/reports/i);
     await expect(page.getByTestId('nav-settings')).toContainText(/settings/i);
   });
 
-  test('FR labels include the brief\'s "Bilan" (replaces Tableau de bord)', async ({ page }) => {
+  test('FR labels: Produits / Vente / Rapports / Réglages', async ({ page }) => {
     await gotoSearch(page, 'fr');
-    // labels are lowercased via tracking; assert case-insensitive.
-    await expect(page.getByTestId('nav-search')).toContainText(/articles/i);
-    await expect(page.getByTestId('nav-sell')).toContainText(/vendre/i);
-    await expect(page.getByTestId('nav-dashboard')).toContainText(/bilan/i);
+    await expect(page.getByTestId('nav-products')).toContainText(/produits/i);
+    await expect(page.getByTestId('nav-sale')).toContainText(/vente/i);
+    await expect(page.getByTestId('nav-reports')).toContainText(/rapports/i);
     await expect(page.getByTestId('nav-settings')).toContainText(/réglages/i);
   });
 
-  test('AR labels: المنتجات / بيع / لوحة التحكم / الإعدادات', async ({ page }) => {
+  test('AR labels: المنتجات / بيع / التقارير / الإعدادات', async ({ page }) => {
     await gotoSearch(page, 'ar');
     expect(await page.evaluate(() => document.documentElement.dir)).toBe('rtl');
-    await expect(page.getByTestId('nav-search')).toContainText('المنتجات');
-    await expect(page.getByTestId('nav-sell')).toContainText('بيع');
-    await expect(page.getByTestId('nav-dashboard')).toContainText('لوحة التحكم');
+    await expect(page.getByTestId('nav-products')).toContainText('المنتجات');
+    await expect(page.getByTestId('nav-sale')).toContainText('بيع');
+    await expect(page.getByTestId('nav-reports')).toContainText('التقارير');
     await expect(page.getByTestId('nav-settings')).toContainText('الإعدادات');
   });
 
-  test('dropped routes still reachable by direct URL — /list, /add, /receive', async ({ page }) => {
+  test('legacy routes redirect to new canonicals — /list → /products, /add → /products/new, /sell → /sale, /dashboard → /reports', async ({
+    page,
+  }) => {
+    // v0.8 — paths visit the new canonical URLs via <Navigate>
+    // redirects. Verified by URL after the bounce + by the
+    // canonical's rendered content.
     await gotoSearch(page);
+
     await page.goto('/list');
-    await expect(page.getByTestId('list-screen')).toBeVisible({ timeout: 5_000 });
+    await expect(page).toHaveURL(/\/products$/, { timeout: 5_000 });
+    await expect(page.getByTestId('search-screen')).toBeVisible();
+
     await page.goto('/add');
-    await expect(page.getByTestId('add-step-indicator')).toBeVisible({ timeout: 5_000 });
-    // /receive is hideNav so no nav assertion; just confirm the
-    // route mounts something recognisable.
-    await page.goto('/receive');
-    await expect(page.getByTestId('receive-screen')).toBeVisible({ timeout: 5_000 });
+    await expect(page).toHaveURL(/\/products\/new$/, { timeout: 5_000 });
+    await expect(page.getByTestId('add-step-indicator')).toBeVisible();
+
+    await page.goto('/sell');
+    await expect(page).toHaveURL(/\/sale$/, { timeout: 5_000 });
+
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/reports$/, { timeout: 5_000 });
+    await expect(page.getByTestId('dashboard-screen')).toBeVisible();
   });
 });

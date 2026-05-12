@@ -35,7 +35,7 @@ test.describe('v0.6.4 — global FAB', () => {
     await expect(page.getByTestId('fab')).toHaveAttribute('aria-label', 'Add new article');
 
     // /dashboard → FAB visible with the expense aria-label.
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await expect(page.getByTestId('fab')).toBeVisible();
     await expect(page.getByTestId('fab')).toHaveAttribute('aria-label', 'Add expense');
@@ -66,20 +66,26 @@ test.describe('v0.6.4 — global FAB', () => {
     await page.goto('/list');
     await expect(page.getByTestId('fab')).toBeVisible();
     await page.getByTestId('fab').click();
-    await expect(page).toHaveURL(/\/add$/);
+    // v0.8 — FAB navigates to /products/new (was /add); the legacy
+    // /add path still redirects here so deep links and seed scripts
+    // keep working, but a fresh FAB tap lands on the canonical URL.
+    await expect(page).toHaveURL(/\/products\/new$/);
     await expect(page.getByTestId('add-step-indicator')).toBeVisible();
   });
 
   test('tap on /search → navigates to /add', async ({ page }) => {
     await gotoSearch(page);
     await page.getByTestId('fab').click();
-    await expect(page).toHaveURL(/\/add$/);
+    // v0.8 — FAB navigates to /products/new (was /add); the legacy
+    // /add path still redirects here so deep links and seed scripts
+    // keep working, but a fresh FAB tap lands on the canonical URL.
+    await expect(page).toHaveURL(/\/products\/new$/);
     await expect(page.getByTestId('add-step-indicator')).toBeVisible();
   });
 
   test('tap on /dashboard → opens Add Expense dialog', async ({ page }) => {
     await gotoSearch(page);
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await page.getByTestId('fab').click();
     // The dashboard owns the dialog; the FAB only signals via the

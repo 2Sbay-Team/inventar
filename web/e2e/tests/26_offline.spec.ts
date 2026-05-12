@@ -104,7 +104,7 @@ test.describe('PWA offline behavior', () => {
     await page.getByTestId('search-input').fill('offline');
     await expect(page.getByTestId('result-card').first()).toBeVisible({ timeout: 4_000 });
 
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
     await page.getByTestId('nav-settings').click();
     await expect(page.getByTestId('section-shop-profile')).toBeVisible();

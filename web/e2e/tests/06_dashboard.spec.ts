@@ -12,7 +12,7 @@ test.describe('Dashboard + Expense modal', () => {
       await window.__inventarSeed!.sellOne('White running shoe', '42');
     });
     await page.reload();
-    await page.getByTestId('nav-dashboard').click();
+    await page.getByTestId('nav-reports').click();
     await expect(page.getByTestId('dashboard-screen')).toBeVisible();
   });
 

@@ -135,7 +135,7 @@ test.describe('Clothes vertical — end-to-end smoke', () => {
       storeType: 'clothes',
     });
     await page.reload();
-    for (const id of ['nav-search', 'nav-sell', 'nav-dashboard', 'nav-settings']) {
+    for (const id of ['nav-products', 'nav-sale', 'nav-reports', 'nav-settings']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     await expect(page.getByTestId('nav-add')).toHaveCount(0);

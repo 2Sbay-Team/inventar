@@ -37,10 +37,13 @@ export interface FabTriggerDetail {
   kind: FabAction;
 }
 
-// Routes where the FAB navigates straight to /add. Both render the
-// same "Add new article" aria-label; their only difference is the
-// screen the user was on when they tapped.
-const NAV_TO_ADD_ROUTES = new Set<string>(['/', '/list']);
+// v0.8 — FAB visible on the Products and Reports tabs. The Products
+// tab covers both /products (canonical) and / (the SearchScreen
+// alias kept so internal `navigate('/')` calls don't redirect-flash
+// — see BottomNav for the same dual-URL handling). /list still
+// resolves via the legacy <Navigate> redirect; users in transit
+// there briefly see the FAB before bouncing.
+const NAV_TO_ADD_ROUTES = new Set<string>(['/', '/products', '/list']);
 
 export function Fab(): JSX.Element | null {
   const { t } = useTranslation('common');
@@ -50,11 +53,18 @@ export function Fab(): JSX.Element | null {
 
   if (NAV_TO_ADD_ROUTES.has(pathname)) {
     return (
-      <FabButton testId="fab" ariaLabel={t('fab_add_article')} onClick={() => navigate('/add')} />
+      <FabButton
+        testId="fab"
+        ariaLabel={t('fab_add_article')}
+        // v0.8 — points at the new canonical add-product URL; the
+        // legacy /add path stays reachable via redirect for any
+        // tests / deep-links still calling the old name.
+        onClick={() => navigate('/products/new')}
+      />
     );
   }
 
-  if (pathname === '/dashboard') {
+  if (pathname === '/reports' || pathname === '/dashboard') {
     return (
       <FabButton
         testId="fab"
@@ -68,10 +78,11 @@ export function Fab(): JSX.Element | null {
     );
   }
 
-  // Everything else: hidden. Includes /add (already on the add
-  // screen), /settings* sub-tree, /onboarding, /alerts, /help,
-  // /receive + /sell (camera screens), /article/:id (existing
-  // action-bar) and the various detail / report routes.
+  // Everything else: hidden. Includes /products/new and /add
+  // (already on the add screen), /settings* sub-tree, /onboarding,
+  // /alerts, /help, /receive + /sale + /sell (transactional /
+  // camera screens), /article/:id (existing action-bar) and the
+  // various detail / report routes.
   return null;
 }
 

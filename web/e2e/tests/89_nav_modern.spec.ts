@@ -55,19 +55,19 @@ test.describe('v0.6.9 — modern fixed bottom nav', () => {
     // four-tab layout.
     await gotoSearch(page);
     // Initial route is /, so the Articles tab (nav-search testid) is active.
-    await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute('data-state', 'active');
-    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
+    await expect(page.getByTestId('nav-products-indicator')).toHaveAttribute(
+      'data-state',
+      'active',
+    );
+    await expect(page.getByTestId('nav-reports-indicator')).toHaveAttribute(
       'data-state',
       'inactive',
     );
 
-    await page.getByTestId('nav-dashboard').click();
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
-      'data-state',
-      'active',
-    );
-    await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute(
+    await page.getByTestId('nav-reports').click();
+    await expect(page).toHaveURL(/\/reports$/);
+    await expect(page.getByTestId('nav-reports-indicator')).toHaveAttribute('data-state', 'active');
+    await expect(page.getByTestId('nav-products-indicator')).toHaveAttribute(
       'data-state',
       'inactive',
     );
@@ -78,7 +78,7 @@ test.describe('v0.6.9 — modern fixed bottom nav', () => {
       'data-state',
       'active',
     );
-    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
+    await expect(page.getByTestId('nav-reports-indicator')).toHaveAttribute(
       'data-state',
       'inactive',
     );
