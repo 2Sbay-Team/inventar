@@ -1,22 +1,22 @@
 {
-  "version": "0.5.4",
-  "released_at": "2026-05-11",
+  "version": "1.0.1",
+  "released_at": "2026-05-12",
   "risk_level": "safe",
   "highlights": {
     "en": [
-      "Faster article search across large catalogues",
-      "Fixed a rare crash on the dashboard, alerts banner, and quick-adjust screens",
-      "Stock display now respects each article's unit of measure"
+      "Settings → About: see your app version and tap “Check for updates” any time",
+      "Quick-add button (FAB) on the catalogue and dashboard for faster access",
+      "Pick what shows in your printed QR labels — logo or store name"
     ],
     "fr": [
-      "Recherche d'articles plus rapide sur les grands catalogues",
-      "Correction d'un crash rare sur le tableau de bord, la bannière d'alertes et l'ajustement rapide",
-      "L'affichage des stocks respecte désormais l'unité de mesure de chaque article"
+      "Paramètres → À propos : voir la version de l'application et lancer « Vérifier les mises à jour »",
+      "Bouton d'ajout rapide (FAB) sur le catalogue et le tableau de bord",
+      "Choisissez ce qui apparaît sur vos étiquettes QR imprimées — logo ou nom du magasin"
     ],
     "ar": [
-      "بحث أسرع عن المنتجات في الكتالوجات الكبيرة",
-      "إصلاح عطل نادر في لوحة المعلومات وشريط التنبيهات وشاشة التعديل السريع",
-      "عرض المخزون يحترم الآن وحدة قياس كل منتج"
+      "الإعدادات ← حول التطبيق: عرض إصدار التطبيق وزر « التحقق من التحديثات »",
+      "زر إضافة سريعة (FAB) في الكتالوج ولوحة المعلومات",
+      "اختر ما يظهر في ملصقات QR المطبوعة — الشعار أو اسم المتجر"
     ]
   }
 }

@@ -161,6 +161,71 @@ docker logs stack_cloudflared 2>&1 | grep -i "config" | head -20
 
 ---
 
+## 5b. Cloudflare cache rules — REQUIRED for the update modal
+
+**Why this section exists.** Cloudflare's default Browser Cache TTL
+on the Free plan rewrites `Cache-Control: no-cache` to
+`Cache-Control: max-age=14400` on `.js` files — including `/sw.js`.
+That freezes every merchant's browser cache on the previous service
+worker for up to 4 hours after a deploy, so the v0.6 update-consent
+modal never fires, the new bundle never loads, and any feature
+shipped in the last 4 hours appears "broken" to merchants.
+
+Origin nginx already sends the strongest "do not cache" header set
+we can (see `docker/nginx.conf` v0.6.7+: `no-store, no-cache,
+must-revalidate, max-age=0`). Cloudflare overrides it anyway —
+this is a known dashboard-level config decision that cannot be
+changed from the VPS. The fix is two cache rules in the Cloudflare
+dashboard, set ONCE.
+
+### Steps (Cloudflare dashboard, one-time setup)
+
+1. **Cloudflare dashboard → Caching → Cache Rules → Create rule.**
+2. **Rule 1 — Service worker (the critical one).**
+   - Rule name: `Bypass cache for service worker`
+   - When incoming requests match: `URI Path` `equals` `/sw.js`
+   - Then: **Cache eligibility** → **Bypass cache**.
+   - Save and deploy.
+3. **Rule 2 — What's-new manifest.**
+   - Rule name: `Bypass cache for update manifest`
+   - When incoming requests match: `URI Path` `equals` `/whats-new.json`
+   - Then: **Cache eligibility** → **Bypass cache**.
+   - Save and deploy.
+4. (Optional, defence-in-depth) **Rule 3 — index.html.**
+   - Rule name: `Bypass cache for SPA shell`
+   - When incoming requests match: `URI Path` `equals` `/index.html` **OR** `URI Path` `equals` `/`
+   - Then: **Cache eligibility** → **Bypass cache**.
+
+### Verify it stuck
+
+```bash
+# Both should report `cf-cache-status: DYNAMIC` (or BYPASS) and the
+# origin's no-store Cache-Control header, NOT max-age=14400.
+curl -sI https://inventar.hoodhood.ai/sw.js | grep -iE 'cache-control|cf-cache'
+curl -sI https://inventar.hoodhood.ai/whats-new.json | grep -iE 'cache-control|cf-cache'
+```
+
+If you see `max-age=14400` or `cf-cache-status: HIT` on `/sw.js`,
+the rule didn't apply — re-check the rule ordering in the CF
+dashboard (Cache Rules apply top-down; an earlier "Cache Everything"
+rule beats a later "Bypass").
+
+### Purge once after creating the rules
+
+The CF edge may still hold a cached copy of `/sw.js` from before
+the rule existed. Purge it once:
+
+  **Caching → Configuration → Purge Cache → Custom Purge → URL**
+  - `https://inventar.hoodhood.ai/sw.js`
+  - `https://inventar.hoodhood.ai/whats-new.json`
+
+After this purge the next merchant visit downloads a fresh SW, the
+v0.6 consent modal fires for the new version, and update-detection
+works for every subsequent release without any further dashboard
+action.
+
+---
+
 ## 6. Initial bring-up
 
 ```bash

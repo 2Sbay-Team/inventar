@@ -9,4 +9,4 @@
 // the JSON envelope's `app_version` field is consistent across
 // every write site.
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
