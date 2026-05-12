@@ -2,13 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* v0.9 ADR-040 — brand + background theming via CSS custom properties.
+   Tailwind reads these as `rgb(var(--color-X-rgb) / <alpha-value>)`
+   so opacity utilities (bg-accent/[0.12], …) keep working unchanged.
+
+   Defaults below match the v0.8.x hard-coded palette exactly so an
+   install with `brand_primary_color = null` looks pixel-identical to
+   the pre-v0.9 build. applyTheme() (src/theme/apply-theme.ts) rewrites
+   these inline on documentElement when the merchant sets a custom
+   brand color or background.
+
+   Space-separated RGB triples (no commas) — that's the modern
+   `rgb()` syntax Tailwind v3 emits and the only shape `<alpha-value>`
+   substitution accepts. */
+:root {
+  --color-brand-rgb: 255 107 53; /* #FF6B35 — Inventar accent orange */
+  --color-brand-soft-rgb: 255 228 214; /* #FFE4D6 — accent-soft */
+  --color-brand-ink-rgb: 196 68 23; /* #C44417 — accent-ink (text on soft) */
+  --color-bg-rgb: 255 248 242; /* #FFF8F2 — paper top */
+  --color-bg-deep-rgb: 252 231 208; /* #FCE7D0 — paper gradient bottom */
+}
+
 /* Soft warm gradient — cream at top fading into a warmer peach at the
    bottom. No grid, no dots, no noise. Just smooth color. Feels like
    sunrise on paper. Fixed attachment so the gradient doesn't scroll
-   with the content (looks the same regardless of how long the page is). */
+   with the content (looks the same regardless of how long the page is).
+
+   v0.9: reads --color-bg-rgb / --color-bg-deep-rgb so a custom
+   theme_bg_color flows through automatically. applyTheme() recomputes
+   the gradient bottom by darkening the top by 8% L* — keeps the
+   sunrise feel even on a custom bg color. */
 .bg-paper {
-  background-color: #fff8f2;
-  background-image: linear-gradient(180deg, #fff8f2 0%, #fce7d0 100%);
+  background-color: rgb(var(--color-bg-rgb));
+  background-image: linear-gradient(
+    180deg,
+    rgb(var(--color-bg-rgb)) 0%,
+    rgb(var(--color-bg-deep-rgb)) 100%
+  );
   background-attachment: fixed;
 }
 
