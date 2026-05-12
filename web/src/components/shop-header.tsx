@@ -26,7 +26,13 @@ export function ShopHeader({ articles, items }: ShopHeaderProps): JSX.Element {
     >
       <div className="flex items-center gap-3">
         {logoId ? (
-          <PhotoThumb photoId={logoId} size={36} testId="shop-logo" className="rounded-full" />
+          <PhotoThumb
+            photoId={logoId}
+            size={36}
+            testId="shop-logo"
+            className="rounded-full"
+            transparent
+          />
         ) : null}
         <div>
           <h2

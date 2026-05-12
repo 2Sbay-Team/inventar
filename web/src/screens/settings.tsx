@@ -803,6 +803,11 @@ export function SettingsScreen(): JSX.Element {
               size={56}
               testId="shop-logo-preview"
               className="rounded-full"
+              // v0.6.2 — drop the cream backdrop only when there IS
+              // a logo; otherwise keep the placeholder backdrop so
+              // the empty-state ImageIcon stays visible against the
+              // white Settings card.
+              transparent={!!profile?.logo_photo_id}
             />
             <div className="flex flex-1 flex-col gap-2">
               <button
