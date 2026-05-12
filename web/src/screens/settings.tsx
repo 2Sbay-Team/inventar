@@ -3,6 +3,8 @@ import type React from 'react';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { AppThemePicker } from '../components/app-theme-picker';
+import { BrandColorPicker } from '../components/brand-color-picker';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
@@ -397,6 +399,8 @@ function ShopIdentitySection(): JSX.Element | null {
       <h3 className="font-display mb-1 text-base font-medium">{t('identity_title')}</h3>
       <p className="text-ink-3 mb-4 text-xs leading-relaxed">{t('identity_hint')}</p>
       <div className="space-y-5">
+        <BrandColorSubsection profile={profile} />
+        <AppThemeSubsection profile={profile} />
         <IdentitySubsection profile={profile} />
         <ContactSubsection profile={profile} />
         <LocationSubsection profile={profile} />
@@ -456,6 +460,44 @@ function useSubsectionAutosave(profile: ShopProfile): {
     [autosave],
   );
   return { setField, status: autosave.status };
+}
+
+function BrandColorSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('brand_color_title')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <p className="text-ink-3 text-[11px] leading-relaxed">{t('brand_color_hint')}</p>
+      <BrandColorPicker
+        brandPrimaryColor={profile.brand_primary_color}
+        logoDominantColor={profile.logo_dominant_color}
+        onChange={(hex) => setField('brand_primary_color', hex)}
+      />
+    </div>
+  );
+}
+
+function AppThemeSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('theme_title')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <p className="text-ink-3 text-[11px] leading-relaxed">{t('theme_hint')}</p>
+      <AppThemePicker
+        themeBgColor={profile.theme_bg_color}
+        brandPrimaryColor={profile.brand_primary_color}
+        onChange={(hex) => setField('theme_bg_color', hex)}
+      />
+    </div>
+  );
 }
 
 function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element {
