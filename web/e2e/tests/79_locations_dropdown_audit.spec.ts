@@ -87,9 +87,10 @@ test.describe('v0.6.1 — location dropdown cross-screen audit', () => {
     await expect(onbCustom).toHaveValue('TTT');
 
     await finishOnboarding(page);
-    // After onboarding completes, the profile should carry the typed
-    // value verbatim — no auto-translation, no fallback.
-    expect(await readPersistedFloor(page)).toBe('TTT');
+    // v0.6.3 — typed-custom values persist with the `custom:`
+    // sentinel; useLocationLabels strips the prefix so the UI
+    // still renders "TTT" verbatim.
+    expect(await readPersistedFloor(page)).toBe('custom:TTT');
 
     // Settings sees the same custom value in the same custom-input slot.
     await page.getByTestId('nav-settings').click();
@@ -105,12 +106,12 @@ test.describe('v0.6.1 — location dropdown cross-screen audit', () => {
     const settingsSelect = page.getByTestId('settings-location-floor-select');
     await expect(settingsSelect).toBeVisible();
     await expect(settingsSelect).toHaveValue('Shop floor');
-    await expect.poll(() => readPersistedFloor(page)).toBe('Shop floor');
+    await expect.poll(() => readPersistedFloor(page)).toBe('shop_floor');
 
     // And the merchant can pick a different predefined option from the
-    // restored select; the change persists.
+    // restored select; the change persists as the canonical key.
     await settingsSelect.selectOption('Display');
-    await expect.poll(() => readPersistedFloor(page)).toBe('Display');
+    await expect.poll(() => readPersistedFloor(page)).toBe('display');
   });
 
   test('parity: onboarding and Settings render the same option list under AR locale', async ({

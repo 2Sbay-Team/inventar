@@ -78,8 +78,12 @@ test.describe('Onboarding — localized location dropdown', () => {
     await finishLocations(page);
     const profile = await readPersistedProfile(page);
     expect(profile.locale).toBe('en');
-    expect(profile.location_floor_label).toBe('Shop floor');
-    expect(profile.location_back_label).toBe('Stockroom');
+    // v0.6.3 — persisted shape is the canonical key, not the
+    // display string. The dropdown still SHOWS the English display
+    // because useLocationLabels resolves the key for the current
+    // locale at render time.
+    expect(profile.location_floor_label).toBe('shop_floor');
+    expect(profile.location_back_label).toBe('stockroom');
   });
 
   test('FR: floor default is "Magasin", back default is "Réserve"', async ({ page }) => {
@@ -93,8 +97,11 @@ test.describe('Onboarding — localized location dropdown', () => {
     await finishLocations(page);
     const profile = await readPersistedProfile(page);
     expect(profile.locale).toBe('fr');
-    expect(profile.location_floor_label).toBe('Magasin');
-    expect(profile.location_back_label).toBe('Réserve');
+    // Same key regardless of which locale the merchant picked it
+    // in — Magasin (fr) / Shop floor (en) / المحل (ar) all map to
+    // shop_floor.
+    expect(profile.location_floor_label).toBe('shop_floor');
+    expect(profile.location_back_label).toBe('stockroom');
   });
 
   test('AR: floor default is "المحل" + the select is RTL-aligned', async ({ page }) => {
@@ -115,8 +122,8 @@ test.describe('Onboarding — localized location dropdown', () => {
     await finishLocations(page);
     const profile = await readPersistedProfile(page);
     expect(profile.locale).toBe('ar');
-    expect(profile.location_floor_label).toBe('المحل');
-    expect(profile.location_back_label).toBe('المخزن');
+    expect(profile.location_floor_label).toBe('shop_floor');
+    expect(profile.location_back_label).toBe('stockroom');
   });
 
   test('Picking "Type your own" reveals a text input; typed value persists', async ({ page }) => {
@@ -141,9 +148,13 @@ test.describe('Onboarding — localized location dropdown', () => {
 
     await finishLocations(page);
     const profile = await readPersistedProfile(page);
-    expect(profile.location_floor_label).toBe('Tiroir A');
-    // Back stayed at its default (we didn't touch it).
-    expect(profile.location_back_label).toBe('Stockroom');
+    // v0.6.3 — typed-custom values land in storage with the
+    // `custom:` sentinel so the resolver can distinguish them
+    // from keys.
+    expect(profile.location_floor_label).toBe('custom:Tiroir A');
+    // Back stayed at its default (we didn't touch it) — persists
+    // as the canonical key.
+    expect(profile.location_back_label).toBe('stockroom');
   });
 
   test('Settings → Stock locations uses the same SelectWithCustom; edits persist', async ({
@@ -179,7 +190,7 @@ test.describe('Onboarding — localized location dropdown', () => {
     // confirm the underlying profile row was rewritten.
     await expect
       .poll(async () => (await readPersistedProfile(page)).location_floor_label)
-      .toBe('Display');
+      .toBe('display');
 
     // Pick "Type your own" → input appears → type → blur → persisted.
     await backSelect.selectOption('__custom__');
@@ -189,6 +200,6 @@ test.describe('Onboarding — localized location dropdown', () => {
     await customBack.press('Tab');
     await expect
       .poll(async () => (await readPersistedProfile(page)).location_back_label)
-      .toBe('Cave');
+      .toBe('custom:Cave');
   });
 });

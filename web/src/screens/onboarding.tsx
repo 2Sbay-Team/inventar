@@ -20,7 +20,12 @@ import { SelectWithCustom } from '../components/select-with-custom';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
-import { LOCATION_OPTIONS, LOCATION_PICKER_DEFAULTS } from '../config/location-options';
+import {
+  LOCATION_OPTIONS,
+  LOCATION_PICKER_DEFAULTS,
+  normaliseBackLabel,
+  normaliseFrontLabel,
+} from '../config/location-options';
 import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
 import { db } from '../db/db';
 import { META_KEYS, setMeta } from '../repos/meta';
@@ -342,6 +347,11 @@ export function OnboardingScreen(): JSX.Element {
       locationFloorLabel.trim() === '' ? labelDefaults.floor : locationFloorLabel.trim();
     const finalBackLabel =
       locationBackLabel.trim() === '' ? labelDefaults.back : locationBackLabel.trim();
+    // v0.6.3 — onboarding state holds display strings (the
+    // SelectWithCustom contract), but persistence uses canonical
+    // keys. normaliseFrontLabel / normaliseBackLabel map a known
+    // display to its FrontKey/BackKey, or wrap a typed-custom
+    // value with the `custom:` sentinel.
     await upsertProfile(db, {
       name: shopName.trim(),
       locale,
@@ -352,8 +362,8 @@ export function OnboardingScreen(): JSX.Element {
       shop_subtypes: storeType === 'shop' ? shopSubtypes : [],
       // v0.5.2 ADR-021: same shape for fashion. ≥1 enforced upstream.
       fashion_subtypes: storeType === 'fashion' ? fashionSubtypes : [],
-      location_floor_label: finalFloorLabel,
-      location_back_label: finalBackLabel,
+      location_floor_label: normaliseFrontLabel(finalFloorLabel),
+      location_back_label: normaliseBackLabel(finalBackLabel),
       logo_photo_id: logoPhotoId,
     });
     // v0.5.2 ADR-021: a fresh-onboarded profile picked its own

@@ -613,11 +613,60 @@ list, even though the labels above the dropdown translated
 correctly via i18next. `StockLocationsSection` now reads the
 current locale through `useLocale()` so the option list tracks the
 live UI language. Onboarding was already correct (it consumes
-`useLocale()` for the same reason). Stored merchant values stay
-verbatim — when a profile carries an EN-locale value like "Shop
-floor" and the UI is in FR, the dropdown drops into its custom-
-input fallback and pre-fills the existing string, exactly as it
-does for legacy migrated values. No data migration.
+`useLocale()` for the same reason).
+
+**v0.6.3 amendment — storage uses locale-neutral keys, not display
+strings.** The v0.6.1 fix made the dropdown options follow the UI
+locale, but the stored *value* was still a display string ("Shop
+floor" / "Magasin" / "المحل"). When a merchant who picked "الواجهة"
+in Arabic later opened Settings in French, the stored "الواجهة" was
+not in the FR option list and `SelectWithCustom` flipped into its
+custom-input fallback — the user saw a text input instead of a
+dropdown, with raw Arabic text inside. The same applied to
+EN ↔ FR ↔ AR pairs in every direction.
+
+Storage now uses one of three canonical shapes:
+
+| Form              | Example                       | When                                |
+|-------------------|-------------------------------|-------------------------------------|
+| FrontKey / BackKey| `shop_floor` / `stockroom`    | Merchant picked a predefined option |
+| `custom:<value>`  | `custom:Tiroir A`             | Merchant typed via "+ Type your own"|
+| (empty / unset)   | `''` / `undefined`            | Pre-onboarding state                |
+
+`FRONT_OPTIONS_BY_KEY` and `BACK_OPTIONS_BY_KEY` in
+`web/src/config/location-options.ts` hold the key → display
+mapping per locale. `useLocationLabels` resolves a stored key to
+the current locale's display at render time; a `custom:`-prefixed
+value gets its prefix stripped and renders verbatim across all
+locales (no auto-translation, per the original ADR-022 promise).
+The hook also tolerates raw legacy display strings as a final
+fallback so a v6 / v7 profile that bypassed the v13 migration
+still renders coherently.
+
+Reverse lookup is **zone-aware**. The display string "Back" exists
+both as the EN display for the back-zone `back` key and as a
+plausible custom-typed value in the front zone. `frontKeyForDisplay`
+only searches the three front-zone keys' displays, and
+`backKeyForDisplay` only the back-zone's, so a merchant who types
+"Back" in the FRONT field is preserved as `custom:Back` rather
+than coerced into the wrong-zone `back` key.
+
+The Dexie **v12 → v13 upgrade** walks every `profile` row and
+rewrites the legacy display strings via `normaliseFrontLabel` /
+`normaliseBackLabel`. The migration is idempotent: re-running on
+already-keyed values is a no-op, and re-running on
+already-`custom:`-prefixed values does not double-wrap them.
+
+Known limitation. A merchant who literally types `custom:foo` as
+their label is recognised as already-prefixed by
+`normaliseFrontLabel` (its `isCustomValue` guard prevents
+double-wrapping for migration idempotency), so storage is
+`custom:foo` and the resolver renders `foo` — the visible
+prefix gets stripped on next render. This is a documented
+footgun, not a correctness bug: real shop-location names never
+look like `custom:…`, and the trade-off vs. switching to a more
+escaped sentinel (e.g. `__c:`) is preserving the idempotency the
+v13 migration depends on.
 
 ## ADR-030: QR labels gain centered branding (logo or store name); error correction M → Q; in-app scan QR stays plain
 

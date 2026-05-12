@@ -119,9 +119,13 @@ test.describe('v0.6.1 — Settings location dropdown follows UI locale', () => {
   });
 
   test('switching UI language EN → FR refreshes the dropdown options live', async ({ page }) => {
-    // The bug this hotfix targets: onboarded in one locale, switched to
-    // another at runtime, dropdown previously stuck on the original
-    // locale because Settings read profile.locale instead of i18next.
+    // v0.6.1 fix made the option list follow i18next. v0.6.3 went
+    // further: the stored value is now a locale-neutral key (or a
+    // pre-v13 legacy display string the resolver reverse-looks-up),
+    // so swapping locale rewrites the SELECTED display in-place
+    // instead of flipping into the custom-input fallback. Both
+    // behaviours are correct contract; the v0.6.3 contract is the
+    // one this test now pins.
     await page.goto('/');
     await onboardViaSeed(page, {
       lang: 'en',
@@ -132,31 +136,27 @@ test.describe('v0.6.1 — Settings location dropdown follows UI locale', () => {
     await page.reload();
     await page.getByTestId('nav-settings').click();
 
-    // Baseline: EN options.
+    // Baseline: EN options, "Shop floor" selected (seeded fallback).
     const beforeFloor = await readSelectShape(page, 'settings-location-floor-select');
     expect(beforeFloor.values).toEqual(['Shop floor', 'Display', 'Front']);
+    await expect(page.getByTestId('settings-location-floor-select')).toHaveValue('Shop floor');
 
-    // Switch UI to FR. The persisted "Shop floor" value is not in the
-    // FR option list, so SelectWithCustom drops into custom-input mode
-    // with "Shop floor" pre-filled.
+    // Switch UI to FR. The dropdown options re-render in French; the
+    // selected key resolves to its FR display ("Magasin"). The select
+    // stays in dropdown mode — no custom-input fallback.
     await page.getByTestId('settings-lang-fr').click();
-    await expect(page.getByTestId('settings-location-floor-custom-input')).toBeVisible();
-    await expect(page.getByTestId('settings-location-floor-custom-input')).toHaveValue(
-      'Shop floor',
-    );
-
-    // Replace with a predefined FR option. The component recognises it
-    // and swaps back into select mode, surfacing the FR option list.
-    const customInput = page.getByTestId('settings-location-floor-custom-input');
-    await customInput.fill('Magasin');
-    await customInput.press('Tab');
-
-    const floor = await readSelectShape(page, 'settings-location-floor-select');
-    expect(floor.values).toEqual(['Magasin', 'Boutique', 'Comptoir']);
-    expect(floor.customLabel).toBe('+ Saisir le vôtre');
+    const floorFr = await readSelectShape(page, 'settings-location-floor-select');
+    expect(floorFr.values).toEqual(['Magasin', 'Boutique', 'Comptoir']);
+    expect(floorFr.customLabel).toBe('+ Saisir le vôtre');
     await expect(page.getByTestId('settings-location-floor-select')).toHaveValue('Magasin');
 
-    await expect.poll(() => readPersistedFloor(page)).toBe('Magasin');
+    // Pick a different FR option to confirm the write-side normalisation.
+    await page.getByTestId('settings-location-floor-select').selectOption('Boutique');
+    await expect.poll(() => readPersistedFloor(page)).toBe('display');
+
+    // Swap back to EN — the new key resolves to its EN display.
+    await page.getByTestId('settings-lang-en').click();
+    await expect(page.getByTestId('settings-location-floor-select')).toHaveValue('Display');
   });
 
   test('custom value typed in EN is preserved verbatim when switching to AR', async ({ page }) => {
@@ -175,13 +175,16 @@ test.describe('v0.6.1 — Settings location dropdown follows UI locale', () => {
     const customInput = page.getByTestId('settings-location-floor-custom-input');
     await customInput.fill('Atelier');
     await customInput.press('Tab');
-    await expect.poll(() => readPersistedFloor(page)).toBe('Atelier');
+    // v0.6.3 — typed-custom values land in storage with the
+    // `custom:` sentinel; useLocationLabels strips it at read time
+    // so the input field still shows "Atelier".
+    await expect.poll(() => readPersistedFloor(page)).toBe('custom:Atelier');
 
     // Switch UI to AR. "Atelier" is not in the AR option list either,
     // so the custom-input stays visible with the typed value intact.
     await page.getByTestId('settings-lang-ar').click();
     await expect(page.getByTestId('settings-location-floor-custom-input')).toHaveValue('Atelier');
     // And the persisted profile row is unchanged — no auto-translation.
-    expect(await readPersistedFloor(page)).toBe('Atelier');
+    expect(await readPersistedFloor(page)).toBe('custom:Atelier');
   });
 });

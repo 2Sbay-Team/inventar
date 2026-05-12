@@ -9,7 +9,11 @@ import { ShopHeader } from '../components/shop-header';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
 import { useLocationLabels } from '../hooks/use-location-labels';
-import { LOCATION_OPTIONS } from '../config/location-options';
+import {
+  LOCATION_OPTIONS,
+  normaliseBackLabel,
+  normaliseFrontLabel,
+} from '../config/location-options';
 import { useProfile } from '../hooks/use-profile';
 import { useLive } from '../hooks/use-live';
 import {
@@ -158,24 +162,31 @@ function StockLocationsSection(): JSX.Element | null {
   // values aren't reachable through SelectWithCustom (it reverts to
   // the first predefined option), but we still guard against them
   // before writing.
+  //
+  // v0.6.3 — SelectWithCustom's onChange hands us a DISPLAY string
+  // (either a predefined option in the current locale, or a
+  // merchant-typed custom value). normaliseFrontLabel converts that
+  // to the canonical stored shape — a FrontKey for predefined
+  // matches, or `custom:${raw}` for typed values. useLocationLabels
+  // resolves keys back to localized displays at render time.
   async function commitFloor(value: string): Promise<void> {
     if (!profile) return;
-    const trimmed = value.trim();
-    if (trimmed === '') return;
+    const normalised = normaliseFrontLabel(value);
+    if (normalised === '') return;
     await upsertProfile(db, {
       name: profile.name,
       locale: profile.locale,
-      location_floor_label: trimmed,
+      location_floor_label: normalised,
     });
   }
   async function commitBack(value: string): Promise<void> {
     if (!profile) return;
-    const trimmed = value.trim();
-    if (trimmed === '') return;
+    const normalised = normaliseBackLabel(value);
+    if (normalised === '') return;
     await upsertProfile(db, {
       name: profile.name,
       locale: profile.locale,
-      location_back_label: trimmed,
+      location_back_label: normalised,
     });
   }
   return (

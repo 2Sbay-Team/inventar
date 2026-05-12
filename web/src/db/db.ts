@@ -480,6 +480,48 @@ export class InventarDB extends Dexie {
             },
           );
       });
+
+    // v0.6.3 ADR-029 amendment — location labels move from per-locale
+    // display strings ("Shop floor" / "Magasin" / "المحل") to
+    // locale-neutral keys ("shop_floor") so the dropdown picker always
+    // resolves to the current UI locale. Merchant-typed custom values
+    // get a `custom:` sentinel prefix so the read-side hook can
+    // distinguish them from keys.
+    //
+    // The upgrade walks every profile row and rewrites
+    // location_front_label / location_back_label via normaliseFront/Back
+    // (zone-aware reverse lookup). Idempotent: re-running on already-
+    // migrated keys / custom: values is a no-op.
+    this.version(13)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        const { normaliseFrontLabel, normaliseBackLabel } = await import(
+          '../config/location-options'
+        );
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: { location_floor_label?: string; location_back_label?: string }) => {
+            if (typeof p.location_floor_label === 'string' && p.location_floor_label !== '') {
+              p.location_floor_label = normaliseFrontLabel(p.location_floor_label);
+            }
+            if (typeof p.location_back_label === 'string' && p.location_back_label !== '') {
+              p.location_back_label = normaliseBackLabel(p.location_back_label);
+            }
+          });
+      });
   }
 }
 
