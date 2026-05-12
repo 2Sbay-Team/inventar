@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AppThemePicker } from '../components/app-theme-picker';
 import { BrandColorPicker } from '../components/brand-color-picker';
+import { CompletionRing } from '../components/completion-ring';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
+import { computeCompletion } from '../theme/profile-completion';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { SelectWithCustom } from '../components/select-with-custom';
@@ -391,13 +393,35 @@ function ShopIdentitySection(): JSX.Element | null {
   const { t } = useTranslation('settings');
   const profile = useProfile();
   if (!profile) return null;
+  const completion = computeCompletion(profile);
+  const nextHint =
+    completion.next === null
+      ? t('completion_hint_done')
+      : t('completion_hint_next', {
+          percent: completion.next.threshold,
+          milestone: t(`completion_milestone_${completion.next.key}`),
+        });
   return (
     <section
       data-testid="section-shop-identity"
       className="border-hair rounded-2xl border bg-white p-4"
     >
-      <h3 className="font-display mb-1 text-base font-medium">{t('identity_title')}</h3>
-      <p className="text-ink-3 mb-4 text-xs leading-relaxed">{t('identity_hint')}</p>
+      {/* v0.9 Phase 5 — section header carries the completion ring
+          (Apple-Watch-style SVG, themed via text-accent so it tracks
+          brand_primary_color) plus a one-line hint telling the
+          merchant what to fill next. The "next" hint never says
+          "blocked" or "locked" because the brief's milestones are
+          soft nudges — every feature works regardless of score. */}
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex-1">
+          <h3 className="font-display mb-1 text-base font-medium">{t('identity_title')}</h3>
+          <p className="text-ink-3 text-xs leading-relaxed">{t('identity_hint')}</p>
+          <p data-testid="completion-hint" className="text-ink-2 mt-2 text-[11px] leading-relaxed">
+            {nextHint}
+          </p>
+        </div>
+        <CompletionRing percentage={completion.percentage} />
+      </div>
       <div className="space-y-5">
         <BrandColorSubsection profile={profile} />
         <AppThemeSubsection profile={profile} />
