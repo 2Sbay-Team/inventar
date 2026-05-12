@@ -22,7 +22,14 @@ export function ShopHeader({ articles, items }: ShopHeaderProps): JSX.Element {
   return (
     <header
       data-testid="shop-header"
-      className="border-hair flex items-start justify-between border-b px-5 py-3"
+      // v0.6.8 — sticky top:0 so the shop name + offline pill stay
+      // visible if the children scroll container ever has to scroll
+      // (multiple banners stacked on a short viewport, say). When
+      // only the inner `<main>` scrolls — the common case — the
+      // header is naturally pinned because it sits OUTSIDE main.
+      // `bg-paper` keeps the gradient continuous across the sticky
+      // boundary; z-30 stays below dialog overlays (Radix z-50).
+      className="border-hair sticky top-0 z-30 flex items-start justify-between border-b bg-paper px-5 py-3"
     >
       <div className="flex items-center gap-3">
         {logoId ? (

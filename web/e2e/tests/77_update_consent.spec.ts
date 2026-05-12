@@ -69,8 +69,8 @@ test.describe('App update — consent modal', () => {
     await seedAndTriggerUpdate(page);
     const modal = page.getByTestId('app-update-modal');
     await expect(modal).toBeVisible({ timeout: 10_000 });
-    // Title carries the version from /whats-new.json (currently 0.5.4).
-    await expect(page.getByTestId('app-update-title')).toContainText('0.5.4');
+    // Title carries the version from /whats-new.json (currently 1.0.1).
+    await expect(page.getByTestId('app-update-title')).toContainText('1.0.1');
     // Three highlight bullets render.
     const highlights = page.locator('[data-testid="app-update-highlights"] li');
     await expect(highlights).toHaveCount(3);
@@ -90,7 +90,7 @@ test.describe('App update — consent modal', () => {
     await expect(page.getByTestId('app-update-modal')).toBeHidden();
 
     const meta = await readUpdateMeta(page);
-    expect(meta.snoozedVersion).toBe('0.5.4');
+    expect(meta.snoozedVersion).toBe('1.0.1');
     expect(meta.snoozeUntil).not.toBeNull();
     const untilMs = Date.parse(meta.snoozeUntil!);
     // ≈ 24 h ahead — tolerate ± 60 s for clock drift across the
@@ -99,7 +99,7 @@ test.describe('App update — consent modal', () => {
     expect(Math.abs(untilMs - expected)).toBeLessThan(60_000);
 
     // Re-trigger the 'waiting' event — the modal must stay hidden
-    // because the snooze for v0.5.4 is still active.
+    // because the snooze for v1.0.1 is still active.
     await page.evaluate(() => window.__inventarSeed!.triggerUpdateWaiting());
     await expect(page.getByTestId('app-update-modal')).toBeHidden();
   });
@@ -113,7 +113,7 @@ test.describe('App update — consent modal', () => {
     await expect(page.getByTestId('app-update-modal')).toBeHidden();
 
     const meta = await readUpdateMeta(page);
-    expect(meta.skipped).toContain('0.5.4');
+    expect(meta.skipped).toContain('1.0.1');
 
     await page.evaluate(() => window.__inventarSeed!.triggerUpdateWaiting());
     await expect(page.getByTestId('app-update-modal')).toBeHidden();
@@ -138,7 +138,7 @@ test.describe('App update — consent modal', () => {
     // was written before the reload and the toast component reads it
     // on mount.
     await expect(page.getByTestId('app-update-toast')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId('app-update-toast')).toContainText('0.5.4');
+    await expect(page.getByTestId('app-update-toast')).toContainText('1.0.1');
 
     // Toast auto-dismisses after ~4 s.
     await expect(page.getByTestId('app-update-toast')).toBeHidden({ timeout: 6_000 });

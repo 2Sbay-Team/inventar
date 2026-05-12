@@ -51,10 +51,15 @@ export function BottomNav(): JSX.Element {
   const storeType = profile?.store_type ?? 'shoes';
   const isScanFirst = STORE_TYPES[storeType].primary_flow === 'scan';
   const items = isScanFirst ? SCAN_ITEMS : ADD_ITEMS;
+  // v0.6.8 — `pb-5` (20 px) was an approximation of the iOS notched-
+  // phone safe-area inset. Replace with a calc that honours
+  // env(safe-area-inset-bottom) while keeping a 0.5rem (8 px) base
+  // gap on devices where the inset is 0. Non-notched phones land at
+  // ≈ 8 px; iPhone X+ class devices add ≈ 34 px on top.
   return (
     <nav
       data-testid="bottom-nav"
-      className="border-hair flex flex-shrink-0 justify-around border-t bg-white py-3 pb-5"
+      className="border-hair flex flex-shrink-0 justify-around border-t bg-white pt-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
     >
       {items.map(({ to, testId, i18nKey, Icon }) => (
         <NavLink

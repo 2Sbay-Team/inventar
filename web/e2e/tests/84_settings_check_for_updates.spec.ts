@@ -34,7 +34,7 @@ test.describe('v0.6.3 — Settings → About → manual update check', () => {
   test('renders the version + check-for-updates button in all three locales', async ({ page }) => {
     // EN.
     await gotoSettingsAbout(page, 'en');
-    await expect(page.getByTestId('about-version')).toContainText('v1.0.0');
+    await expect(page.getByTestId('about-version')).toContainText('v1.0.1');
     await expect(page.getByTestId('about-check-updates')).toContainText('Check for updates');
 
     // FR — switch the active locale via the existing Settings buttons.
