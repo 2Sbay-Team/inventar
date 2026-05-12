@@ -13,7 +13,9 @@ import { computeCompletion } from '../theme/profile-completion';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { SelectWithCustom } from '../components/select-with-custom';
+import { SettingsSection } from '../components/settings-section';
 import { ShopHeader } from '../components/shop-header';
+import { useSettingsSections, type SettingsSectionsApi } from '../hooks/use-settings-sections';
 import { useAppUpdate } from '../hooks/use-app-update';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
@@ -76,7 +78,13 @@ const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 // On = strict EAN-13 checksum required (UPC-A is rejected too); the
 // merchant flips this only if they're confident every item in their
 // catalogue is a real EAN-13.
-function EanStrictSection({ profileLoaded }: { profileLoaded: boolean }): JSX.Element | null {
+function EanStrictSection({
+  profileLoaded,
+  sections,
+}: {
+  profileLoaded: boolean;
+  sections: SettingsSectionsApi;
+}): JSX.Element | null {
   const { t } = useTranslation('settings');
   const stored = useLive<boolean>(
     async () => Boolean(await getMeta<boolean>(db, META_KEYS.ean_strict)),
@@ -88,11 +96,13 @@ function EanStrictSection({ profileLoaded }: { profileLoaded: boolean }): JSX.El
   }
   if (!profileLoaded) return null;
   return (
-    <section
-      data-testid="section-ean-strict"
-      className="border-hair rounded-2xl border bg-white p-4"
+    <SettingsSection
+      id="ean-strict"
+      title={t('ean_strict_title')}
+      summary={stored ? t('ean_strict_label') : null}
+      open={sections.isOpen('ean-strict')}
+      onToggle={() => sections.toggle('ean-strict')}
     >
-      <h3 className="font-display text-base font-medium mb-1">{t('ean_strict_title')}</h3>
       <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('ean_strict_hint')}</p>
       <button
         type="button"
@@ -113,7 +123,7 @@ function EanStrictSection({ profileLoaded }: { profileLoaded: boolean }): JSX.El
         </span>
         {t('ean_strict_label')}
       </button>
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -121,7 +131,13 @@ function EanStrictSection({ profileLoaded }: { profileLoaded: boolean }): JSX.El
 // META_KEYS.expiry_threshold_days; default 7 if unset. The picker
 // shows four chips. Saving writes immediately (no Save button) — the
 // merchant's intent is unambiguous.
-function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): JSX.Element | null {
+function ExpiryThresholdSection({
+  profileLoaded,
+  sections,
+}: {
+  profileLoaded: boolean;
+  sections: SettingsSectionsApi;
+}): JSX.Element | null {
   const { t } = useTranslation('settings');
   const stored = useLive<number>(
     async () => (await getMeta<number>(db, META_KEYS.expiry_threshold_days)) ?? 7,
@@ -144,11 +160,13 @@ function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): 
 
   if (!profileLoaded) return null;
   return (
-    <section
-      data-testid="section-expiry-threshold"
-      className="border-hair rounded-2xl border bg-white p-4"
+    <SettingsSection
+      id="expiry-threshold"
+      title={t('expiry_threshold_title')}
+      summary={t('expiry_threshold_unit', { n: value })}
+      open={sections.isOpen('expiry-threshold')}
+      onToggle={() => sections.toggle('expiry-threshold')}
     >
-      <h3 className="font-display text-base font-medium mb-1">{t('expiry_threshold_title')}</h3>
       <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('expiry_threshold_hint')}</p>
       <div data-testid="expiry-threshold-options" className="flex gap-2">
         {EXPIRY_THRESHOLD_OPTIONS.map((n) => (
@@ -166,7 +184,7 @@ function ExpiryThresholdSection({ profileLoaded }: { profileLoaded: boolean }): 
           </button>
         ))}
       </div>
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -284,7 +302,11 @@ function QrBrandingPicker(): JSX.Element | null {
 // expiry-threshold + sub-types editor pattern). Clearing a field falls
 // back to the (vertical, locale) default at next render via the hook
 // — see useLocationLabels.
-function StockLocationsSection(): JSX.Element | null {
+function StockLocationsSection({
+  sections,
+}: {
+  sections: SettingsSectionsApi;
+}): JSX.Element | null {
   const { t } = useTranslation('settings');
   const profile = useProfile();
   const labels = useLocationLabels();
@@ -327,11 +349,13 @@ function StockLocationsSection(): JSX.Element | null {
     });
   }
   return (
-    <section
-      data-testid="section-stock-locations"
-      className="border-hair rounded-2xl border bg-white p-4"
+    <SettingsSection
+      id="stock-locations"
+      title={t('locations_title')}
+      summary={`${labels.floor} / ${labels.back}`}
+      open={sections.isOpen('stock-locations')}
+      onToggle={() => sections.toggle('stock-locations')}
     >
-      <h3 className="font-display text-base font-medium mb-1">{t('locations_title')}</h3>
       <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('locations_hint')}</p>
       <div className="space-y-3">
         <div className="space-y-1">
@@ -361,7 +385,7 @@ function StockLocationsSection(): JSX.Element | null {
           />
         </div>
       </div>
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -392,7 +416,7 @@ function StockLocationsSection(): JSX.Element | null {
 //     pipeline writes through to the profile row. When the profile
 //     row updates (live subscription via useProfile), the draft is
 //     cleared so the rendered value re-reflects what's persisted.
-function ShopIdentitySection(): JSX.Element | null {
+function ShopIdentitySection({ sections }: { sections: SettingsSectionsApi }): JSX.Element | null {
   const { t } = useTranslation('settings');
   const profile = useProfile();
   if (!profile) return null;
@@ -404,20 +428,23 @@ function ShopIdentitySection(): JSX.Element | null {
           percent: completion.next.threshold,
           milestone: t(`completion_milestone_${completion.next.key}`),
         });
+  // Collapsed summary: prefer the merchant's tagline (the headline
+  // identity field); fall back to "Not configured yet" so the row
+  // visually nudges them to expand. The completion ring still appears
+  // in the body for the merchant who wants the full picture.
+  const summary = profile.tagline ?? t('not_configured_yet');
   return (
-    <section
-      data-testid="section-shop-identity"
-      className="border-hair rounded-2xl border bg-white p-4"
+    <SettingsSection
+      id="shop-identity"
+      title={t('identity_title')}
+      summary={summary}
+      open={sections.isOpen('shop-identity')}
+      onToggle={() => sections.toggle('shop-identity')}
     >
-      {/* v0.9 Phase 5 — section header carries the completion ring
-          (Apple-Watch-style SVG, themed via text-accent so it tracks
-          brand_primary_color) plus a one-line hint telling the
-          merchant what to fill next. The "next" hint never says
-          "blocked" or "locked" because the brief's milestones are
-          soft nudges — every feature works regardless of score. */}
+      {/* v0.9 Phase 5 — body header carries the completion ring plus
+          a one-line hint telling the merchant what to fill next. */}
       <div className="mb-4 flex items-start gap-3">
         <div className="flex-1">
-          <h3 className="font-display mb-1 text-base font-medium">{t('identity_title')}</h3>
           <p className="text-ink-3 text-xs leading-relaxed">{t('identity_hint')}</p>
           <p data-testid="completion-hint" className="text-ink-2 mt-2 text-[11px] leading-relaxed">
             {nextHint}
@@ -435,7 +462,7 @@ function ShopIdentitySection(): JSX.Element | null {
         <SocialSubsection profile={profile} />
         <BusinessCardSubsection profile={profile} completionPercentage={completion.percentage} />
       </div>
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -873,7 +900,7 @@ function IdentityEmailField(props: {
   );
 }
 
-function InvoicingSection(): JSX.Element | null {
+function InvoicingSection({ sections }: { sections: SettingsSectionsApi }): JSX.Element | null {
   const { t } = useTranslation('settings');
   const profile = useProfile();
   const [legalNameDraft, setLegalNameDraft] = useState<string | null>(null);
@@ -915,12 +942,18 @@ function InvoicingSection(): JSX.Element | null {
     if (!Number.isFinite(n) || n < 0 || n > 50) return null;
     return Math.round(n);
   }
+  const summary =
+    profile.default_vat_pct != null
+      ? t('invoicing_summary_configured', { pct: profile.default_vat_pct })
+      : t('not_configured_yet');
   return (
-    <section
-      data-testid="section-invoicing"
-      className="border-hair rounded-2xl border bg-white p-4"
+    <SettingsSection
+      id="invoicing"
+      title={t('invoicing_title')}
+      summary={summary}
+      open={sections.isOpen('invoicing')}
+      onToggle={() => sections.toggle('invoicing')}
     >
-      <h3 className="font-display mb-1 text-base font-medium">{t('invoicing_title')}</h3>
       <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('invoicing_hint')}</p>
       <div className="space-y-3">
         <div className="space-y-1">
@@ -1028,7 +1061,7 @@ function InvoicingSection(): JSX.Element | null {
           <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
         </div>
       </div>
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -1045,7 +1078,7 @@ function InvoicingSection(): JSX.Element | null {
 // Skip/Snooze still has a way to re-trigger the update prompt
 // later. forcePrompt bypasses snooze/skip — the merchant's tap
 // here is the explicit consent.
-function AboutSection(): JSX.Element {
+function AboutSection({ sections }: { sections: SettingsSectionsApi }): JSX.Element {
   const { t } = useTranslation('settings');
   const update = useAppUpdate();
   const [checking, setChecking] = useState(false);
@@ -1074,8 +1107,13 @@ function AboutSection(): JSX.Element {
   const version = APP_VERSION.trim() !== '' ? `v${APP_VERSION}` : t('about_version_unknown');
 
   return (
-    <section data-testid="section-about" className="border-hair rounded-2xl border bg-white p-4">
-      <h3 className="font-display text-base font-medium mb-2">{t('about_title')}</h3>
+    <SettingsSection
+      id="about"
+      title={t('about_title')}
+      summary={version}
+      open={sections.isOpen('about')}
+      onToggle={() => sections.toggle('about')}
+    >
       <p data-testid="about-version" className="text-ink-3 mb-3 text-xs">
         {t('about_version_label')}: <span className="font-mono">{version}</span>
       </p>
@@ -1106,11 +1144,11 @@ function AboutSection(): JSX.Element {
           {t('update_check_offline')}
         </p>
       ) : null}
-    </section>
+    </SettingsSection>
   );
 }
 
-function MaintenanceSection(): JSX.Element {
+function MaintenanceSection({ sections }: { sections: SettingsSectionsApi }): JSX.Element {
   const { t } = useTranslation('settings');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [working, setWorking] = useState(false);
@@ -1139,11 +1177,12 @@ function MaintenanceSection(): JSX.Element {
   }
 
   return (
-    <section
-      data-testid="section-maintenance"
-      className="border-hair rounded-2xl border bg-white p-4"
+    <SettingsSection
+      id="maintenance"
+      title={t('maintenance_title')}
+      open={sections.isOpen('maintenance')}
+      onToggle={() => sections.toggle('maintenance')}
     >
-      <h3 className="font-display text-base font-medium mb-1">{t('maintenance_title')}</h3>
       <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('maintenance_hint')}</p>
       <button
         type="button"
@@ -1181,7 +1220,7 @@ function MaintenanceSection(): JSX.Element {
           </div>
         </div>
       ) : null}
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -1200,6 +1239,7 @@ export function SettingsScreen(): JSX.Element {
   const { t: tLogo } = useTranslation('logo');
   const { locale, setLocale } = useLocale();
   const profile = useProfile();
+  const sections = useSettingsSections();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [importData, setImportData] = useState<string | null>(null);
@@ -1499,6 +1539,26 @@ export function SettingsScreen(): JSX.Element {
     });
   }
 
+  // One-line summaries shown on the collapsed accordion headers.
+  // Computed inline (memoised at render — none of these are expensive)
+  // so the strings stay close to the data they describe and we don't
+  // need a separate file for what's effectively view-logic.
+  // Summaries for sections owned directly by SettingsScreen (the
+  // sub-components compute their own). identity / invoicing / about /
+  // expiry-threshold all live in dedicated sub-components and read
+  // their data there.
+  const langSummary = LANGUAGES.find((l) => l.code === locale)?.label ?? locale;
+  const shopProfileSummary = profile
+    ? `${profile.name} · ${tStoreTypes(STORE_TYPES[profile.store_type].label_key)}`
+    : '';
+  const fashionSubtypesSummary = t('selected_count', {
+    n: profile?.fashion_subtypes.length ?? 0,
+  });
+  const shopSubtypesSummary = t('selected_count', { n: profile?.shop_subtypes.length ?? 0 });
+  const backupSummary = profile?.last_backup_at
+    ? `${t('backup_last')}: ${profile.last_backup_at}`
+    : `${t('backup_last')}: ${t('backup_never')}`;
+
   return (
     <ScreenLayout>
       <ShopHeader />
@@ -1506,11 +1566,13 @@ export function SettingsScreen(): JSX.Element {
         data-testid="settings-screen"
         className="flex flex-1 flex-col gap-4 px-5 py-4 overflow-y-auto"
       >
-        <section
-          data-testid="section-language"
-          className="border-hair rounded-2xl border bg-white p-4"
+        <SettingsSection
+          id="language"
+          title={t('language')}
+          summary={langSummary}
+          open={sections.isOpen('language')}
+          onToggle={() => sections.toggle('language')}
         >
-          <h3 className="font-display text-base font-medium mb-2">{t('language')}</h3>
           <div className="flex gap-2">
             {LANGUAGES.map((l) => (
               <button
@@ -1525,14 +1587,15 @@ export function SettingsScreen(): JSX.Element {
               </button>
             ))}
           </div>
-        </section>
+        </SettingsSection>
 
-        <section
-          data-testid="section-shop-profile"
-          className="border-hair rounded-2xl border bg-white p-4"
+        <SettingsSection
+          id="shop-profile"
+          title={t('shop_profile')}
+          summary={shopProfileSummary}
+          open={sections.isOpen('shop-profile')}
+          onToggle={() => sections.toggle('shop-profile')}
         >
-          <h3 className="font-display text-base font-medium mb-3">{t('shop_profile')}</h3>
-
           <div className="flex items-center gap-3">
             <PhotoThumb
               photoId={profile?.logo_photo_id ?? null}
@@ -1742,7 +1805,7 @@ export function SettingsScreen(): JSX.Element {
               })}
             </div>
           </fieldset>
-        </section>
+        </SettingsSection>
 
         {/* v0.9 Phase 4a — Shop Identity section. Sits just below
             the legacy shop-profile section (logo + name + currency)
@@ -1750,14 +1813,16 @@ export function SettingsScreen(): JSX.Element {
             without disrupting the existing layout. Brand picker,
             theme picker, completion ring, and opening hours all
             land inside this section in later phases. */}
-        <ShopIdentitySection />
+        <ShopIdentitySection sections={sections} />
 
         {profile?.store_type === 'shop' ? (
-          <section
-            data-testid="section-shop-subtypes"
-            className="border-hair rounded-2xl border bg-white p-4"
+          <SettingsSection
+            id="shop-subtypes"
+            title={t('shop_subtypes_title')}
+            summary={shopSubtypesSummary}
+            open={sections.isOpen('shop-subtypes')}
+            onToggle={() => sections.toggle('shop-subtypes')}
           >
-            <h3 className="font-display text-base font-medium mb-1">{t('shop_subtypes_title')}</h3>
             <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('shop_subtypes_hint')}</p>
 
             <div data-testid="settings-subtypes" className="space-y-2">
@@ -1801,17 +1866,17 @@ export function SettingsScreen(): JSX.Element {
               })}
             </div>
             <p className="text-ink-3 mt-2 text-[11px]">{t('shop_subtypes_min_one')}</p>
-          </section>
+          </SettingsSection>
         ) : null}
 
         {profile?.store_type === 'fashion' ? (
-          <section
-            data-testid="section-fashion-subtypes"
-            className="border-hair rounded-2xl border bg-white p-4"
+          <SettingsSection
+            id="fashion-subtypes"
+            title={t('fashion_subtypes_title')}
+            summary={fashionSubtypesSummary}
+            open={sections.isOpen('fashion-subtypes')}
+            onToggle={() => sections.toggle('fashion-subtypes')}
           >
-            <h3 className="font-display text-base font-medium mb-1">
-              {t('fashion_subtypes_title')}
-            </h3>
             <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('fashion_subtypes_hint')}</p>
             <div data-testid="settings-fashion-subtypes" className="space-y-2">
               {FASHION_SUBTYPE_ORDER.map((st) => {
@@ -1854,15 +1919,15 @@ export function SettingsScreen(): JSX.Element {
               })}
             </div>
             <p className="text-ink-3 mt-2 text-[11px]">{t('fashion_subtypes_min_one')}</p>
-          </section>
+          </SettingsSection>
         ) : null}
 
         {profile?.store_type === 'shop' ? (
-          <ExpiryThresholdSection profileLoaded={Boolean(profile)} />
+          <ExpiryThresholdSection profileLoaded={Boolean(profile)} sections={sections} />
         ) : null}
 
         {profile?.store_type === 'shop' ? (
-          <EanStrictSection profileLoaded={Boolean(profile)} />
+          <EanStrictSection profileLoaded={Boolean(profile)} sections={sections} />
         ) : null}
 
         {/* v0.5.2.7: surfaced Invoicing higher in the list — merchants
@@ -1871,13 +1936,14 @@ export function SettingsScreen(): JSX.Element {
             v0.9: the "View past invoices" link moved out — Past Invoices
             belongs on the Sale tab → Documents sub-tab, not Settings.
             The /invoices route still resolves direct links. */}
-        <InvoicingSection />
+        <InvoicingSection sections={sections} />
 
-        <section
-          data-testid="section-install"
-          className="border-hair rounded-2xl border bg-white p-4"
+        <SettingsSection
+          id="install"
+          title={t('install_section')}
+          open={sections.isOpen('install')}
+          onToggle={() => sections.toggle('install')}
         >
-          <h3 className="font-display text-base font-medium mb-2">{t('install_section')}</h3>
           {installState.kind === 'installed' ? (
             <p data-testid="install-already" className="text-ok text-sm">
               ✓ {t('install_already')}
@@ -1914,13 +1980,15 @@ export function SettingsScreen(): JSX.Element {
           ) : (
             <p className="text-ink-3 text-xs leading-relaxed">{t('install_unsupported')}</p>
           )}
-        </section>
+        </SettingsSection>
 
-        <section
-          data-testid="section-backup"
-          className="border-hair rounded-2xl border bg-white p-4"
+        <SettingsSection
+          id="backup"
+          title={t('backup_section')}
+          summary={backupSummary}
+          open={sections.isOpen('backup')}
+          onToggle={() => sections.toggle('backup')}
         >
-          <h3 className="font-display text-base font-medium mb-1">{t('backup_section')}</h3>
           <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('backup_sync_hint')}</p>
           <div className="flex flex-col gap-2">
             <button
@@ -2036,34 +2104,42 @@ export function SettingsScreen(): JSX.Element {
               ) : null}
             </div>
           ) : null}
-        </section>
+        </SettingsSection>
 
-        <section data-testid="section-help" className="border-hair rounded-2xl border bg-white p-4">
-          <Link to="/help" data-testid="help-link" className="flex items-center justify-between">
-            <h3 className="font-display text-base font-medium">{t('help')}</h3>
-            <ChevronRight aria-hidden className="text-ink-3 h-5 w-5" strokeWidth={2} />
-          </Link>
-        </section>
-
-        <section
-          data-testid="section-archive"
-          className="border-hair rounded-2xl border bg-white p-4"
+        {/* Help and Archive are nav rows, not collapsible — they jump
+            to their own screens. Match the 56px footprint + chevron
+            of accordion headers so the column reads as one column. */}
+        <Link
+          to="/help"
+          data-testid="help-link"
+          className="border-hair flex h-14 items-center justify-between rounded-2xl border bg-white px-4"
         >
-          <Link
-            to="/settings/archive"
-            data-testid="archive-bin-link"
-            className="flex items-center justify-between"
-          >
-            <h3 className="font-display text-base font-medium">{t('archive_bin')}</h3>
-            <ChevronRight aria-hidden className="text-ink-3 h-5 w-5" strokeWidth={2} />
-          </Link>
-        </section>
+          <span className="font-display text-sm font-semibold text-ink">{t('help')}</span>
+          <ChevronRight
+            aria-hidden
+            className="text-ink-3 h-5 w-5 rtl:-scale-x-100"
+            strokeWidth={2}
+          />
+        </Link>
 
-        <StockLocationsSection />
+        <Link
+          to="/settings/archive"
+          data-testid="archive-bin-link"
+          className="border-hair flex h-14 items-center justify-between rounded-2xl border bg-white px-4"
+        >
+          <span className="font-display text-sm font-semibold text-ink">{t('archive_bin')}</span>
+          <ChevronRight
+            aria-hidden
+            className="text-ink-3 h-5 w-5 rtl:-scale-x-100"
+            strokeWidth={2}
+          />
+        </Link>
 
-        <AboutSection />
+        <StockLocationsSection sections={sections} />
 
-        <MaintenanceSection />
+        <AboutSection sections={sections} />
+
+        <MaintenanceSection sections={sections} />
 
         <section data-testid="section-danger">
           <button
