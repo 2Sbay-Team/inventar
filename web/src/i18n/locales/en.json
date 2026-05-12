@@ -423,7 +423,14 @@
     "import_replace": "Replace",
     "import_merge": "Merge",
     "import_invalid": "Invalid backup file",
-    "import_question": "Replace all current data or merge with existing data?"
+    "import_question": "Replace all current data or merge with existing data?",
+    "about_title": "About",
+    "about_version_label": "App version",
+    "about_version_unknown": "unknown",
+    "check_for_updates": "Check for updates",
+    "checking_for_updates": "Checking…",
+    "update_check_latest": "You're on the latest version ✓",
+    "update_check_offline": "Can't check for updates — you're offline"
   },
   "list": {
     "title": "Catalogue",

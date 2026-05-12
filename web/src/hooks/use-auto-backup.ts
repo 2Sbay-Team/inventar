@@ -6,8 +6,8 @@ import {
   getAutoBackupHandle,
   writeBackupToFolder,
 } from '../utils/auto-backup';
+import { APP_VERSION } from '../config/app-version';
 
-const APP_VERSION = '1.0.0';
 const DEBOUNCE_MS = 2000;
 
 export type AutoBackupStatus = 'idle' | 'writing' | 'error';

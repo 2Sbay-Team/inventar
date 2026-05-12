@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
@@ -6,6 +6,7 @@ import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { SelectWithCustom } from '../components/select-with-custom';
 import { ShopHeader } from '../components/shop-header';
+import { useAppUpdate } from '../hooks/use-app-update';
 import { useInstallPrompt } from '../hooks/use-install-prompt';
 import { useLocale } from '../hooks/use-locale';
 import { useLocationLabels } from '../hooks/use-location-labels';
@@ -26,6 +27,7 @@ import { db, resetDatabase } from '../db/db';
 import { getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
 import { downloadBackupFile } from '../backup/download';
+import { APP_VERSION } from '../config/app-version';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
@@ -410,6 +412,76 @@ function InvoicingSection(): JSX.Element | null {
 // every SW + delete every Cache Storage bucket + reload. IndexedDB is
 // deliberately untouched: this is "drop the cache", not "reset the
 // app" (the destructive option already exists below).
+// v0.6.3 — "About" + manual update check. Placed above
+// MaintenanceSection so a merchant who hits the consent gate's
+// Skip/Snooze still has a way to re-trigger the update prompt
+// later. forcePrompt bypasses snooze/skip — the merchant's tap
+// here is the explicit consent.
+function AboutSection(): JSX.Element {
+  const { t } = useTranslation('settings');
+  const update = useAppUpdate();
+  const [checking, setChecking] = useState(false);
+  const [toast, setToast] = useState<'latest' | 'offline' | null>(null);
+
+  // Auto-clear the toast after a few seconds so a merchant who taps
+  // again later doesn't see stale copy.
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 4_000);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  async function handleCheck(): Promise<void> {
+    setChecking(true);
+    setToast(null);
+    try {
+      const result = await update.checkForUpdates();
+      if (result.found) return; // modal opens; no toast.
+      setToast(result.online ? 'latest' : 'offline');
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  const version = APP_VERSION.trim() !== '' ? `v${APP_VERSION}` : t('about_version_unknown');
+
+  return (
+    <section data-testid="section-about" className="border-hair rounded-2xl border bg-white p-4">
+      <h3 className="font-display text-base font-medium mb-2">{t('about_title')}</h3>
+      <p data-testid="about-version" className="text-ink-3 mb-3 text-xs">
+        {t('about_version_label')}: <span className="font-mono">{version}</span>
+      </p>
+      <button
+        type="button"
+        data-testid="about-check-updates"
+        onClick={() => void handleCheck()}
+        disabled={checking}
+        className="border-hair w-full rounded-xl border bg-white py-2.5 text-sm disabled:opacity-50"
+      >
+        {checking ? t('checking_for_updates') : t('check_for_updates')}
+      </button>
+      {toast === 'latest' ? (
+        <p
+          data-testid="about-toast-latest"
+          role="status"
+          className="text-ok bg-ok-soft border-hair mt-3 rounded-xl border px-3 py-2 text-xs"
+        >
+          {t('update_check_latest')}
+        </p>
+      ) : null}
+      {toast === 'offline' ? (
+        <p
+          data-testid="about-toast-offline"
+          role="status"
+          className="text-bad bg-bad-soft border-hair mt-3 rounded-xl border px-3 py-2 text-xs"
+        >
+          {t('update_check_offline')}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function MaintenanceSection(): JSX.Element {
   const { t } = useTranslation('settings');
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -484,8 +556,6 @@ function MaintenanceSection(): JSX.Element {
     </section>
   );
 }
-
-const APP_VERSION = '1.0.0';
 
 const LANGUAGES: ReadonlyArray<{ code: Locale; label: string }> = [
   { code: 'fr', label: 'Français' },
@@ -1298,6 +1368,8 @@ export function SettingsScreen(): JSX.Element {
         </section>
 
         <StockLocationsSection />
+
+        <AboutSection />
 
         <MaintenanceSection />
 

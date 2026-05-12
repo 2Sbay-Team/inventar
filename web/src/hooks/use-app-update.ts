@@ -52,6 +52,20 @@ export interface AppUpdate {
   // a transient dismiss is the only way out. The modal re-prompts
   // on the next probe (page reload, hook re-mount with waiting SW).
   dismiss(): void;
+  // v0.6.3 — Settings → "Check for updates" surface. Both bypass the
+  // snooze/skip gate (the merchant explicitly asked) and return the
+  // outcome so the caller can render a toast when no update was found
+  // or the device is offline.
+  forcePrompt(): Promise<CheckResult>;
+  checkForUpdates(): Promise<CheckResult>;
+}
+
+export interface CheckResult {
+  // True when a waiting SW was found AND the modal was opened.
+  found: boolean;
+  // navigator.onLine at the time of the check. Drives the
+  // "Can't check for updates — you're offline" toast.
+  online: boolean;
 }
 
 // ── Pure async helpers (exported for unit tests) ────────────────────
@@ -121,12 +135,16 @@ export function useAppUpdate(): AppUpdate {
   // affordances remain available there.
   const [riskLevel, setRiskLevel] = useState<RiskLevel>('safe');
 
-  const handleWaiting = useCallback(async () => {
+  // `force=true` bypasses the snooze/skip gate — Settings → "Check
+  // for updates" uses this. The normal 'waiting' event listener
+  // calls it with force=false so the gate still applies for the
+  // background path.
+  const handleWaiting = useCallback(async (force: boolean = false) => {
     setStatus('loading');
     const fetched = await fetchWhatsNew();
     const version = fetched?.version ?? SKIP_SENTINEL_UNKNOWN;
     const risk: RiskLevel = fetched?.risk_level ?? 'safe';
-    if (!(await shouldPromptForUpdate(version, risk))) {
+    if (!force && !(await shouldPromptForUpdate(version, risk))) {
       setStatus('idle');
       return;
     }
@@ -139,7 +157,7 @@ export function useAppUpdate(): AppUpdate {
   useEffect(() => {
     const handle = getSwHandle();
     const off = handle.on('waiting', () => {
-      void handleWaiting();
+      void handleWaiting(false);
     });
     // Some browsers may have fired 'waiting' before this effect
     // mounted (workbox-window dispatches once per registration).
@@ -147,7 +165,7 @@ export function useAppUpdate(): AppUpdate {
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       void (async () => {
         const reg = await navigator.serviceWorker.getRegistration('/');
-        if (reg?.waiting) void handleWaiting();
+        if (reg?.waiting) void handleWaiting(false);
       })();
     }
     return off;
@@ -196,5 +214,73 @@ export function useAppUpdate(): AppUpdate {
     setRiskLevel('safe');
   }, []);
 
-  return { status, whatsNew, promptVersion, riskLevel, installNow, snooze, skip, dismiss };
+  // v0.6.3 — Settings → "Check for updates". `forcePrompt` opens
+  // the modal immediately if a waiting SW already exists (bypasses
+  // snooze/skip). `checkForUpdates` additionally calls
+  // registration.update() to ask the browser to fetch a new SW
+  // version from the network; if one lands, the 'waiting' event
+  // we listen for above fires and we force-prompt off the result.
+  //
+  // Both return {found, online} so the Settings button can decide
+  // between modal (handled here, found=true) vs a toast (handled
+  // by the caller for the latest-version / offline branches).
+  const forcePrompt = useCallback(async (): Promise<CheckResult> => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      return { found: false, online: false };
+    }
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    if (reg?.waiting) {
+      void handleWaiting(true);
+      return { found: true, online: true };
+    }
+    return { found: false, online: navigator.onLine };
+  }, [handleWaiting]);
+
+  const checkForUpdates = useCallback(async (): Promise<CheckResult> => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      return { found: false, online: false };
+    }
+    if (!navigator.onLine) {
+      return { found: false, online: false };
+    }
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    if (!reg) return { found: false, online: navigator.onLine };
+    if (reg.waiting) {
+      void handleWaiting(true);
+      return { found: true, online: true };
+    }
+    try {
+      await reg.update();
+    } catch {
+      // reg.update() rejects on hard network failure. We've already
+      // checked navigator.onLine above; a reject here means the SW
+      // server returned 4xx/5xx or CORS blocked us. Treat as "no
+      // update available" rather than "offline" so the merchant
+      // sees the right toast.
+      return { found: false, online: navigator.onLine };
+    }
+    // Give workbox a moment to fire 'waiting' if a new bundle was
+    // discovered. 1.5 s covers ~99% of cases on a healthy 4G; the
+    // Settings button's "Checking…" spinner masks the wait.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const after = await navigator.serviceWorker.getRegistration('/');
+    if (after?.waiting) {
+      void handleWaiting(true);
+      return { found: true, online: true };
+    }
+    return { found: false, online: navigator.onLine };
+  }, [handleWaiting]);
+
+  return {
+    status,
+    whatsNew,
+    promptVersion,
+    riskLevel,
+    installNow,
+    snooze,
+    skip,
+    dismiss,
+    forcePrompt,
+    checkForUpdates,
+  };
 }

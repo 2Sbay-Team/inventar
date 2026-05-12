@@ -5,6 +5,7 @@ import { AlertTriangle, Check, Package, Sparkles } from 'lucide-react';
 import { useAppUpdate } from '../hooks/use-app-update';
 import { useLocale } from '../hooks/use-locale';
 import { downloadBackupFile } from '../backup/download';
+import { APP_VERSION } from '../config/app-version';
 import type { BackupFormatChange, MigrationInfo } from '../pwa/fetch-whats-new';
 
 // v0.6 ADR-031 / v0.6.2 ADR-032 — full-attention update-consent
@@ -20,12 +21,6 @@ import type { BackupFormatChange, MigrationInfo } from '../pwa/fetch-whats-new';
 // local state is `backupExported` — whether the merchant has tapped
 // [Export backup now] in this modal session. Per ADR-032 Q3 the state
 // resets every time the modal re-opens (no IDB persistence).
-
-// Kept in lock-step with src/hooks/use-auto-backup.ts and
-// src/screens/settings.tsx — see SPEC §10 for the version-pinning
-// rule. The build will eventually inject this; for now the duplicate
-// is acceptable.
-const APP_VERSION = '1.0.0';
 
 export function AppUpdateModal(): JSX.Element | null {
   const { t } = useTranslation('updates');
