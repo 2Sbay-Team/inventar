@@ -218,12 +218,87 @@ export interface ShopProfile {
   // 'name' otherwise. Stored even when no logo exists so the picker
   // in Settings has a deterministic initial state.
   qr_center_mode: 'logo' | 'name';
+  // v0.9 ADR-039 — Shop Identity expansion. All new fields are nullable
+  // and default to null at first-create so pre-v0.9 profiles continue
+  // to read without surprises. The v14→v15 migration backfills null on
+  // every existing row. Three of these need narration:
+  //
+  //   * fiscal_id (already exists, v10) is reused as the UI's "Tax ID"
+  //     label — see Settings → Business. We don't add a separate
+  //     `tax_id` column because the brief's matricule fiscal / VAT /
+  //     SIRET semantics are exactly what fiscal_id already stores.
+  //   * legal_address (already exists, v10) stays the source of truth
+  //     for the invoice-print address block — frozen multi-line string
+  //     to keep historical invoices visually identical. The new
+  //     `address_street` / `address_city` / `address_country` fields
+  //     are for the catalog page and the digital business card; UI
+  //     will offer to keep both in sync once both are filled.
+  //   * logo_dominant_color: cached output of the canvas-based colour
+  //     extractor (ADR-042). null until the merchant uploads a logo
+  //     that survives the extractor's saturation + luminance filters.
+  tagline: string | null;
+  description: string | null;
+  address_street: string | null;
+  address_city: string | null;
+  address_country: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  website: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  // v0.9 ADR-040 — brand color (replaces the hard-coded #FF6B35
+  // accent at render time when set). null = use the app's built-in
+  // accent. Stored as a 7-char hex string `#RRGGBB`.
+  brand_primary_color: string | null;
+  // v0.9 ADR-040 — theme background colour, also `#RRGGBB`.
+  // null = use the built-in Cream default. Phase 2 renders this; Phase
+  // 1 just lands the field on the schema.
+  theme_bg_color: string | null;
+  theme_mode: ThemeMode;
+  logo_dominant_color: string | null;
+  opening_hours: OpeningHours | null;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
 }
 
 export type QrCenterMode = 'logo' | 'name';
+
+// v0.9 ADR-039 — Shop Identity expansion. Theme mode picker for the
+// app appearance: 'light' (default), 'dark' (manual override), or
+// 'auto' (follow system preference). Phase 2 only renders 'light';
+// 'dark' / 'auto' are persisted but visually no-op until a later
+// release wires real dark-mode coverage across every component.
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
+// v0.9 ADR-039 — per-day opening hours. `open: false` means the shop
+// is closed that day and the from/to strings are ignored by the
+// renderer (we keep them stored so the merchant can toggle a day
+// closed and back without losing their previously-set hours).
+// `from` / `to` are "HH:MM" 24h in the shop's local time — no
+// timezone field since merchants always operate in one timezone.
+export interface DayHours {
+  open: boolean;
+  from: string;
+  to: string;
+}
+
+// v0.9 ADR-039 — week of opening hours. Each day is independently
+// nullable: `null` means "the merchant hasn't configured this day
+// yet" so the catalog / business-card display falls back to a
+// neutral "hours not set" rather than rendering an inferred guess.
+// The whole `opening_hours` field on ShopProfile is itself nullable
+// — null = the merchant hasn't opened the Hours subsection at all.
+export interface OpeningHours {
+  monday: DayHours | null;
+  tuesday: DayHours | null;
+  wednesday: DayHours | null;
+  thursday: DayHours | null;
+  friday: DayHours | null;
+  saturday: DayHours | null;
+  sunday: DayHours | null;
+}
 
 export interface Article {
   id: UUID;

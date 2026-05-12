@@ -288,6 +288,112 @@ describe('backup round-trip (v2)', () => {
     expect(next.number).toMatch(/^INV-\d{4}-0003$/);
   });
 
+  it('v0.9 Shop Identity fields round-trip through export → import', async () => {
+    // Pin the contract: every field landed by the v14→v15 migration
+    // survives a full export-restore. Catches the failure mode where a
+    // future format bump silently drops new ShopProfile columns.
+    await seed(db);
+    const hours = {
+      monday: { open: true, from: '08:00', to: '20:00' },
+      tuesday: { open: true, from: '08:00', to: '20:00' },
+      wednesday: { open: true, from: '08:00', to: '20:00' },
+      thursday: { open: true, from: '08:00', to: '20:00' },
+      friday: { open: true, from: '08:00', to: '22:00' },
+      saturday: { open: true, from: '09:00', to: '22:00' },
+      sunday: { open: false, from: '00:00', to: '00:00' },
+    };
+    await upsertProfile(db, {
+      name: 'Round Trip Shop',
+      locale: 'fr',
+      tagline: 'Quality fashion since 2020',
+      description: 'Specialty boutique for men and women.',
+      address_street: 'Rue de la République',
+      address_city: 'Tunis',
+      address_country: 'Tunisia',
+      whatsapp: '+216 98 765 432',
+      email: 'contact@naili.test',
+      website: 'naili.test',
+      instagram: '@naili.shoes',
+      facebook: 'NailiShoes',
+      tiktok: '@naili',
+      brand_primary_color: '#2B4C8A',
+      theme_bg_color: '#F4F1EA',
+      theme_mode: 'dark',
+      logo_dominant_color: '#2B4C8A',
+      opening_hours: hours,
+    });
+
+    const { blob } = await exportBackupBlob(db, { appVersion: '0.9.0' });
+
+    await db.profile.clear();
+    await importBackup({ data: await blob.text(), mode: 'replace' }, db);
+
+    const restored = await db.profile.get('singleton');
+    expect(restored?.tagline).toBe('Quality fashion since 2020');
+    expect(restored?.description).toBe('Specialty boutique for men and women.');
+    expect(restored?.address_street).toBe('Rue de la République');
+    expect(restored?.address_city).toBe('Tunis');
+    expect(restored?.address_country).toBe('Tunisia');
+    expect(restored?.whatsapp).toBe('+216 98 765 432');
+    expect(restored?.email).toBe('contact@naili.test');
+    expect(restored?.website).toBe('naili.test');
+    expect(restored?.instagram).toBe('@naili.shoes');
+    expect(restored?.facebook).toBe('NailiShoes');
+    expect(restored?.tiktok).toBe('@naili');
+    expect(restored?.brand_primary_color).toBe('#2B4C8A');
+    expect(restored?.theme_bg_color).toBe('#F4F1EA');
+    expect(restored?.theme_mode).toBe('dark');
+    expect(restored?.logo_dominant_color).toBe('#2B4C8A');
+    expect(restored?.opening_hours).toEqual(hours);
+  });
+
+  it('pre-v0.9 backup imports cleanly — missing Shop Identity fields backfill to null/light', async () => {
+    // A backup written by a pre-v0.9 install carries a profile row
+    // without any of the new columns. The import path's defensive
+    // backfill (mirroring the v14→v15 in-place migration) must drop
+    // null on every nullable field and 'light' on theme_mode so the
+    // row matches the current ShopProfile shape.
+    await seed(db);
+    const backup = await buildBackup(db, { appVersion: '0.8.0' });
+    // Strip the v0.9 fields off the exported row to simulate an
+    // older backup. The integrity hash is recomputed after the strip
+    // so the import path doesn't reject the file before backfill runs.
+    const stripped = { ...backup.rows.profile[0]! } as Record<string, unknown>;
+    for (const key of [
+      'tagline',
+      'description',
+      'address_street',
+      'address_city',
+      'address_country',
+      'whatsapp',
+      'email',
+      'website',
+      'instagram',
+      'facebook',
+      'tiktok',
+      'brand_primary_color',
+      'theme_bg_color',
+      'theme_mode',
+      'logo_dominant_color',
+      'opening_hours',
+    ]) {
+      delete stripped[key];
+    }
+    backup.rows.profile[0] = stripped as unknown as (typeof backup.rows.profile)[number];
+    backup.integrity_sha256 = await integrityHash(backup.rows);
+
+    await db.profile.clear();
+    await importBackup({ data: JSON.stringify(backup), mode: 'replace' }, db);
+
+    const restored = await db.profile.get('singleton');
+    expect(restored?.tagline).toBeNull();
+    expect(restored?.email).toBeNull();
+    expect(restored?.instagram).toBeNull();
+    expect(restored?.brand_primary_color).toBeNull();
+    expect(restored?.opening_hours).toBeNull();
+    expect(restored?.theme_mode).toBe('light');
+  });
+
   it('backupFilename uses the YYYY-MM-DD UTC date', () => {
     expect(backupFilename(new Date('2026-05-07T22:00:00.000Z'))).toBe(
       'inventar-backup-2026-05-07.json',

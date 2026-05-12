@@ -219,6 +219,27 @@ function backfillV05Defaults(rows: AppliedRows): AppliedRows {
         ...sp,
         shop_subtypes: (sp.shop_subtypes ?? []) as ShopProfile['shop_subtypes'],
         qr_center_mode: qrMode,
+        // v0.9 ADR-039 / ADR-040: Shop Identity expansion. Backups
+        // exported before v0.9 don't carry these 16 columns. The
+        // `?? null` / `?? 'light'` defaults match the v14→v15 in-
+        // place upgrade rules so imported rows look identical to
+        // rows that flowed through the live migration.
+        tagline: sp.tagline ?? null,
+        description: sp.description ?? null,
+        address_street: sp.address_street ?? null,
+        address_city: sp.address_city ?? null,
+        address_country: sp.address_country ?? null,
+        whatsapp: sp.whatsapp ?? null,
+        email: sp.email ?? null,
+        website: sp.website ?? null,
+        instagram: sp.instagram ?? null,
+        facebook: sp.facebook ?? null,
+        tiktok: sp.tiktok ?? null,
+        brand_primary_color: sp.brand_primary_color ?? null,
+        theme_bg_color: sp.theme_bg_color ?? null,
+        theme_mode: sp.theme_mode ?? 'light',
+        logo_dominant_color: sp.logo_dominant_color ?? null,
+        opening_hours: sp.opening_hours ?? null,
       } as ShopProfile;
     }),
     articles: rows.articles.map(

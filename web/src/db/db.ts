@@ -549,6 +549,70 @@ export class InventarDB extends Dexie {
             p.qr_center_mode = p.logo_photo_id ? 'logo' : 'name';
           });
       });
+    // v0.9 ADR-039 / ADR-040 — Shop Identity expansion. Sixteen new
+    // columns on the singleton profile row, all nullable except
+    // theme_mode (defaults to 'light'). No index changes — none of
+    // the new fields are queried by index. Purely additive.
+    //
+    // Idempotent: every field guarded with `if (!(key in p))` so a
+    // re-run (Dexie history replay, manual db.open() after crash)
+    // leaves merchant-set values alone instead of clobbering them.
+    this.version(15)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify(
+            (p: {
+              tagline?: string | null;
+              description?: string | null;
+              address_street?: string | null;
+              address_city?: string | null;
+              address_country?: string | null;
+              whatsapp?: string | null;
+              email?: string | null;
+              website?: string | null;
+              instagram?: string | null;
+              facebook?: string | null;
+              tiktok?: string | null;
+              brand_primary_color?: string | null;
+              theme_bg_color?: string | null;
+              theme_mode?: 'light' | 'dark' | 'auto';
+              logo_dominant_color?: string | null;
+              opening_hours?: unknown;
+            }) => {
+              if (!('tagline' in p)) p.tagline = null;
+              if (!('description' in p)) p.description = null;
+              if (!('address_street' in p)) p.address_street = null;
+              if (!('address_city' in p)) p.address_city = null;
+              if (!('address_country' in p)) p.address_country = null;
+              if (!('whatsapp' in p)) p.whatsapp = null;
+              if (!('email' in p)) p.email = null;
+              if (!('website' in p)) p.website = null;
+              if (!('instagram' in p)) p.instagram = null;
+              if (!('facebook' in p)) p.facebook = null;
+              if (!('tiktok' in p)) p.tiktok = null;
+              if (!('brand_primary_color' in p)) p.brand_primary_color = null;
+              if (!('theme_bg_color' in p)) p.theme_bg_color = null;
+              if (!('theme_mode' in p)) p.theme_mode = 'light';
+              if (!('logo_dominant_color' in p)) p.logo_dominant_color = null;
+              if (!('opening_hours' in p)) p.opening_hours = null;
+            },
+          );
+      });
   }
 }
 

@@ -1154,3 +1154,92 @@ covered in this batch via the SPEC.md screens addition) shipped
 in d51abda but was never reachable from a stale-SW browser. With
 v0.6.7 unblocking the pipeline, the manual check actually
 completes its `registration.update()` → 'waiting' → modal cycle.
+
+---
+
+## ADR-039: Shop Identity expands ShopProfile with contact, social, opening hours, tagline, description, structured address, and branding fields
+
+**Status:** Accepted (v0.9 Phase 1, Dexie v15).
+
+**Context:** Settings → Shop profile was a single-screen form
+holding the bare minimum: shop name, locale, logo, currency,
+store type. Two downstream features force a richer identity:
+
+1. **Invoices** (ADR-024) already need `legal_name`, `legal_address`,
+   `fiscal_id`, `phone`. These landed in v10 / v11 but stayed
+   limited to the invoicing block.
+2. **The public catalog and the digital business card** (planned
+   for v0.10) need contact channels merchants actually use
+   (WhatsApp, Instagram), a tagline, a description, structured
+   address fields, and opening hours.
+3. **App theming** (ADR-040) needs a brand color and background
+   color to live on the same singleton row so the renderer can
+   read them in one Dexie get().
+
+**Decision:** Expand `ShopProfile` with 16 additive nullable fields
+covering identity (tagline, description), structured location
+(address_street/city/country), contact (whatsapp, email, website),
+social (instagram, facebook, tiktok), branding (brand_primary_color,
+theme_bg_color, theme_mode, logo_dominant_color), and operations
+(opening_hours).
+
+Two intentional non-additions:
+
+- **`tax_id`** is the same concept as the existing `fiscal_id`
+  (v10, ADR-024 — matricule fiscal / SIRET / VAT). The new UI labels
+  it "Tax ID" but we don't duplicate the column.
+- **A second address column** stays out: `legal_address` (existing,
+  free-form multi-line) is the frozen invoice-print block; the new
+  `address_street` / `address_city` / `address_country` triple
+  feeds catalog + business-card rendering. The two evolve
+  independently. UI later offers to keep them in sync.
+
+**Migration shape (v14 → v15).** Schema strings unchanged — every
+new field is non-indexed. The upgrade callback walks every profile
+row and writes `null` (or `'light'` for `theme_mode`) on missing
+keys. Idempotent: `if (!(key in p))` guards mean a re-run leaves
+merchant-set values alone. Same pattern as v10, v11, v13.
+
+**Backup compatibility.** Pre-v0.9 backups (which don't carry
+these 16 columns) flow through `backfillV05Defaults` in import.ts,
+which now mirrors the v14→v15 upgrade rule and fills in null /
+'light'. Backups exported from v0.9 carry the new fields and
+round-trip through format v3 unchanged.
+
+**Rejected alternatives.**
+
+- *A separate `shop_identity` table.* Considered, rejected: every
+  field belongs to the singleton profile row 1-to-1, no plurality.
+  A second table would just double the read on the home screen.
+- *Storing `tax_id` as a duplicate of `fiscal_id` to match the
+  Brand Studio brief's terminology.* Rejected: data model trumps
+  brief wording. Labels can differ from column names; columns
+  duplicating semantics breaks round-trip clarity for backups.
+- *Folding `address_street/city/country` into the existing
+  `legal_address` and parsing on display.* Rejected: structured
+  fields are needed for the catalog page's country filter and
+  the business card's per-line typography; reverse-parsing a
+  free-form invoice address is fragile.
+
+---
+
+## ADR-040: Two-layer brand system — brand_primary_color replaces the hard-coded accent; theme_bg_color controls background; CSS custom properties propagate both throughout the app
+
+**Status:** Proposed (v0.9 Phase 2 will land the renderer).
+
+**Context:** Today every accent in the app is `#FF6B35` (orange
+"accent" in tailwind.config). The cream paper gradient is
+similarly hard-coded. Merchants who upload a logo with a strong
+brand color see a mismatched accent everywhere — nav pill, FAB,
+buttons, links.
+
+**Decision (Phase 1 portion).** The schema lands `brand_primary_color`,
+`theme_bg_color`, `theme_mode`, and `logo_dominant_color` columns
+in v15. All four are nullable; a null value tells the renderer
+to fall back to the built-in defaults (`#FF6B35` accent, cream
+background, light mode). The renderer wiring lands in Phase 2
+via CSS custom properties; this ADR's full text expands then.
+
+**Phase 1 commitment.** The schema is final. Phase 2 cannot
+require a re-migration to wire the renderer — the four columns
+above are sufficient for the full Brand Studio theming surface.

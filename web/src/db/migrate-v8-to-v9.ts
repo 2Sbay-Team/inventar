@@ -225,6 +225,27 @@ function migrateProfile(p: V8ShopProfile, expiryMeta: number | null): ShopProfil
     // the same value on existing installs, so this default lines
     // up with what the production migration writes.
     qr_center_mode: p.logo_photo_id ? 'logo' : 'name',
+    // v0.9 ADR-039 / ADR-040: Shop Identity columns added in v15.
+    // Defaulted to null (and theme_mode='light') so a v8→v9 in-
+    // isolation run still produces a fully-typed current-shape
+    // ShopProfile. The v14→v15 upgrade writes the same defaults on
+    // existing installs.
+    tagline: null,
+    description: null,
+    address_street: null,
+    address_city: null,
+    address_country: null,
+    whatsapp: null,
+    email: null,
+    website: null,
+    instagram: null,
+    facebook: null,
+    tiktok: null,
+    brand_primary_color: null,
+    theme_bg_color: null,
+    theme_mode: 'light',
+    logo_dominant_color: null,
+    opening_hours: null,
     created_at: p.created_at,
     updated_at: p.updated_at,
     last_backup_at: p.last_backup_at,

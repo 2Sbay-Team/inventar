@@ -181,6 +181,90 @@ describe('profile repo', () => {
     expect(p.qr_center_mode).toBe('name'); // preserved across logo replace
   });
 
+  it('v0.9 Shop Identity fields default to null (and theme_mode to light) on first create', async () => {
+    const p = await upsertProfile(db, { name: 'New Shop', locale: 'fr' });
+    expect(p.tagline).toBeNull();
+    expect(p.description).toBeNull();
+    expect(p.address_street).toBeNull();
+    expect(p.address_city).toBeNull();
+    expect(p.address_country).toBeNull();
+    expect(p.whatsapp).toBeNull();
+    expect(p.email).toBeNull();
+    expect(p.website).toBeNull();
+    expect(p.instagram).toBeNull();
+    expect(p.facebook).toBeNull();
+    expect(p.tiktok).toBeNull();
+    expect(p.brand_primary_color).toBeNull();
+    expect(p.theme_bg_color).toBeNull();
+    expect(p.logo_dominant_color).toBeNull();
+    expect(p.opening_hours).toBeNull();
+    expect(p.theme_mode).toBe('light');
+  });
+
+  it('upsertProfile sets, preserves, and clears each Shop Identity field', async () => {
+    // One go through the set → preserve-on-omit → clear-with-null cycle
+    // for the standard nullable strings. Picking three representatives
+    // (one from each of identity / contact / branding) avoids 14 near-
+    // identical assertion blocks while still covering the common path
+    // shared by every field in the group.
+    let p = await upsertProfile(db, {
+      name: 'A',
+      locale: 'fr',
+      tagline: 'Quality fashion since 2020',
+      whatsapp: '+216 98 765 432',
+      brand_primary_color: '#2B4C8A',
+    });
+    expect(p.tagline).toBe('Quality fashion since 2020');
+    expect(p.whatsapp).toBe('+216 98 765 432');
+    expect(p.brand_primary_color).toBe('#2B4C8A');
+    // Omitting preserves.
+    p = await upsertProfile(db, { name: 'A', locale: 'fr' });
+    expect(p.tagline).toBe('Quality fashion since 2020');
+    expect(p.whatsapp).toBe('+216 98 765 432');
+    expect(p.brand_primary_color).toBe('#2B4C8A');
+    // Explicit null clears.
+    p = await upsertProfile(db, {
+      name: 'A',
+      locale: 'fr',
+      tagline: null,
+      whatsapp: null,
+      brand_primary_color: null,
+    });
+    expect(p.tagline).toBeNull();
+    expect(p.whatsapp).toBeNull();
+    expect(p.brand_primary_color).toBeNull();
+  });
+
+  it('upsertProfile persists opening_hours and theme_mode round-trip', async () => {
+    const hours = {
+      monday: { open: true, from: '08:00', to: '20:00' },
+      tuesday: { open: true, from: '08:00', to: '20:00' },
+      wednesday: { open: true, from: '08:00', to: '20:00' },
+      thursday: { open: true, from: '08:00', to: '20:00' },
+      friday: { open: true, from: '08:00', to: '22:00' },
+      saturday: { open: true, from: '09:00', to: '22:00' },
+      sunday: { open: false, from: '00:00', to: '00:00' },
+    };
+    let p = await upsertProfile(db, {
+      name: 'A',
+      locale: 'fr',
+      opening_hours: hours,
+      theme_mode: 'dark',
+    });
+    expect(p.opening_hours).toEqual(hours);
+    expect(p.theme_mode).toBe('dark');
+    // Preserved on omit.
+    p = await upsertProfile(db, { name: 'A', locale: 'fr' });
+    expect(p.opening_hours).toEqual(hours);
+    expect(p.theme_mode).toBe('dark');
+    // Cleared when null.
+    p = await upsertProfile(db, { name: 'A', locale: 'fr', opening_hours: null });
+    expect(p.opening_hours).toBeNull();
+    // theme_mode is non-nullable — passing 'light' explicitly resets.
+    p = await upsertProfile(db, { name: 'A', locale: 'fr', theme_mode: 'light' });
+    expect(p.theme_mode).toBe('light');
+  });
+
   it("qr_center_mode auto-falls-back to 'name' when the logo is removed", async () => {
     await db.photos.add({
       id: 'logo-photo',

@@ -3,10 +3,12 @@ import {
   type CurrencyCode,
   type FashionSubtype,
   type Locale,
+  type OpeningHours,
   type QrCenterMode,
   type ShopProfile,
   type ShopSubtype,
   type StoreType,
+  type ThemeMode,
   type UUID,
 } from '../types';
 import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
@@ -77,6 +79,26 @@ export interface UpsertProfileInput {
   // — guarantees the renderer never sees ('logo', null) as a paired
   // state, so it doesn't need its own fallback logic.
   qr_center_mode?: QrCenterMode;
+  // v0.9 ADR-039 / ADR-040 — Shop Identity expansion. Every field
+  // follows the standard repo convention: omit to preserve, pass
+  // `null` to clear, pass a value to set. theme_mode is the only
+  // non-nullable new field — omit preserves, an explicit value sets.
+  tagline?: string | null;
+  description?: string | null;
+  address_street?: string | null;
+  address_city?: string | null;
+  address_country?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  tiktok?: string | null;
+  brand_primary_color?: string | null;
+  theme_bg_color?: string | null;
+  theme_mode?: ThemeMode;
+  logo_dominant_color?: string | null;
+  opening_hours?: OpeningHours | null;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -134,6 +156,40 @@ export async function upsertProfile(
         existing?.logo_photo_id ?? null,
         nextLogo,
       ),
+      tagline: input.tagline === undefined ? (existing?.tagline ?? null) : input.tagline,
+      description:
+        input.description === undefined ? (existing?.description ?? null) : input.description,
+      address_street:
+        input.address_street === undefined
+          ? (existing?.address_street ?? null)
+          : input.address_street,
+      address_city:
+        input.address_city === undefined ? (existing?.address_city ?? null) : input.address_city,
+      address_country:
+        input.address_country === undefined
+          ? (existing?.address_country ?? null)
+          : input.address_country,
+      whatsapp: input.whatsapp === undefined ? (existing?.whatsapp ?? null) : input.whatsapp,
+      email: input.email === undefined ? (existing?.email ?? null) : input.email,
+      website: input.website === undefined ? (existing?.website ?? null) : input.website,
+      instagram: input.instagram === undefined ? (existing?.instagram ?? null) : input.instagram,
+      facebook: input.facebook === undefined ? (existing?.facebook ?? null) : input.facebook,
+      tiktok: input.tiktok === undefined ? (existing?.tiktok ?? null) : input.tiktok,
+      brand_primary_color:
+        input.brand_primary_color === undefined
+          ? (existing?.brand_primary_color ?? null)
+          : input.brand_primary_color,
+      theme_bg_color:
+        input.theme_bg_color === undefined
+          ? (existing?.theme_bg_color ?? null)
+          : input.theme_bg_color,
+      theme_mode: input.theme_mode ?? existing?.theme_mode ?? 'light',
+      logo_dominant_color:
+        input.logo_dominant_color === undefined
+          ? (existing?.logo_dominant_color ?? null)
+          : input.logo_dominant_color,
+      opening_hours:
+        input.opening_hours === undefined ? (existing?.opening_hours ?? null) : input.opening_hours,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,
