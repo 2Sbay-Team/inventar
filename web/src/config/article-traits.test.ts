@@ -10,6 +10,7 @@ import {
   inputQtyToInternal,
   internalPriceToInput,
   isContinuousUom,
+  isWeightOrVolumeUom,
   uomSmallUnitFactor,
 } from './article-traits';
 import { type Article, type ShopProfile } from '../types';
@@ -291,6 +292,29 @@ describe('isContinuousUom — measured vs countable distinction (v0.5.6)', () =>
     expect(isContinuousUom('pair')).toBe(false);
     expect(isContinuousUom('pack')).toBe(false);
     expect(isContinuousUom('dozen')).toBe(false);
+  });
+});
+
+describe('isWeightOrVolumeUom — narrower hide-size predicate', () => {
+  it('returns true only for kg / g / l / ml', () => {
+    expect(isWeightOrVolumeUom('kg')).toBe(true);
+    expect(isWeightOrVolumeUom('g')).toBe(true);
+    expect(isWeightOrVolumeUom('l')).toBe(true);
+    expect(isWeightOrVolumeUom('ml')).toBe(true);
+  });
+
+  // meter is the load-bearing case — isContinuousUom returns true for
+  // meter, but the size-hide rule must skip it so cut-length chips
+  // (0.5m, 1m, ...) still render.
+  it('returns false for meter so cut-length size chips still render', () => {
+    expect(isWeightOrVolumeUom('meter')).toBe(false);
+  });
+
+  it('returns false for every countable unit', () => {
+    expect(isWeightOrVolumeUom('piece')).toBe(false);
+    expect(isWeightOrVolumeUom('pair')).toBe(false);
+    expect(isWeightOrVolumeUom('pack')).toBe(false);
+    expect(isWeightOrVolumeUom('dozen')).toBe(false);
   });
 });
 
