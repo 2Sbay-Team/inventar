@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -18,6 +19,16 @@ import {
 } from '../config/location-options';
 import { useProfile } from '../hooks/use-profile';
 import { useLive } from '../hooks/use-live';
+import { useAutosave, type AutosaveStatus } from '../hooks/use-autosave';
+import {
+  isLikelyEmail,
+  normalizeFacebook,
+  normalizePhone,
+  normalizeSocialHandle,
+  normalizeWebsite,
+  trimToNullable,
+  whatsappHref,
+} from '../utils/field-format';
 import {
   isAutoBackupSupported,
   pickAutoBackupFolder,
@@ -36,6 +47,8 @@ import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
 import { ChevronRight, Download as DownloadIcon, Smartphone } from 'lucide-react';
+import type { ShopProfile } from '../types';
+import type { UpsertProfileInput } from '../repos/profile';
 import {
   type CurrencyCode,
   type FashionSubtype,
@@ -352,6 +365,365 @@ function StockLocationsSection(): JSX.Element | null {
 // is stored as integer percent for simplicity (no fractional VAT in any
 // supported country yet); the per-invoice form lets the merchant
 // override on a per-invoice basis.
+// v0.9 ADR-039 / ADR-041 — Shop Identity section. Inline-edited
+// text fields with debounced autosave. Phase 4a covers four
+// subsections: Identity / Contact / Location / Social. Brand-colour
+// picker, app-theme picker, completion ring, opening hours, and the
+// digital business card land in later phases — this section gives
+// them a home to slot into.
+//
+// Architecture:
+//   * One autosave debouncer per section, shared by every field in
+//     the section. The merchant typing across fields produces ONE
+//     save 800ms after they stop. Each subsection has its own
+//     debouncer so the "Saved ✓" indicator only lights up next to
+//     the subsection the merchant actually edited.
+//   * patchRef accumulates partial UpsertProfileInput between
+//     fires so rapid cross-field edits don't lose values — the
+//     debouncer's `onFlush` reads the full accumulator at fire time.
+//   * Inputs hold draft string state locally; the autosave
+//     pipeline writes through to the profile row. When the profile
+//     row updates (live subscription via useProfile), the draft is
+//     cleared so the rendered value re-reflects what's persisted.
+function ShopIdentitySection(): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  const profile = useProfile();
+  if (!profile) return null;
+  return (
+    <section
+      data-testid="section-shop-identity"
+      className="border-hair rounded-2xl border bg-white p-4"
+    >
+      <h3 className="font-display mb-1 text-base font-medium">{t('identity_title')}</h3>
+      <p className="text-ink-3 mb-4 text-xs leading-relaxed">{t('identity_hint')}</p>
+      <div className="space-y-5">
+        <IdentitySubsection profile={profile} />
+        <ContactSubsection profile={profile} />
+        <LocationSubsection profile={profile} />
+        <SocialSubsection profile={profile} />
+      </div>
+    </section>
+  );
+}
+
+// Renders a small inline pill near a subsection header showing the
+// autosave state. Idle = invisible (no chrome when nothing is
+// happening); saving / saved / error get colour-coded styling.
+function AutosaveBadge({ status }: { status: AutosaveStatus }): JSX.Element | null {
+  const { t } = useTranslation('settings');
+  if (status === 'idle') return null;
+  const label =
+    status === 'saving'
+      ? t('identity_autosave_saving')
+      : status === 'saved'
+        ? t('identity_autosave_saved')
+        : t('identity_autosave_error');
+  const tone = status === 'saving' ? 'text-ink-3' : status === 'saved' ? 'text-ok' : 'text-bad';
+  return (
+    <span data-testid={`autosave-${status}`} className={`text-[11px] ${tone}`}>
+      {label}
+    </span>
+  );
+}
+
+// Shared autosave wiring for one subsection. Returns the dispatcher
+// each field uses (`setField(key, value)`) plus the current status.
+// The patch accumulator is held in a ref so rapid cross-field edits
+// inside the 800ms window all batch into a single upsertProfile call.
+function useSubsectionAutosave(profile: ShopProfile): {
+  setField: <K extends keyof UpsertProfileInput>(key: K, value: UpsertProfileInput[K]) => void;
+  status: AutosaveStatus;
+} {
+  const patchRef = useRef<Partial<UpsertProfileInput>>({});
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const autosave = useAutosave<void>(async () => {
+    const cur = profileRef.current;
+    const patch = patchRef.current;
+    patchRef.current = {};
+    if (Object.keys(patch).length === 0) return;
+    await upsertProfile(db, {
+      name: cur.name,
+      locale: cur.locale,
+      ...patch,
+    });
+  });
+  const setField = useCallback(
+    <K extends keyof UpsertProfileInput>(key: K, value: UpsertProfileInput[K]) => {
+      patchRef.current = { ...patchRef.current, [key]: value };
+      autosave.trigger();
+    },
+    [autosave],
+  );
+  return { setField, status: autosave.status };
+}
+
+function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('identity_section_identity')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <IdentityTextField
+        testId="identity-tagline"
+        label={t('identity_tagline')}
+        placeholder={t('identity_tagline_placeholder')}
+        hint={t('identity_tagline_hint')}
+        initial={profile.tagline}
+        maxLength={80}
+        onCommit={(value) => setField('tagline', value)}
+      />
+      <IdentityTextField
+        testId="identity-description"
+        label={t('identity_description')}
+        placeholder={t('identity_description_placeholder')}
+        hint={t('identity_description_hint')}
+        initial={profile.description}
+        maxLength={300}
+        multiline
+        onCommit={(value) => setField('description', value)}
+      />
+    </div>
+  );
+}
+
+function ContactSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  const waHref = whatsappHref(profile.whatsapp);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('identity_section_contact')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <IdentityTextField
+        testId="identity-whatsapp"
+        label={t('identity_whatsapp')}
+        placeholder={t('identity_whatsapp_placeholder')}
+        initial={profile.whatsapp}
+        onCommit={(value) => setField('whatsapp', normalizePhone(value ?? ''))}
+        suffix={
+          waHref ? (
+            <a
+              data-testid="identity-whatsapp-test"
+              href={waHref}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-accent text-xs"
+            >
+              {t('identity_whatsapp_test')}
+            </a>
+          ) : null
+        }
+      />
+      <IdentityEmailField
+        testId="identity-email"
+        label={t('identity_email')}
+        placeholder={t('identity_email_placeholder')}
+        initial={profile.email}
+        invalidMessage={t('identity_email_invalid')}
+        onCommit={(value) => setField('email', value)}
+      />
+      <IdentityTextField
+        testId="identity-website"
+        label={t('identity_website')}
+        placeholder={t('identity_website_placeholder')}
+        initial={profile.website}
+        onCommit={(value) => setField('website', normalizeWebsite(value ?? ''))}
+      />
+    </div>
+  );
+}
+
+function LocationSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('identity_section_location')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <IdentityTextField
+        testId="identity-address-street"
+        label={t('identity_address_street')}
+        placeholder={t('identity_address_street_placeholder')}
+        initial={profile.address_street}
+        onCommit={(value) => setField('address_street', value)}
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <IdentityTextField
+          testId="identity-address-city"
+          label={t('identity_address_city')}
+          placeholder={t('identity_address_city_placeholder')}
+          initial={profile.address_city}
+          onCommit={(value) => setField('address_city', value)}
+        />
+        <IdentityTextField
+          testId="identity-address-country"
+          label={t('identity_address_country')}
+          placeholder={t('identity_address_country_placeholder')}
+          initial={profile.address_country}
+          onCommit={(value) => setField('address_country', value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SocialSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('identity_section_social')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <IdentityTextField
+        testId="identity-instagram"
+        label={t('identity_instagram')}
+        placeholder={t('identity_instagram_placeholder')}
+        initial={profile.instagram}
+        onCommit={(value) => setField('instagram', normalizeSocialHandle(value ?? ''))}
+      />
+      <IdentityTextField
+        testId="identity-facebook"
+        label={t('identity_facebook')}
+        placeholder={t('identity_facebook_placeholder')}
+        initial={profile.facebook}
+        onCommit={(value) => setField('facebook', normalizeFacebook(value ?? ''))}
+      />
+      <IdentityTextField
+        testId="identity-tiktok"
+        label={t('identity_tiktok')}
+        placeholder={t('identity_tiktok_placeholder')}
+        initial={profile.tiktok}
+        onCommit={(value) => setField('tiktok', normalizeSocialHandle(value ?? ''))}
+      />
+    </div>
+  );
+}
+
+// Generic text field used across every Shop Identity subsection.
+// `initial` is the persisted value; the input renders local draft
+// state until the merchant commits. `onCommit` fires on every
+// keystroke (the debouncer in the parent coalesces them) AND on
+// blur — so the autosave pipeline always sees the latest value
+// even if the merchant tabs away before the 800ms debounce.
+function IdentityTextField(props: {
+  testId: string;
+  label: string;
+  placeholder?: string;
+  hint?: string;
+  initial: string | null;
+  maxLength?: number;
+  multiline?: boolean;
+  onCommit: (value: string | null) => void;
+  suffix?: React.ReactNode;
+}): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { testId, label, placeholder, hint, initial, maxLength, multiline, onCommit, suffix } =
+    props;
+  const [draft, setDraft] = useState<string | null>(null);
+  const displayValue = draft ?? initial ?? '';
+  function handleChange(value: string): void {
+    setDraft(value);
+    onCommit(trimToNullable(value));
+  }
+  function handleBlur(): void {
+    // Drop the local draft once the persisted profile catches up.
+    // The autosave debouncer in the parent flushes its pending value
+    // before the value reflects back via useProfile.
+    setDraft(null);
+  }
+  const Tag = multiline ? 'textarea' : 'input';
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={testId} className="text-ink-2 text-xs font-medium">
+          {label}
+        </label>
+        {suffix ? <div>{suffix}</div> : null}
+      </div>
+      <Tag
+        id={testId}
+        data-testid={testId}
+        type={multiline ? undefined : 'text'}
+        value={displayValue}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        rows={multiline ? 3 : undefined}
+        onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+          handleChange(e.target.value)
+        }
+        onBlur={handleBlur}
+        className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+      />
+      {(hint || maxLength) && (
+        <div className="flex items-baseline justify-between gap-2">
+          {hint ? <p className="text-ink-3 text-[11px] leading-relaxed">{hint}</p> : <span />}
+          {maxLength ? (
+            <span
+              data-testid={`${testId}-counter`}
+              className="text-ink-3 shrink-0 text-[11px] tabular-nums"
+            >
+              {t('identity_char_counter', { count: displayValue.length, max: maxLength })}
+            </span>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Email-shaped variant of IdentityTextField. Renders an inline
+// "doesn't look like an email" hint when the draft fails the lite
+// RFC check — purely informational, the save still goes through.
+// Empty input never lights the warning.
+function IdentityEmailField(props: {
+  testId: string;
+  label: string;
+  placeholder?: string;
+  initial: string | null;
+  invalidMessage: string;
+  onCommit: (value: string | null) => void;
+}): JSX.Element {
+  const { testId, label, placeholder, initial, invalidMessage, onCommit } = props;
+  const [draft, setDraft] = useState<string | null>(null);
+  const displayValue = draft ?? initial ?? '';
+  const looksLikeEmail = isLikelyEmail(displayValue);
+  return (
+    <div className="space-y-1">
+      <label htmlFor={testId} className="text-ink-2 block text-xs font-medium">
+        {label}
+      </label>
+      <input
+        id={testId}
+        data-testid={testId}
+        type="email"
+        value={displayValue}
+        placeholder={placeholder}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          onCommit(trimToNullable(e.target.value));
+        }}
+        onBlur={() => setDraft(null)}
+        className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+      />
+      {!looksLikeEmail && displayValue.trim() !== '' ? (
+        <p data-testid={`${testId}-invalid`} className="text-bad text-[11px]">
+          {invalidMessage}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function InvoicingSection(): JSX.Element | null {
   const { t } = useTranslation('settings');
   const { t: tInvoice } = useTranslation('invoice');
@@ -1196,6 +1568,14 @@ export function SettingsScreen(): JSX.Element {
             </div>
           ) : null}
         </section>
+
+        {/* v0.9 Phase 4a — Shop Identity section. Sits just below
+            the legacy shop-profile section (logo + name + currency)
+            so the new identity fields appear next to the old ones
+            without disrupting the existing layout. Brand picker,
+            theme picker, completion ring, and opening hours all
+            land inside this section in later phases. */}
+        <ShopIdentitySection />
 
         {profile?.store_type === 'shop' ? (
           <section
