@@ -27,6 +27,7 @@ import { getMeta, META_KEYS, setMeta } from '../repos/meta';
 import { db, resetDatabase } from '../db/db';
 import { getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
+import { extractDominantColorFromBlob } from '../theme/extract-logo-color-from-blob';
 import { downloadBackupFile } from '../backup/download';
 import { APP_VERSION } from '../config/app-version';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
@@ -839,10 +840,16 @@ export function SettingsScreen(): JSX.Element {
         height: compressed.height,
         mime: compressed.mime,
       });
+      // v0.9 ADR-042 — sample the dominant brand colour off the
+      // compressed blob (pre-keying, since this branch took the
+      // "skipped" path or surfaced a toast). Null when no usable
+      // colour was found.
+      const dominantColor = await extractDominantColorFromBlob(compressed.blob);
       await upsertProfile(db, {
         name: profile.name,
         locale: profile.locale,
         logo_photo_id: stored.id,
+        logo_dominant_color: dominantColor,
       });
     } finally {
       setLogoBusy(false);
@@ -868,10 +875,17 @@ export function SettingsScreen(): JSX.Element {
         height: logoKeyingCandidate.height,
         mime,
       });
+      // v0.9 ADR-042 — extract from the merchant's committed choice.
+      // 'transparent' branch reads the keyed PNG (background already
+      // alpha=0, so the saturation filter sees pure logo pixels);
+      // 'original' reads the unkeyed JPEG and lets the luminance
+      // gate drop the background.
+      const dominantColor = await extractDominantColorFromBlob(choice.blob);
       await upsertProfile(db, {
         name: profile.name,
         locale: profile.locale,
         logo_photo_id: stored.id,
+        logo_dominant_color: dominantColor,
       });
     } finally {
       setLogoBusy(false);
@@ -883,10 +897,15 @@ export function SettingsScreen(): JSX.Element {
     if (!profile) return;
     setLogoBusy(true);
     try {
+      // v0.9 ADR-042 — clear the cached dominant colour too. The
+      // merchant's brand_primary_color is intentionally NOT touched
+      // here: removing the logo doesn't undo a brand choice they
+      // already applied to the app. Only the per-logo cache resets.
       await upsertProfile(db, {
         name: profile.name,
         locale: profile.locale,
         logo_photo_id: null,
+        logo_dominant_color: null,
       });
     } finally {
       setLogoBusy(false);

@@ -31,6 +31,7 @@ import { db } from '../db/db';
 import { META_KEYS, setMeta } from '../repos/meta';
 import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, getProfile, upsertProfile } from '../repos/profile';
 import { storePhoto } from '../repos/photos';
+import { extractDominantColorFromBlob } from '../theme/extract-logo-color-from-blob';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
 import { listSupportedCurrencies } from '../i18n/currency';
 import { setLocale } from '../i18n/i18next';
@@ -320,6 +321,12 @@ export function OnboardingScreen(): JSX.Element {
   async function confirmBackupCard(): Promise<void> {
     setSubmitting(true);
     let logoPhotoId: string | null = null;
+    // v0.9 ADR-042 — extracted dominant colour for Phase 4's "Apply
+    // your brand colour to the app?" prompt. Null when no logo, or
+    // when the extractor can't find a usable colour (greys, near-
+    // black, near-white). Stored alongside the logo so the prompt
+    // can fire on a later visit too.
+    let logoDominantColor: string | null = null;
     if (logoFile) {
       // Read dimensions for the Photo row metadata. Cheap thanks to
       // createImageBitmap; we already shipped the blob through the
@@ -333,6 +340,7 @@ export function OnboardingScreen(): JSX.Element {
       });
       bitmap.close?.();
       logoPhotoId = stored.id;
+      logoDominantColor = await extractDominantColorFromBlob(logoFile);
     }
     // Resolve location labels. The picker normally guarantees a non-empty
     // value, but the legacy-vertical-fallback path (a v6 profile that
@@ -365,6 +373,7 @@ export function OnboardingScreen(): JSX.Element {
       location_floor_label: normaliseFrontLabel(finalFloorLabel),
       location_back_label: normaliseBackLabel(finalBackLabel),
       logo_photo_id: logoPhotoId,
+      logo_dominant_color: logoDominantColor,
     });
     // v0.5.2 ADR-021: a fresh-onboarded profile picked its own
     // subtypes — the migration confirmation banner should never show
