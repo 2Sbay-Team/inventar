@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   applyMondayToOthers,
@@ -28,7 +29,18 @@ export interface OpeningHoursEditorProps {
 
 export function OpeningHoursEditor({ value, onChange }: OpeningHoursEditorProps): JSX.Element {
   const { t } = useTranslation('settings');
-  const week = deriveWeek(value);
+
+  // Local copy of the week. Reading `deriveWeek(value)` on every
+  // render would mean two rapid keystrokes (Mon from = 09:00 →
+  // Mon to = 21:00) both compute their next-week from the SAME
+  // pre-autosave-flush `value`, so the second write wipes out the
+  // first. By holding local state we coalesce multiple in-flight
+  // edits into a single up-to-date view, then sync down whenever
+  // the saved profile catches up.
+  const [week, setWeek] = useState<OpeningHours>(() => deriveWeek(value));
+  useEffect(() => {
+    setWeek(deriveWeek(value));
+  }, [value]);
 
   function patchDay(
     day: DayKey,
@@ -36,17 +48,19 @@ export function OpeningHoursEditor({ value, onChange }: OpeningHoursEditorProps)
   ): void {
     const current = week[day];
     if (current === null) return; // never; deriveWeek fills every slot
-    onChange(
-      setDay(week, day, {
-        open: patch.open ?? current.open,
-        from: patch.from ?? current.from,
-        to: patch.to ?? current.to,
-      }),
-    );
+    const next = setDay(week, day, {
+      open: patch.open ?? current.open,
+      from: patch.from ?? current.from,
+      to: patch.to ?? current.to,
+    });
+    setWeek(next);
+    onChange(next);
   }
 
   function onApplyMondayToOthers(): void {
-    onChange(applyMondayToOthers(week));
+    const next = applyMondayToOthers(week);
+    setWeek(next);
+    onChange(next);
   }
 
   return (
@@ -95,8 +109,13 @@ export function OpeningHoursEditor({ value, onChange }: OpeningHoursEditorProps)
                     }
                     className="border-hair focus-visible:ring-accent/40 rounded-md border bg-white px-1.5 py-0.5 font-mono text-xs focus-visible:outline-none focus-visible:ring-2"
                   />
+                  {/* Direction-aware arrow: → in LTR locales, ← in RTL.
+                      Tailwind's `rtl:` variant flips the glyph at render
+                      time so Arabic reads from-on-the-right → to-on-the-left
+                      without the layout looking like a typo. */}
                   <span className="text-ink-3" aria-hidden>
-                    →
+                    <span className="inline rtl:hidden">→</span>
+                    <span className="hidden rtl:inline">←</span>
                   </span>
                   <input
                     type="time"
