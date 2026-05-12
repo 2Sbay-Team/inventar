@@ -217,6 +217,8 @@
     "scan_unsupported_body": "Utilisez Chrome sur Android, Edge ou Safari pour le scanner intégré. Vous pouvez toujours saisir le code à la main dans les Notes.",
     "scan_error_title": "Caméra indisponible",
     "add_color_block": "+ Ajouter une couleur",
+    "add_color_block_first": "+ Ajouter une couleur",
+    "add_color_block_more": "+ Ajouter une autre couleur",
     "remove_color_block": "Supprimer cette couleur",
     "add_size_row": "+ Ajouter une pointure",
     "remove_size_row": "Supprimer cette pointure",

@@ -1197,7 +1197,11 @@ function Step2(props: Step2Props): JSX.Element {
           className="border-hair text-ink-2 inline-flex items-center justify-center gap-1.5 rounded-xl border bg-white py-2.5 text-sm"
         >
           <Plus aria-hidden className="h-4 w-4" strokeWidth={2.25} />
-          {t('add_color_block')}
+          {/* First colour block is the implicit one rendered at the top;
+              if the merchant has only used that, "Add colour" reads more
+              naturally than "Add another colour". The "another" copy
+              kicks in once a second block exists. */}
+          {blocks.length <= 1 ? t('add_color_block_first') : t('add_color_block_more')}
         </button>
       ) : null}
     </div>
@@ -1494,9 +1498,10 @@ function Stepper({
 }): JSX.Element {
   return (
     <div className="border-hair flex flex-1 items-center rounded-lg border bg-white">
-      <span className="text-ink-3 px-2 text-[10px] font-mono uppercase tracking-wider">
-        {label}
-      </span>
+      {/* Render the merchant's chosen label verbatim — no `uppercase` so
+          a custom "Boutique" or "المخزن" reads as the merchant typed it,
+          and the default "Floor" / "Back" stay sentence-cased. */}
+      <span className="text-ink-3 px-2 text-[11px] font-mono tracking-wide">{label}</span>
       <button
         type="button"
         data-testid={`${testId}-minus`}

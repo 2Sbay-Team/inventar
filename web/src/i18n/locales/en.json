@@ -217,6 +217,8 @@
     "scan_unsupported_body": "Use Chrome on Android, Edge, or Safari for the in-app scanner. You can still type the SKU into Notes.",
     "scan_error_title": "Camera unavailable",
     "add_color_block": "+ Add another colour",
+    "add_color_block_first": "+ Add colour",
+    "add_color_block_more": "+ Add another colour",
     "remove_color_block": "Remove this colour",
     "add_size_row": "+ Add size",
     "remove_size_row": "Remove size",

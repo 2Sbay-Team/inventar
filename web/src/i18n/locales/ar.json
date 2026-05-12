@@ -217,6 +217,8 @@
     "scan_unsupported_body": "استخدم Chrome على Android أو Edge أو Safari للماسح المدمج. يمكنك دائماً كتابة الرمز يدوياً في الملاحظات.",
     "scan_error_title": "الكاميرا غير متاحة",
     "add_color_block": "+ إضافة لون آخر",
+    "add_color_block_first": "+ إضافة لون",
+    "add_color_block_more": "+ إضافة لون آخر",
     "remove_color_block": "حذف هذا اللون",
     "add_size_row": "+ إضافة مقاس",
     "remove_size_row": "حذف المقاس",
