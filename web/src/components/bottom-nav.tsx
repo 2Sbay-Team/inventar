@@ -28,8 +28,15 @@ import { STORE_TYPES } from '../config/store-types';
 // corners, backdrop blur, soft shadow, active-tab pill indicator. Each
 // tab transitions between active and inactive states in 200 ms (icon
 // stroke weight + colour, label weight, pill background). Stroke-width
-// difference (1.75 inactive → 2.25 active) doubles as a fallback for
+// difference (1.5 inactive → 2.5 active) doubles as a fallback for
 // Lucide's lack of filled-icon variants.
+//
+// v0.6.10 — nudged the seven cosmetic values to the original brief's
+// exact spec after merchant review: z-100 (was z-50), backdrop-blur 16
+// (was 12 / md), shadow `0 -4px 20px` (was `0 -2px 16px`),
+// background-alpha 0.85 (was 0.92), explicit height 64 px (was implicit
+// ~62), active/inactive stroke 2.5/1.5 (was 2.25/1.75), inactive colour
+// #8E8E93 (was theme `text-ink-3`).
 
 interface NavItem {
   to: string;
@@ -60,24 +67,27 @@ export function BottomNav(): JSX.Element {
   const storeType = profile?.store_type ?? 'shoes';
   const isScanFirst = STORE_TYPES[storeType].primary_flow === 'scan';
   const items = isScanFirst ? SCAN_ITEMS : ADD_ITEMS;
-  // Visual contract:
+  // Visual contract (values to the brief's exact spec):
   //   • Container: fixed at viewport bottom, rounded top corners (20 px),
-  //     translucent white with backdrop-blur, subtle upward shadow.
-  //   • Active tab: pill indicator (bg-accent/12), accent-coloured icon
-  //     with bold stroke, accent-coloured label with semi-bold weight,
-  //     icon scale 1.05.
-  //   • Inactive tab: muted ink-3 icon (stroke-1.75), regular-weight
-  //     label, no background. Transitions over 200 ms.
+  //     translucent white (0.85 alpha) with backdrop-blur(16 px), soft
+  //     upward shadow `0 -4px 20px rgba(0,0,0,0.06)`, explicit height
+  //     64 px (h-16) above the safe-area padding.
+  //   • Active tab: pill indicator (bg-accent at 12 % alpha), accent-
+  //     coloured icon at stroke-width 2.5, accent-coloured label at
+  //     semi-bold weight, icon scale 1.05.
+  //   • Inactive tab: gray (#8E8E93) icon at stroke-width 1.5, regular-
+  //     medium label, no pill background. Transitions over 200 ms.
   //   • Safe-area aware: padding-bottom honours env(safe-area-inset-bottom)
   //     so iOS notched home-indicator doesn't bisect the labels.
   //
-  // z-50 sits above page content (z-auto) and the FAB (z-30) and below
-  // Radix dialog overlays (default z-50; their `fixed inset-0` covers
-  // the nav for blocking states).
+  // z-[100] sits above page content (z-auto), the FAB (z-30), and below
+  // Radix dialog overlays (default z-50 — wait, Radix uses inset-0 on
+  // the overlay which covers the nav regardless of z-ordering, so the
+  // blocking-modal interaction stays correct even at z-100).
   return (
     <nav
       data-testid="bottom-nav"
-      className="fixed inset-x-0 bottom-0 z-50 bg-white/[0.92] backdrop-blur-md shadow-[0_-2px_16px_rgba(0,0,0,0.06)] rounded-t-[20px] pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around"
+      className="fixed inset-x-0 bottom-0 z-[100] flex h-16 justify-around bg-white/[0.85] backdrop-blur-[16px] shadow-[0_-4px_20px_rgba(0,0,0,0.06)] rounded-t-[20px] pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
     >
       {items.map(({ to, testId, i18nKey, Icon }) => (
         <NavLink
@@ -88,7 +98,7 @@ export function BottomNav(): JSX.Element {
           className={({ isActive }) =>
             [
               'group flex flex-1 flex-col items-center gap-0.5 py-1.5 transition-colors duration-200',
-              isActive ? 'text-accent' : 'text-ink-3 hover:text-ink-2',
+              isActive ? 'text-accent' : 'text-[#8E8E93] hover:text-ink-2',
             ].join(' ')
           }
         >
@@ -106,7 +116,7 @@ export function BottomNav(): JSX.Element {
                 <Icon
                   aria-hidden
                   className="h-[18px] w-[18px] transition-[stroke-width] duration-200"
-                  strokeWidth={isActive ? 2.25 : 1.75}
+                  strokeWidth={isActive ? 2.5 : 1.5}
                 />
               </span>
               <span
