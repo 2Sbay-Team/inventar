@@ -82,6 +82,17 @@ export function isContinuousUom(uom: Uom): boolean {
   return CONTINUOUS_UOMS.has(uom);
 }
 
+// Weight/volume measurement units. When the merchant picks one of these
+// the size input is redundant — a 1 kg packet of sugar or a 500 ml
+// bottle of oil already carries its dimension in the unit. Narrower
+// than isContinuousUom because `meter` keeps the size input (with cut-
+// length suggestions like 0.5m / 1m / 2m / …).
+const WEIGHT_VOLUME_UOMS: ReadonlySet<Uom> = new Set(['kg', 'g', 'l', 'ml']);
+
+export function isWeightOrVolumeUom(uom: Uom): boolean {
+  return WEIGHT_VOLUME_UOMS.has(uom);
+}
+
 export function uomSmallUnitFactor(uom: Uom): number {
   return SMALL_UNIT_FACTOR[uom];
 }

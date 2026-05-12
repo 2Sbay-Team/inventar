@@ -14,6 +14,7 @@ import {
   inputPriceToInternal,
   inputQtyToInternal,
   isContinuousUom,
+  isWeightOrVolumeUom,
   type Uom,
 } from '../config/article-traits';
 import { db } from '../db/db';
@@ -192,17 +193,20 @@ export function AddArticleScreen(): JSX.Element {
       b.unitOfMeasure === 'piece' && next !== 'piece' ? { ...b, unitOfMeasure: next } : b,
     );
   }, [profile]);
-  // v0.5.6 — true for measured UoMs (kg/g/l/ml/meter); suppresses the
-  // size + colour matrix because a 250 g packet of coffee or a roll of
-  // fabric has no "size 42 in blue". The new countable UoMs (pair /
-  // pack / dozen) keep the matrix — a "pair" of shoes still has sizes.
+  // v0.5.6 — colour matrix is suppressed for any measured UoM (weight,
+  // volume, length): a roll of fabric has no "blue vs red" axis worth
+  // tracking per metre. Size is more nuanced — a weight/volume UoM
+  // makes size redundant (a 1 kg pack is already its own size), but
+  // meter keeps the size input so the merchant can stock cut lengths
+  // (0.5m, 1m, 2m, …) with separate counts. Hence the two predicates.
   const isMeasuredUom = isContinuousUom(basics.unitOfMeasure);
+  const hidesSizeField = isWeightOrVolumeUom(basics.unitOfMeasure);
   const hasColors = isMeasuredUom
     ? false
     : storeType === 'shop'
       ? shopWantsColors
       : storeCfg.has_colors;
-  const hasSizes = isMeasuredUom
+  const hasSizes = hidesSizeField
     ? false
     : storeType === 'shop'
       ? shopWantsSizes
@@ -476,7 +480,12 @@ export function AddArticleScreen(): JSX.Element {
         // and Article Detail rendered no SizeGrid even when sized
         // variants existed — a latent bug from before v0.5.2.9.
         unit_of_measure: uom,
-        has_sizes: isMeasuredUom ? false : storeType === 'shop' ? shopWantsSizes : null,
+        // `hidesSizeField` (weight/volume only) drives the false-override
+        // so meter articles in the fashion vertical keep has_sizes=null
+        // and inherit the vertical default — they have real per-cut
+        // sizes (0.5m, 1m, …) saved on the variants. Colours follow the
+        // broader isMeasuredUom rule (no per-colour fabric matrix).
+        has_sizes: hidesSizeField ? false : storeType === 'shop' ? shopWantsSizes : null,
         has_colors: isMeasuredUom ? false : storeType === 'shop' ? shopWantsColors : null,
       });
       // v0.5.2.3 — land on the printable-label page so the merchant
