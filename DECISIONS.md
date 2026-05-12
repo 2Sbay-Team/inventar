@@ -848,8 +848,309 @@ merchant who hits Export and then cancels the OS save dialog still
 gets the ✓ indicator and the Install button enabled on breaking —
 ergonomic, but not a security boundary.
 
-**SPEC §10 amendment.** `APP_VERSION` is still duplicated as
-`const APP_VERSION = '1.0.0'` in three callers
-(`settings.tsx`, `use-auto-backup.ts`, `app-update-modal.tsx`). The
-TODO to thread it through Vite's `define` config remains open;
-nothing in this commit makes the situation worse.
+**SPEC §10 amendment.** `APP_VERSION` was duplicated as
+`const APP_VERSION = '1.0.0'` in three callers (`settings.tsx`,
+`use-auto-backup.ts`, `app-update-modal.tsx`). RESOLVED in v0.6.3 by
+extracting `web/src/config/app-version.ts` as the single source of
+truth; all three call sites now import from there. v0.6.7 bumped to
+`'1.0.1'`. The Vite `define` route is no longer pursued — the
+config-module pattern is simpler and just as correct.
+
+---
+
+## ADR-033: Location labels stored as locale-neutral keys (or `custom:` prefix); rendered via per-locale tables at read time
+
+**v0.6.3.** ADR-022 / ADR-029 introduced merchant-customisable
+display labels for the two stock zones (`location_floor_label` /
+`location_back_label` on the profile row). Until v0.6.2 those
+fields stored the literal display string the merchant picked or
+typed — "Shop floor" / "Magasin" / "المحل" / "Tiroir A". A
+locale-specific value worked fine until a merchant changed the
+app's UI locale: their stored "الواجهة" then showed as raw
+foreign text in EN/FR, and SelectWithCustom (correctly) flipped
+into custom-input fallback mode because the stored string wasn't
+in the new locale's options. Reported by users as "the dropdown
+disappears in EN/FR" and "my labels turned into Arabic gibberish
+after I switched language".
+
+**Decision.** Storage shape is now zone-aware **keys**:
+
+  * Front zone keys: `shop_floor` / `display` / `front`.
+  * Back zone keys: `stockroom` / `storage` / `back`.
+  * Merchant-typed custom value: stored with a `custom:` prefix
+    and the verbatim string after it (`custom:Tiroir A`).
+  * Empty / unset: falls through to the (vertical, locale)
+    default at render time, same as ADR-022.
+
+`useLocationLabels` resolves all four forms:
+
+  1. Empty / null → vertical+locale default (back-compat with
+     pre-v0.5.2 rows).
+  2. Known `FrontKey` / `BackKey` → look up the current UI
+     locale's display via `FRONT_OPTIONS_BY_KEY` /
+     `BACK_OPTIONS_BY_KEY` tables.
+  3. `custom:*` → strip the prefix, render verbatim.
+  4. Legacy plain display string → zone-aware reverse lookup
+     (`frontKeyForDisplay` / `backKeyForDisplay`) so v6 / v7
+     profiles that skipped the v13 migration still render
+     correctly; falls through to verbatim only if no known
+     locale display matches.
+
+**Zone-aware reverse lookup matters.** The display string "Back"
+is the EN label for the BACK-zone `back` key. A merchant who types
+"Back" into the FRONT field expects it preserved as a custom
+value, not silently coerced into a BACK key on a FRONT column
+(which would then fail to resolve at render time because
+`FRONT_OPTIONS_BY_KEY` doesn't carry that key). The reverse-lookup
+helpers scan only the keys of their own zone.
+
+**Migration.** Dexie v12 → v13 walks every profile row through
+`normaliseFrontLabel` / `normaliseBackLabel` — the same helpers
+Settings + Onboarding call at write time. Idempotent: rows that
+already store a key or a `custom:` value pass through unchanged.
+Empty / undefined fields are left as-is (the render-time fallback
+to defaults handles them).
+
+**Why a key table instead of i18next.** Three zones × three
+locales × three keys is small enough that a typed map literal
+(`Record<Locale, Record<FrontKey, string>>`) is easier to read and
+test than threading i18next namespacing through the picker
+component. The translations don't need pluralisation or
+interpolation; the key table sits in `config/location-options.ts`
+next to the order array.
+
+**Test coverage.** 8 unit cases in `migrate-v12-to-v13.test.ts`
+pin the migration rule (EN/FR/AR rewrite, custom preservation,
+zone-collision, idempotency, skip-empty). 3 e2e cases in
+`82_location_keys_locale_swap.spec.ts` cover the end-to-end
+locale-swap contract — pick "Magasin" in FR → swap to EN → see
+"Shop floor", same `display` key.
+
+**Migration banner / non-impact.** No banner shown; the migration
+runs silently on app open. The visual outcome is "labels suddenly
+work right across locale switches"; merchants who only ever use
+one locale see no change. The migration completes in <1ms even on
+a 100-profile (impossible) database, so there's no perceptible
+upgrade cost.
+
+---
+
+## ADR-034: Global Floating Action Button — route-aware visibility, RTL-flipping inline-end position
+
+**v0.6.4.** Catalogue-shaped screens (`/`, `/list`) and the
+dashboard had grown long enough that the bottom-nav "Add" tab
+required a scroll to reach on tall lists. The dashboard had a
+local labelled-pill `add-expense-fab` button as a workaround;
+search and list had nothing.
+
+**Decision.** A single `<Fab />` component, mounted inside
+`ScreenLayout` so it positions within the centred app shell
+(`absolute end-6 bottom-20`), self-determines visibility from
+`useLocation()`:
+
+  * `/` and `/list` → "Add new article" → `navigate('/add')`.
+  * `/dashboard` → "Add expense" → dispatches a document-level
+    `inventar:fab-trigger` event; dashboard listens via `useEffect`
+    and opens its existing Add-Expense dialog.
+  * Everywhere else → returns `null`.
+
+The dispatched-event pattern (vs. lifting modal state up or
+threading callbacks) keeps the modal state inside whichever screen
+owns the dialog. The Fab only signals; screens that care
+subscribe.
+
+**Hidden routes:** `/add` (already on the destination),
+`/settings*`, `/onboarding`, `/alerts`, `/help`, `/receive` and
+`/sell` (camera screens), the various detail / report /
+QR-label paths.
+
+**`/article/:id` deliberately excluded.** The detail screen
+already exposes Sell + Restock in a sticky action-bar; adding a
+FAB there would double-up the affordance and overlap the bar
+geometrically. The brief asked for it but also pinned "do not
+touch existing screen layouts or components" — the cleaner end
+state honours that constraint and leaves article-detail untouched.
+If the FAB needs to land there later, the action-bar should be
+reworked in the same change.
+
+**Layout.** 56 px circle, `bg-accent` (#FF6B35), white "+" icon,
+`shadow-[0_4px_12px_rgba(0,0,0,0.15)]`, `absolute bottom-20 end-6
+z-30`. `end-6` is Tailwind's logical inline-end property — flips
+to bottom-left under `dir="rtl"` (Arabic) without per-locale
+classes. `absolute` (not `fixed`) keeps the FAB pinned to the
+centred shell on tablets / desktops rather than the raw viewport
+edge.
+
+**Contrast caveat.** White-on-`#FF6B35` is ≈ 2.81 : 1, below the
+WCAG 1.4.11 graphical-objects 3 : 1 floor and far below AA-text
+4.5 : 1. The brief asked for the brand-primary colour and we
+followed; the icon is `aria-hidden` so screen-reader users get the
+button's `aria-label` instead. If strict AA becomes load-bearing,
+swap `bg-accent` for `bg-accent-ink` (`#C44417` → ≈ 5 : 1, passes
+AA).
+
+**Dashboard cleanup.** The legacy labelled-pill
+`add-expense-fab` was removed in this commit — the global circular
+FAB triggers the same Dialog via the document-event subscription,
+and having two floating buttons on the dashboard would be
+visually noisy. The existing `06_dashboard.spec.ts` test was
+re-pointed at `data-testid="fab"`.
+
+**Test coverage.** 6 e2e cases in `85_fab.spec.ts`: visibility
+audit across visible / hidden routes, /list and / taps both
+navigate to /add, /dashboard tap opens the expense sheet, AR
+locale flips x-coordinate to the start side of the shell, long
+scroll keeps the FAB pinned to the viewport y.
+
+---
+
+## ADR-035: Merchant chooses what appears at the centre of printed QR labels — logo or store name
+
+**v0.6.5.** Until v0.6.4 the QR-label renderer (ADR-030)
+automatically preferred the logo when one was uploaded, falling
+back to the shop name. Merchants asked for an explicit choice
+because shop-name-in-centre reads clearer on small printed labels
+than a tiny stamped logo, and some merchants who upload a logo for
+the invoice header don't want it on every product label.
+
+**Decision.** New `ShopProfile.qr_center_mode: 'logo' | 'name'`,
+controlled from a radio picker in Settings → Shop profile (live
+preview alongside) and respected by every label render site
+(`/settings/label-preview`, `/article/:id/label`, and the
+Settings live preview itself).
+
+**Auto-fallback / auto-promote rules** (`deriveQrCenterMode`):
+
+  1. Caller-supplied mode wins, except `'logo'` with no logo →
+     coerced to `'name'`. The renderer never sees an unrenderable
+     `(logo, null)` pair, so it doesn't need its own fallback.
+  2. Existing `'logo'` with no logo (the merchant just deleted
+     theirs) → `'name'` on the next write. Same as rule 1, applied
+     to the existing-row path so the next render emit gets the
+     corrected mode.
+  3. Existing `'name'` AND no previous logo AND new logo on this
+     write → auto-promote to `'logo'`. Models "merchant uploads
+     their first logo, expects it on labels by default." Replacing
+     an existing logo (so `existingLogo` was truthy) preserves
+     `'name'` — an explicit choice isn't overridden.
+  4. First-create default: `'logo'` if logo present, else
+     `'name'`.
+
+**UI primitive.** Settings uses Radix `RadioGroup`, not raw
+`<input type="radio">`. The raw-input first pass hit a
+controlled-radio-vs-async-side-effect race: the browser flipped
+the radio's native `checked` attribute on click, but React didn't
+re-render until `upsertProfile` resolved (async), so Playwright
+read DOM state that briefly contradicted the controlled
+`effectiveMode` prop. RadioGroup is a button-based primitive
+driven by `data-state` from `value` — no native checked attribute,
+no race. `QuickAdjustSheet` already used this primitive for the
+same reason.
+
+**Migration.** Dexie v13 → v14 backfills `qr_center_mode` on every
+existing row: rows with a `logo_photo_id` get `'logo'`, the rest
+get `'name'`. Idempotent — already-set rows skip the modify so the
+upgrade is safe to re-run via a backup import that re-opens the
+DB through the kernel.
+
+**Hide the option vs. disable it.** When no logo is uploaded, the
+"Show logo" radio is **hidden**, not just disabled. The brief was
+explicit; a disabled-with-tooltip would have been busier with no
+clear gain. The render-time `effectiveMode` collapses to `'name'`
+for these rows so the live preview is faithful to what'll print.
+
+**Backup round-trip.** v1 / v2 / v3 backups predate the field;
+`backfillV05Defaults` in the import path applies the same
+logo-presence-derived default the migration does, so an imported
+row looks identical to an in-place-migrated row.
+
+**Test coverage.** 5 unit cases in `migrate-v13-to-v14.test.ts`,
+3 new repo-level cases in `profile.test.ts` (auto-promote on first
+logo, preserve explicit 'name' across logo replace, auto-fallback
+on remove), 7 e2e cases in `86_qr_center_preference.spec.ts`
+(no-logo / toggle / delete / long-name truncation / reload /
+FR+AR translation).
+
+---
+
+## ADR-036: Service-worker delivery requires `no-store` at origin AND a Cloudflare cache-bypass rule
+
+**v0.6.7.** Field investigation on 12 May 2026 — after multiple
+clean deploys of v0.6.3 / v0.6.4 / v0.6.5 — found merchants stuck
+on stale builds for hours. None of the recent feature commits
+reached devices. The bundles were live at origin; the service
+worker that should have detected them never reached the browser.
+
+**Reproduction.**
+
+```
+$ curl -sI https://inventar.hoodhood.ai/sw.js
+  cache-control: max-age=14400              ← what CF sent
+  cf-cache-status: REVALIDATED
+
+$ docker compose exec inventar_web wget -S -O /dev/null http://127.0.0.1/sw.js
+  Cache-Control: no-cache                   ← what origin sent
+```
+
+Origin's `no-cache` was being rewritten by Cloudflare's "Browser
+Cache TTL" (Free plan default for `.js` files) to `max-age=14400`,
+so every merchant's browser cached `/sw.js` for 4 h after each
+visit. The next visit served the cached old SW. Update detection
+froze on every release.
+
+**Decision — two-part fix, both required.**
+
+**Part 1 (origin).** `docker/nginx.conf` now emits the strongest
+"do not cache" header set we can send for `/sw.js`,
+`/whats-new.json`, `/index.html`, and `/manifest.webmanifest`:
+
+```
+Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+Pragma: no-cache
+Expires: 0
+```
+
+`/sw.js` additionally carries `Service-Worker-Allowed: /`. The
+`always` modifier reapplies these on 304 / error responses (the
+previous plain `add_header` skipped non-2xx). Empirically the
+stronger `no-store` was enough to convince Cloudflare Free to
+honour origin headers — `cf-cache-status` flipped from
+`REVALIDATED` / `EXPIRED` to `BYPASS` / `DYNAMIC` immediately
+after deploy. We don't know whether the trigger was the
+`Service-Worker-Allowed` advert, the `no-store` directive, or the
+`Pragma:no-cache` belt; we know all three together work today.
+
+**Part 2 (Cloudflare dashboard).** Documented in DEPLOY.md §5b
+as a one-time setup step: Cache Rules that explicitly Bypass for
+`/sw.js` and `/whats-new.json`. The origin fix is empirically
+sufficient on the current Free plan but isn't covered by any
+Cloudflare SLA — if CF defaults change, the dashboard rule is the
+durable belt and origin headers become the suspenders. Verification
+curl + one-time edge purge are in the same DEPLOY.md section.
+
+**Why `no-store` instead of just `no-cache`.** `no-cache` permits a
+cache to store the response and revalidate on every request — and
+CF Free was historically using that latitude to "store with edge
+TTL override". `no-store` says "don't keep this response anywhere
+at all"; cleaner intent, harder to override, and has no downside
+for files that already revalidate on every load.
+
+**App-layer no-op.** The v0.6 ADR-031 update-consent flow is
+unchanged. `skipWaiting: false`, message-gated activation via
+`SKIP_WAITING`, `useAppUpdate` subscribing to the `waiting` event
+— all already correct. The bug was at the delivery layer.
+
+**Version bump as a forcing function.** v0.6.7 also bumped
+`APP_VERSION` 1.0.0 → 1.0.1 and refreshed `public/whats-new.json`
+to v1.0.1 with current EN/FR/AR highlights (About + manual update
+check, the FAB, QR centre preference). The bump ensures the SW
+content hash differs so the next edge revalidation actually serves
+fresh bytes; the whats-new refresh gives the consent modal something
+meaningful to show on first install of the unblocked pipeline.
+
+**Side-effect: Settings → "Check for updates" now works on first
+deploy.** The manual-check feature (v0.6.3 / ADR — unwritten,
+covered in this batch via the SPEC.md screens addition) shipped
+in d51abda but was never reachable from a stale-SW browser. With
+v0.6.7 unblocking the pipeline, the manual check actually
+completes its `registration.update()` → 'waiting' → modal cycle.

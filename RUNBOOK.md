@@ -23,7 +23,26 @@ A successful run ends with `==> healthy`. The new bundle is live on `https://inv
 ### Quick smoke after deploy
 
 ```bash
-curl -s https://inventar.hoodhood.ai/ | grep -q 'boot-fallback' && echo "OK"
+# 1. Shell mounts (inline boot-fallback markup, v0.5.1).
+curl -s https://inventar.hoodhood.ai/ | grep -q 'boot-fallback' && echo "shell OK"
+
+# 2. Health endpoint.
+curl -fsS https://inventar.hoodhood.ai/health   # → ok
+
+# 3. SW delivery is not edge-cached. v0.6.7 (ADR-036) caught Cloudflare
+#    rewriting our `no-cache` to `max-age=14400` on /sw.js, which
+#    silently froze merchants on stale builds for hours. Both checks
+#    below should pass after every deploy. If /sw.js comes back with
+#    `cf-cache-status: HIT` or any `max-age > 0`, the consent modal
+#    will not fire for any release — see DEPLOY.md §5b.
+curl -sI https://inventar.hoodhood.ai/sw.js \
+  | grep -iE 'cache-control|cf-cache'
+#   → cache-control: no-store, no-cache, must-revalidate, max-age=0
+#   → cf-cache-status: BYPASS
+curl -sI https://inventar.hoodhood.ai/whats-new.json \
+  | grep -iE 'cache-control|cf-cache'
+#   → cache-control: no-store, no-cache, must-revalidate, max-age=0
+#   → cf-cache-status: DYNAMIC
 ```
 
 The inline boot-fallback markup (v0.5.1) should be in every deployed HTML response.

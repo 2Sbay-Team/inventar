@@ -59,6 +59,33 @@ export interface ShopProfile {
   store_type: StoreType;
   // v0.5 ADR-017: empty array for non-shop verticals.
   shop_subtypes: ShopSubtype[];
+  // v0.5.2 ADR-021: fashion-vertical analogue of shop_subtypes.
+  fashion_subtypes: FashionSubtype[];
+  // v0.5.2 ADR-022 / v0.6.3 ADR-033: merchant-customisable labels for
+  // the two stock zones. Stored as locale-neutral keys ('shop_floor',
+  // 'display', 'front' for the front zone; 'stockroom', 'storage',
+  // 'back' for the back zone) OR the prefix-tagged custom form
+  // `custom:<verbatim>`. Empty string falls through to the
+  // (vertical, locale) default at render time. useLocationLabels
+  // resolves all four cases — see ADR-033.
+  location_floor_label: string;
+  location_back_label: string;
+  // v0.5.2 ADR-023: global expiry warning threshold in days (default 7).
+  expiry_warning_days: number;
+  // v0.5.2.4 ADR-024 — invoicing block. All four nullable; populated
+  // via Settings only when the merchant issues invoices.
+  legal_name: string | null;
+  legal_address: string | null;
+  fiscal_id: string | null;
+  default_vat_pct: number | null;
+  // v0.5.2.7 — merchant phone for invoice header, verbatim string.
+  phone: string | null;
+  // v0.6.5 ADR-035 — what overlays the centre of printed QR labels.
+  // 'logo' renders logo_photo_id, 'name' renders the shop name as
+  // styled text. Backfilled by the v13→v14 migration (logo present →
+  // 'logo', otherwise 'name'). Renderer auto-falls-back to 'name'
+  // when stored value is 'logo' but logo_photo_id is null.
+  qr_center_mode: 'logo' | 'name';
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;
@@ -155,25 +182,67 @@ export interface Photo {
   created_at: ISODate;
   deleted_at: ISODate | null;
 }
+
+// v0.5.2.4 ADR-024: issued invoice / Facture. Snapshot row — every
+// numeric and label is frozen at issue time, so an invoice stays
+// identical even after the underlying article price or shop name
+// changes. transaction_id links back to the /sell run that produced
+// the invoice; null when issued manually.
+export interface InvoiceLine {
+  description: string;       // free-form, usually copied from Article.name
+  reference: string | null;  // article internal_code / EAN / etc., display only
+  qty: number;               // in the article's smallest unit at issue time
+  unit_price_minor: number;  // per-smallest-unit price in invoice currency minor units
+  unit_of_measure?: Uom;     // v0.5.2.9 — snapshot of article UoM; null reads as 'piece'
+}
+
+export interface Invoice {
+  id: UUID;
+  number: string;            // `INV-YYYY-NNNN`, atomic per-year counter in meta.invoice_counter
+  issued_at: ISODate;
+  customer_name: string | null;
+  customer_address: string | null;
+  customer_fiscal_id: string | null;
+  lines: InvoiceLine[];
+  currency: CurrencyCode;
+  subtotal_minor: number;
+  vat_pct: number;           // integer percent, defaults to ShopProfile.default_vat_pct at issue
+  vat_minor: number;
+  vat_enabled?: boolean;     // v0.5.2.7 — false suppresses the VAT row on screen + PDF
+  total_minor: number;
+  // TODO(v0.7) — `notes` is plumbed end-to-end (row, PDF renderer at
+  // src/repos/invoice-pdf.ts, locale labels in EN/FR/AR) but no UI
+  // currently writes it (sell.tsx hardcodes null) and /invoice/:id
+  // doesn't render it. Future commit either wires an input + screen
+  // render OR removes the renderer; field stays so backup imports
+  // carrying notes survive round-trip and print on the PDF.
+  notes: string | null;
+  transaction_id: UUID | null;
+  created_at: ISODate;
+  deleted_at: ISODate | null;
+}
 ```
 
 ---
 
 ## 3. Dexie schema
 
-The current schema is at version 7 (v0.5). The full version chain is in
-`src/db/db.ts`; only the v7 stores are reproduced here.
+The current schema is at **version 14** (v0.6.5). The full version chain
+lives in `src/db/db.ts`; only the v14 stores are reproduced here. v8–v14
+are pure data-shape migrations that don't add or remove indexes — they
+walk profile / article rows through normaliser functions (see §7).
 
 ```ts
-this.version(7).stores({
+this.version(14).stores({
   profile:   'id',
   articles:  'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
   variants:  'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
-  movements: 'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at',
+  movements: 'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
   expenses:  'id, category, at, deleted_at',
   photos:    'id, deleted_at',
   meta:      'key',
   lots:      'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+  invoices:  'id, &number, issued_at, transaction_id, deleted_at',
 });
 ```
 
@@ -186,8 +255,11 @@ Key indexes explained:
 - `movements.[variant_id+location+created_at]` — v0.3 ADR-012: per-location quantity scans.
 - `movements.transaction_id` — v0.5 ADR-018: group movements created in one /receive or /sell session.
 - `movements.expires_at` — v0.5 ADR-019: daily expiry sweep.
+- `movements.refunds_movement_id` — v0.5.1: link a refund to the sale it cancels.
 - `lots.[variant_id+expires_at]` — v0.5 ADR-019: FIFO query (earliest expiry first per variant).
 - `lots.source_movement_id` — v0.5 ADR-019: back-reference to the purchase Movement that created the lot.
+- `invoices.&number` — v0.5.2.4 ADR-024: unique constraint on the per-year sequential invoice number.
+- `invoices.transaction_id` — v0.5.2.4: link back to the /sell run that produced the invoice (null for manual issuance).
 
 Note: `Movement.lot_id` is **not** indexed. `repos/lots.ts` queries scope
 by `variant_id` and filter by `lot_id` in memory — see §9.
@@ -312,15 +384,28 @@ movements — so the filter is fast in practice.
 
 **Migration log.**
 
-| From → To | Brief                                                                                 |
-|-----------|---------------------------------------------------------------------------------------|
-| v1 → v2   | `ShopProfile.logo_photo_id` (nullable, default null).                                 |
-| v2 → v3   | `ShopProfile.currency` (default 'TND').                                               |
-| v3 → v4   | `ShopProfile.store_type` (default 'shoes').                                           |
-| v4 → v5   | `Movement.unit_price_tnd` (nullable, default null).                                   |
-| v5 → v6   | v0.3 ADR-011/012: colour-on-Variant, location-on-Movement, fan-out per (color, size). |
-| v6 → v7   | v0.5 ADR-017/018/019: kiosk+grocery → shop, shop_subtypes, barcode_ean,               |
-|           | min_stock_threshold, transaction_id, expires_at, lot_id, new lots store.              |
+| From → To  | Brief                                                                                                  |
+|------------|--------------------------------------------------------------------------------------------------------|
+| v1 → v2    | `ShopProfile.logo_photo_id` (nullable, default null).                                                  |
+| v2 → v3    | `ShopProfile.currency` (default 'TND').                                                                |
+| v3 → v4    | `ShopProfile.store_type` (default 'shoes').                                                            |
+| v4 → v5    | `Movement.unit_price_tnd` (nullable, default null).                                                    |
+| v5 → v6    | v0.3 ADR-011/012: colour-on-Variant, location-on-Movement, fan-out per (color, size).                  |
+| v6 → v7    | v0.5 ADR-017/018/019: kiosk+grocery → shop, shop_subtypes, barcode_ean, min_stock_threshold,           |
+|            | transaction_id, expires_at, lot_id, new lots store.                                                    |
+| v7 → v8    | v0.5.1: `Movement.refunds_movement_id` (nullable, indexed).                                            |
+| v8 → v9    | v0.5.2 ADR-021/022/023: fashion vertical consolidation + fashion_subtypes,                             |
+|            | location_floor_label / location_back_label seeded from (vertical, locale), expiry_warning_days,        |
+|            | Article.expiry_alert_days.                                                                             |
+| v9 → v10   | v0.5.2.4 ADR-024: invoicing block (legal_name, legal_address, fiscal_id, default_vat_pct) +            |
+|            | invoices store with `&number` uniqueness.                                                              |
+| v10 → v11  | v0.5.2.7: `ShopProfile.phone`.                                                                         |
+| v11 → v12  | v0.5.2.9: per-article trait overrides (has_sizes / has_colors / has_expiry) + unit_of_measure.         |
+| v12 → v13  | v0.6.3 ADR-033: location_floor_label / location_back_label rewritten from per-locale display strings   |
+|            | to locale-neutral FrontKey / BackKey, with `custom:` prefix for typed values. Empty fields untouched.  |
+| v13 → v14  | v0.6.5 ADR-035: `ShopProfile.qr_center_mode` backfilled — `'logo'` if logo_photo_id is set, else       |
+|            | `'name'`. Idempotent — already-set values skip the modify so an explicit merchant choice survives a    |
+|            | re-run via backup import.                                                                              |
 
 The v6→v7 kernel is pure: read every legacy row, transform in memory,
 write back. Kiosk profiles map to `store_type='shop'` with
@@ -329,6 +414,17 @@ profiles map with `shop_subtypes=['food_beverages']`. All other store
 types pass through unchanged. Internal codes (KI-NNNN, GR-NNNN) are
 preserved verbatim. No Lot rows are backfilled — only new /receive
 sessions create Lots.
+
+The v12→v13 location-key rewrite is zone-aware: "Back" typed into the
+FRONT field is preserved as `custom:Back`, not coerced into the
+BACK-zone `back` key, because `frontKeyForDisplay` scans only the
+three front-zone displays across all locales. Unit tests in
+`src/db/migrate-v12-to-v13.test.ts` pin the cross-zone collision case.
+
+The v13→v14 qr_center_mode backfill checks `qr_center_mode === 'logo' ||
+=== 'name'` before writing, so a merchant who already picked `'name'`
+explicitly (despite having a logo) stays on `'name'` if Dexie reopens
+the db at v14 via a backup import.
 
 ---
 

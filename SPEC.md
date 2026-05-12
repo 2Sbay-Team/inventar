@@ -52,7 +52,26 @@ Layout (mobile, ~360 px wide):
 [Recent searches — 3 chips]
 [Result list — scrollable, each card 70 px tall]
 [Bottom nav: Search · List · + Add · Dashboard · Settings]
+[FAB: orange "+" circle, bottom-right (bottom-left under AR)]
 ```
+
+**Floating Action Button (v0.6.4, ADR-034).** A 56 px circular
+`bg-accent` button with a white "+" icon sits at the inline-end side
+of the centred app shell, above the bottom nav, on the catalogue-shaped
+and dashboard routes. Visibility is route-driven by `useLocation()`:
+
+| Route | Action | aria-label |
+|---|---|---|
+| `/` (Search) | navigate `/add` | "Add new article" |
+| `/list` | navigate `/add` | "Add new article" |
+| `/dashboard` | dispatch `inventar:fab-trigger` (dashboard opens its Add-Expense dialog) | "Add expense" |
+| everywhere else | hidden (returns null) | — |
+
+`/article/:id` is deliberately excluded — the existing sticky
+action-bar already carries Sell + Restock affordances that open
+the same QuickAdjustSheet. The `end-6` Tailwind class makes the FAB
+flip to bottom-left under `dir="rtl"` (Arabic) without per-locale
+CSS.
 
 Search behaviour:
 
@@ -290,16 +309,37 @@ Language               > FR / AR / EN
 Currency display       (locked to TND in MVP)
 Shop name              > edit
 Shop logo              > upload / change / remove (see "Logo upload" below)
+QR label branding      > radio: logo / store name + live preview (v0.6.5, ADR-035)
 Preview label          > stub QR label with current logo / name (v0.6)
+Stock locations        > floor / back zone labels (ADR-022 / ADR-033)
 Backup ──────
   Export data          > generates JSON, opens OS share sheet
   Import data          > pick JSON file, choose merge or replace
   Last backup          > timestamp of last export
 Archive bin            > shows archived articles, allows restore
 Storage                > "X MB used", "Refresh persistence" (calls navigator.storage.persist)
-About                  > version, build date, contact info for the code owner
+About                  > app version + "Check for updates" button (v0.6.3, ADR-031 follow-up)
 Reset everything       > destructive, requires typed confirmation
 ```
+
+**About + manual update check (v0.6.3).** A new About section sits
+above Maintenance. Shows `v${APP_VERSION}` (read from
+`src/config/app-version.ts`) and a "Check for updates" button that
+calls `useAppUpdate().checkForUpdates()` — `registration.update()`
+followed by a 1.5 s wait for a workbox 'waiting' event. Three
+outcomes, three pieces of feedback:
+
+| State | Render |
+|---|---|
+| New SW found (waiting after the probe) | Opens the consent modal (bypasses snooze/skip; the merchant explicitly asked) |
+| Online + no new SW | Toast: "You're on the latest version ✓" (auto-clears in 4 s) |
+| `!navigator.onLine` | Toast: "Can't check for updates — you're offline" (auto-clears in 4 s) |
+
+**QR label branding picker (v0.6.5, ADR-035).** Section under Shop
+profile. Two radio options (Show logo in center / Show store name in
+center) when a logo exists, one option when not. Live 104 px
+preview alongside renders the same ArticleQR + `injectQrCenterBranding`
+the printed label uses, so what the merchant sees is faithful.
 
 **Logo upload (v0.5.4, ADR-026).** Both the onboarding "Shop info"
 step and Settings → Shop profile share the same upload pipeline:
@@ -360,6 +400,29 @@ Implementation rules:
 - Date formatting respects the locale (`Intl.DateTimeFormat`).
 - Currency formatting: `Intl.NumberFormat(locale, {style:'currency', currency:'TND'})`.
 
+**Translation register.** All three locales target everyday vocabulary
+a Tunisian merchant would recognise on first read. FR is metropolitan
+French (not Quebec-specific). AR is Modern Standard Arabic, avoiding
+Tunisian dialect — with one deliberate Maghrebi term retained:
+`المعرّف الجبائي` (fiscal ID), the legal phrase on Tunisian / Algerian /
+Moroccan paperwork. EN strings use American spelling (`center`, not
+`centre`); enforced consistency within a feature panel (v0.6.5 caught
+and fixed a `centre`/`center` mix on the QR-branding strings).
+
+**Notable per-feature locale keys (post-v0.6).**
+
+| Namespace | Keys added | ADR / commit |
+|---|---|---|
+| `common` | `fab_add_article`, `fab_add_expense` | v0.6.4 / ADR-034 |
+| `settings` | `about_title`, `about_version_label`, `about_version_unknown`, `check_for_updates`, `checking_for_updates`, `update_check_latest`, `update_check_offline` | v0.6.3 |
+| `settings` | `qr_branding_title`, `qr_branding_hint`, `qr_branding_logo`, `qr_branding_name`, `qr_branding_preview_label` | v0.6.5 / ADR-035 |
+
+Two pre-existing keys present only in EN (`alerts.banner_count_one` /
+`alerts.banner_count_other`) — i18next plural forms for the alerts
+banner — remain a translation gap. AR plurals (zero / one / two /
+few / many / other) and FR plurals (one / other) need explicit forms
+when the gap is closed.
+
 ---
 
 ## 5. Performance targets
@@ -410,6 +473,24 @@ Service worker uses cache-first precache (workbox `precacheAndRoute`) for the ap
 5. If `/whats-new.json` is missing or fails to load (404, malformed, offline), the modal still appears with a generic "improvements and bug fixes" copy and a `__unknown__` skip sentinel so the merchant isn't stuck in a re-prompt loop.
 
 No forced reload mid-session — reload happens only on the merchant's explicit Install click. No background download progress UI.
+
+**Delivery requires the right cache headers (v0.6.7, ADR-036).** The
+entire flow above only works if the browser actually refetches
+`/sw.js` and `/whats-new.json` on each visit. Origin nginx sends
+`Cache-Control: no-store, no-cache, must-revalidate, max-age=0` for
+both (plus `Service-Worker-Allowed: /` on `/sw.js`). Cloudflare's
+default Browser Cache TTL on the Free plan would otherwise rewrite
+these to `max-age=14400` — see DEPLOY.md §5b for the dashboard
+Cache Rules and the verification curl. As of v0.6.7 origin headers
+alone empirically convince CF Free to honour our no-store directive
+(`cf-cache-status: BYPASS`), but the documented dashboard rules
+remain the durable belt.
+
+**Manual update check (v0.6.3, ADR-031 follow-up).** Settings → About
+exposes a "Check for updates" button that runs the same probe out of
+band: `registration.update()` → 1.5 s wait → either re-show the modal
+on a found waiting SW (bypassing snooze/skip; the merchant explicitly
+asked) or surface a "latest version" / "offline" toast.
 
 ---
 
