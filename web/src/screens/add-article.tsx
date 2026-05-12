@@ -8,7 +8,7 @@ import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
-import { SHOP_PACKAGE_SIZES, sizeHintValuesForCategory } from '../config/fashion-subtypes';
+import { getSizeSuggestions } from '../config/size-suggestions';
 import {
   defaultUomForProfile,
   inputPriceToInternal,
@@ -27,7 +27,7 @@ import { useLive } from '../hooks/use-live';
 import { useProfile } from '../hooks/use-profile';
 import { nextInternalCode } from '../repos/internal-code';
 import { parseCurrency } from '../i18n/parse-currency';
-import { type Article, type Category, type UUID } from '../types';
+import { REDUCED_VAT_PCT_DEFAULT, type Article, type Category, type UUID } from '../types';
 import { CANONICAL_COLOURS } from '../query/colour-aliases';
 
 // SPEC §2.5 + ADR-011: a two-step flow. Step 1 collects article basics
@@ -61,6 +61,19 @@ interface Basics {
   // their chosen unit (15 TND/kg, 200 mil/g) and we convert to
   // millimes-per-smallest-unit at save via inputPriceToInternal.
   unitOfMeasure: Uom;
+  // v0.9 ADR-041 — per-article tax category. 'shop_default' is the
+  // sentinel for "no override — follow ShopProfile.default_vat_pct";
+  // it persists as `tax_category: null` (semantically identical to
+  // the typed-union 'standard' but stored as null so legacy readers
+  // that don't know about tax_category still resolve correctly).
+  // Persisted concrete values map 1:1 to the typed Article field.
+  // Surfaced only when the shop has a default VAT configured; the
+  // field is hidden + held at 'shop_default' otherwise.
+  taxChoice: 'shop_default' | 'reduced' | 'zero' | 'custom';
+  // Whole-percent string the merchant types when taxChoice ===
+  // 'custom'. Kept as a string so an empty input + a partial typing
+  // state is unambiguous; parsed via parseTaxCustomRate at save.
+  taxCustomInput: string;
 }
 
 // Parse the threshold input. Empty / non-numeric / <= 0 → null (no
@@ -70,6 +83,19 @@ function parseMinStock(input: string): number | null {
   if (trimmed === '') return null;
   const n = Number.parseInt(trimmed, 10);
   if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+// v0.9 ADR-041 — parse the custom-rate text input. Empty / non-
+// numeric / out-of-band (0..100) → null. The Add form keeps the
+// invalid state in the input string so the merchant still sees what
+// they typed; the save path uses the parsed number when committing.
+function parseTaxCustomRate(input: string): number | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0 || n > 100) return null;
   return n;
 }
 
@@ -181,6 +207,13 @@ export function AddArticleScreen(): JSX.Element {
     // lands on Add Article shouldn't have to switch the unit every
     // time they add a pair.
     unitOfMeasure: defaultUomForProfile(profile),
+    // v0.9 ADR-041 — every fresh article inherits the shop default
+    // VAT. The field renders only when the shop HAS a default VAT
+    // configured; otherwise the radio block hides entirely (per the
+    // brief) and the state stays at this sentinel so the save path
+    // persists `tax_category: null` regardless.
+    taxChoice: 'shop_default',
+    taxCustomInput: '',
   }));
   // v0.5.6 — promote the default UoM once the profile resolves. We
   // only apply when the field is still at the initial 'piece' default
@@ -212,18 +245,31 @@ export function AddArticleScreen(): JSX.Element {
       ? shopWantsSizes
       : storeCfg.has_sizes;
 
-  // v0.5.6 ADR-026 — quick-tap size suggestions for the merchant's
-  // current (vertical, sub-types, category) combination. Fashion uses
-  // sub-type + category to narrow (a clothing_men article shouldn't
-  // see EU shoe sizes). Shop uses a fixed package-size list when the
-  // sizeless block is opted into per-article sizes. Both verticals
-  // always accept free text — the hints just populate a <datalist>.
+  // Context-aware size suggestions narrowed by (sub-types × unit ×
+  // category × size_standard × article name). Rendered as tappable
+  // chips in step 2; the free-text size input below always stays
+  // available for sizes that don't fit the table. Empty array means
+  // "no chips, free text only" (e.g. shop merchant who didn't opt
+  // into per-article sizes, or custom category with no signals).
   const sizeHintsForArticle = useMemo<readonly string[]>(() => {
     if (!hasSizes) return [];
-    if (storeType === 'shop') return SHOP_PACKAGE_SIZES;
-    if (!profile) return [];
-    return sizeHintValuesForCategory(profile.fashion_subtypes ?? [], basics.category);
-  }, [hasSizes, storeType, profile, basics.category]);
+    return getSizeSuggestions({
+      storeType,
+      fashionSubtypes: profile?.fashion_subtypes ?? [],
+      unit: basics.unitOfMeasure,
+      category: basics.category,
+      sizeStandard: profile?.size_standard ?? 'EU',
+      articleName: basics.name,
+    });
+  }, [
+    hasSizes,
+    storeType,
+    profile?.fashion_subtypes,
+    profile?.size_standard,
+    basics.unitOfMeasure,
+    basics.category,
+    basics.name,
+  ]);
 
   const [blocks, setBlocks] = useState<ColorBlock[]>(() => [emptyBlock()]);
   const [duplicate, setDuplicate] = useState<Article | null>(null);
@@ -274,6 +320,34 @@ export function AddArticleScreen(): JSX.Element {
   function addSizeRow(i: number): void {
     setBlocks((arr) =>
       arr.map((b, idx) => (idx === i ? { ...b, sizes: [...b.sizes, emptySizeRow()] } : b)),
+    );
+  }
+
+  // Chip-tap → toggle this size on the block. If a row already carries
+  // the size: remove the row (or, when it's the last row left, clear
+  // its size field — the row keeps the floor/back stepper alive). If
+  // no row has it: fill the first empty row, or append a fresh row
+  // when every row is in use.
+  function toggleSizeChip(i: number, size: string): void {
+    setBlocks((arr) =>
+      arr.map((b, idx) => {
+        if (idx !== i) return b;
+        const existingIndex = b.sizes.findIndex((s) => s.size.trim() === size);
+        if (existingIndex >= 0) {
+          if (b.sizes.length === 1) {
+            return { ...b, sizes: [{ ...b.sizes[existingIndex]!, size: '' }] };
+          }
+          return { ...b, sizes: b.sizes.filter((_, j) => j !== existingIndex) };
+        }
+        const emptyIndex = b.sizes.findIndex((s) => s.size.trim() === '');
+        if (emptyIndex >= 0) {
+          return {
+            ...b,
+            sizes: b.sizes.map((s, j) => (j === emptyIndex ? { ...s, size } : s)),
+          };
+        }
+        return { ...b, sizes: [...b.sizes, { ...emptySizeRow(), size }] };
+      }),
     );
   }
 
@@ -487,6 +561,14 @@ export function AddArticleScreen(): JSX.Element {
         // broader isMeasuredUom rule (no per-colour fabric matrix).
         has_sizes: hidesSizeField ? false : storeType === 'shop' ? shopWantsSizes : null,
         has_colors: isMeasuredUom ? false : storeType === 'shop' ? shopWantsColors : null,
+        // v0.9 ADR-041 — per-article tax. 'shop_default' persists as
+        // `tax_category: null` so legacy readers + the resolver both
+        // treat it as "follow the shop default VAT" without needing
+        // to know about the new sentinel. Custom rate only flows
+        // through when the merchant actively picked 'custom'.
+        tax_category: basics.taxChoice === 'shop_default' ? null : basics.taxChoice,
+        tax_custom_rate:
+          basics.taxChoice === 'custom' ? parseTaxCustomRate(basics.taxCustomInput) : null,
       });
       // v0.5.2.3 — land on the printable-label page so the merchant
       // sees the QR for the just-created item and can stick it on the
@@ -541,6 +623,11 @@ export function AddArticleScreen(): JSX.Element {
           currency={currency}
           onScan={() => setScannerOpen(true)}
           showMinStock={storeCfg.has_expiry}
+          // v0.9 ADR-041 — gate the tax-rate radio on the shop having
+          // a default VAT configured. When the merchant hasn't set
+          // one in Settings the entire field hides; we still pass
+          // the value through so the resolved label can echo it.
+          shopDefaultVatPct={profile?.default_vat_pct ?? null}
         />
       ) : (
         <Step2
@@ -549,6 +636,7 @@ export function AddArticleScreen(): JSX.Element {
           patchBlockSize={patchBlockSize}
           addSizeRow={addSizeRow}
           removeSizeRow={removeSizeRow}
+          toggleSizeChip={toggleSizeChip}
           addColorBlock={addColorBlock}
           removeColorBlock={removeColorBlock}
           handleBlockPhoto={handleBlockPhoto}
@@ -615,6 +703,11 @@ interface Step1Props {
   // v0.5 ADR-017: surface the min_stock_threshold input only for the
   // shop vertical (drives the "Low (N left)" badge in Search/List).
   showMinStock: boolean;
+  // v0.9 ADR-041 — the shop's default VAT percent. Null means the
+  // merchant hasn't configured one in Settings → Invoicing; in that
+  // case the tax-rate radio block doesn't render at all. When set,
+  // we echo the value in the "Shop default ({n}%)" radio label.
+  shopDefaultVatPct: number | null;
 }
 
 function Step1({
@@ -628,6 +721,7 @@ function Step1({
   currency,
   onScan,
   showMinStock,
+  shopDefaultVatPct,
 }: Step1Props): JSX.Element {
   const { t } = useTranslation('add');
   const { t: tCommon } = useTranslation('common');
@@ -797,8 +891,123 @@ function Step1({
             />
           </Field>
         ) : null}
+
+        {/* v0.9 ADR-041 — per-article tax. Hidden entirely when the
+            shop doesn't have a default VAT configured (ShopProfile.
+            default_vat_pct is null) — there's no useful comparison
+            to make in that case. When visible, the four radios let
+            the merchant flag this single SKU as different from the
+            shop standard. 'shop_default' persists as tax_category =
+            null so legacy readers and the resolver both see the
+            value as "follow the shop". */}
+        {shopDefaultVatPct !== null ? (
+          <TaxRateField
+            basics={basics}
+            setBasics={setBasics}
+            shopDefaultVatPct={shopDefaultVatPct}
+          />
+        ) : null}
       </section>
     </div>
+  );
+}
+
+interface TaxRateFieldProps {
+  basics: Basics;
+  setBasics: React.Dispatch<React.SetStateAction<Basics>>;
+  shopDefaultVatPct: number;
+}
+
+function TaxRateField({ basics, setBasics, shopDefaultVatPct }: TaxRateFieldProps): JSX.Element {
+  const { t } = useTranslation('add');
+  const { t: tCommon } = useTranslation('common');
+  return (
+    <div data-testid="field-tax" className="space-y-2 pt-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-ink-2 text-xs font-medium">{t('field_tax_rate')}</span>
+        <span className="text-ink-3 text-[10px]">{tCommon('optional')}</span>
+      </div>
+      <div role="radiogroup" aria-label={t('field_tax_rate')} className="flex flex-col gap-1.5">
+        <TaxRadio
+          testId="tax-shop-default"
+          label={t('tax_shop_default', { pct: shopDefaultVatPct })}
+          checked={basics.taxChoice === 'shop_default'}
+          onSelect={() => setBasics((b) => ({ ...b, taxChoice: 'shop_default' }))}
+        />
+        <TaxRadio
+          testId="tax-reduced"
+          label={t('tax_reduced', { pct: REDUCED_VAT_PCT_DEFAULT })}
+          checked={basics.taxChoice === 'reduced'}
+          onSelect={() => setBasics((b) => ({ ...b, taxChoice: 'reduced' }))}
+        />
+        <TaxRadio
+          testId="tax-zero"
+          label={t('tax_zero')}
+          checked={basics.taxChoice === 'zero'}
+          onSelect={() => setBasics((b) => ({ ...b, taxChoice: 'zero' }))}
+        />
+        <TaxRadio
+          testId="tax-custom"
+          label={t('tax_custom')}
+          checked={basics.taxChoice === 'custom'}
+          onSelect={() => setBasics((b) => ({ ...b, taxChoice: 'custom' }))}
+          // Inline custom-rate input only renders when this radio
+          // is selected — keeps the field compact + signals which
+          // input is "live" without a separate enable toggle.
+          trailing={
+            basics.taxChoice === 'custom' ? (
+              <input
+                data-testid="field-tax-custom-rate"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={100}
+                step={1}
+                value={basics.taxCustomInput}
+                onChange={(e) => setBasics((b) => ({ ...b, taxCustomInput: e.target.value }))}
+                placeholder="%"
+                aria-label={t('tax_custom')}
+                className="border-hair w-16 rounded-lg border bg-white px-2 py-1 text-end font-mono text-xs"
+                dir="ltr"
+              />
+            ) : null
+          }
+        />
+      </div>
+      <p className="text-ink-3 text-[11px] leading-snug">{t('tax_helper')}</p>
+    </div>
+  );
+}
+
+interface TaxRadioProps {
+  testId: string;
+  label: string;
+  checked: boolean;
+  onSelect: () => void;
+  trailing?: React.ReactNode;
+}
+
+function TaxRadio({ testId, label, checked, onSelect, trailing }: TaxRadioProps): JSX.Element {
+  return (
+    <label
+      data-testid={`${testId}-row`}
+      className={`border-hair flex items-center justify-between gap-2 rounded-xl border bg-white px-3 py-2 text-sm ${
+        checked ? 'border-accent bg-accent-soft/30' : ''
+      }`}
+    >
+      <span className="flex items-center gap-2">
+        <input
+          type="radio"
+          data-testid={testId}
+          name="tax-rate"
+          checked={checked}
+          onChange={onSelect}
+          className="accent-accent h-4 w-4"
+        />
+        <span className="text-ink-2">{label}</span>
+      </span>
+      {trailing}
+    </label>
   );
 }
 
@@ -808,6 +1017,7 @@ interface Step2Props {
   patchBlockSize: (i: number, j: number, patch: Partial<SizeRow>) => void;
   addSizeRow: (i: number) => void;
   removeSizeRow: (i: number, j: number) => void;
+  toggleSizeChip: (i: number, size: string) => void;
   addColorBlock: () => void;
   removeColorBlock: (i: number) => void;
   handleBlockPhoto: (i: number, file: File) => Promise<void>;
@@ -850,6 +1060,7 @@ function Step2(props: Step2Props): JSX.Element {
     patchBlockSize,
     addSizeRow,
     removeSizeRow,
+    toggleSizeChip,
     addColorBlock,
     removeColorBlock,
     handleBlockPhoto,
@@ -970,6 +1181,7 @@ function Step2(props: Step2Props): JSX.Element {
           patchBlockSize={patchBlockSize}
           addSizeRow={addSizeRow}
           removeSizeRow={removeSizeRow}
+          toggleSizeChip={toggleSizeChip}
           removeColorBlock={removeColorBlock}
           handleBlockPhoto={handleBlockPhoto}
           allowDecimalQty={allowDecimalQty}
@@ -1004,6 +1216,7 @@ interface BlockEditorProps {
   patchBlockSize: (i: number, j: number, patch: Partial<SizeRow>) => void;
   addSizeRow: (i: number) => void;
   removeSizeRow: (i: number, j: number) => void;
+  toggleSizeChip: (i: number, size: string) => void;
   removeColorBlock: (i: number) => void;
   handleBlockPhoto: (i: number, file: File) => Promise<void>;
   // v0.5.2.9: drives whether the floor/back Steppers accept decimal
@@ -1036,6 +1249,7 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
     patchBlockSize,
     addSizeRow,
     removeSizeRow,
+    toggleSizeChip,
     removeColorBlock,
     handleBlockPhoto,
     allowDecimalQty = false,
@@ -1143,27 +1357,39 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
 
       {hasSizes ? (
         <div data-testid={`block-${index}-sizes`} className="space-y-2">
-          {/* v0.5.2 ADR-018 + commit 9: sub-type-aware size hint
-              autocomplete. The <datalist> sources its options from
-              sizeHintValuesForSubtypes(profile.fashion_subtypes) —
-              numeric_eu (36-46) for shoes, letter (XS-XXXL) for
-              clothing_men, etc. The merchant can still type any
-              value; the hints are pure suggestions. Empty for
-              accessories / bags / jewelry (size_hint='none'). */}
+          {/* Tappable size suggestion chips (mirrors colour-chip styling).
+              Tap → toggles whether that size has a row in this block;
+              selected sizes highlight, a second tap removes their row.
+              Below, every row's free-text input is always editable so
+              the merchant can type any size not in the suggestions. */}
           {sizeHintValues.length > 0 ? (
-            <datalist id={`block-${index}-size-hints`} data-testid={`block-${index}-size-hints`}>
-              {sizeHintValues.map((v) => (
-                <option key={v} value={v} />
-              ))}
-            </datalist>
+            <div data-testid={`block-${index}-size-chips`} className="flex flex-wrap gap-1.5">
+              {sizeHintValues.map((v) => {
+                const active = block.sizes.some((s) => s.size.trim() === v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    data-testid={`block-${index}-size-chip-${v}`}
+                    onClick={() => toggleSizeChip(index, v)}
+                    aria-pressed={active}
+                    className={`rounded-full border px-3 py-1.5 text-xs ${
+                      active
+                        ? 'border-accent bg-accent-soft text-accent-ink'
+                        : 'border-hair text-ink-2 bg-white'
+                    }`}
+                  >
+                    {v}
+                  </button>
+                );
+              })}
+            </div>
           ) : null}
           {block.sizes.map((row, j) => {
-            // v0.5.2.7: inputMode follows the suggested values for the
-            // merchant's fashion sub-types. If ANY suggestion contains
-            // a non-digit (e.g. 'M', 'XL', '3M', '6Y'), open the text
-            // keyboard so the merchant doesn't have to fight a numeric
-            // pad to type letter sizes. Pure-digit suggestions still
-            // get the numeric keypad.
+            // inputMode follows the chip values: pure-digit chips stay
+            // numeric; anything else (XS, 3M, 0.5m, 2-pack, "Small")
+            // opens the text keyboard so the merchant can type letter
+            // / mixed sizes the chips don't cover.
             const inputModeForSize: 'numeric' | 'text' =
               sizeHintValues.length === 0 || sizeHintValues.every((v) => /^\d+$/.test(v))
                 ? 'numeric'
@@ -1177,7 +1403,6 @@ function BlockEditor(props: BlockEditorProps): JSX.Element {
                     value={row.size}
                     onChange={(e) => patchBlockSize(index, j, { size: e.target.value })}
                     placeholder={t('size_placeholder')}
-                    list={sizeHintValues.length > 0 ? `block-${index}-size-hints` : undefined}
                     className="border-hair w-16 rounded-lg border bg-white px-2 py-1.5 font-mono text-sm"
                     inputMode={inputModeForSize}
                   />
