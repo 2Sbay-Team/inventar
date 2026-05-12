@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
 import { InventoryOverview } from '../components/inventory-overview';
 import { ShopWidgets } from '../components/shop-widgets';
 import { ScreenLayout } from '../components/screen-layout';
+import { FAB_EVENT, type FabTriggerDetail } from '../components/fab';
 import { STORE_TYPES } from '../config/store-types';
 import { useProfile } from '../hooks/use-profile';
 import { ShopHeader } from '../components/shop-header';
@@ -115,6 +115,18 @@ export function DashboardScreen(): JSX.Element {
   const [expAmount, setExpAmount] = useState('');
   const [expNote, setExpNote] = useState('');
   const [expRecurring, setExpRecurring] = useState<RecurringPeriod>('none');
+
+  // v0.6.4 — global FAB → open the Add Expense dialog. The Dialog
+  // state stays owned here; the FAB only signals via a document-
+  // level CustomEvent so it doesn't need to know about expenseOpen.
+  useEffect(() => {
+    function handle(e: Event): void {
+      const detail = (e as CustomEvent<FabTriggerDetail>).detail;
+      if (detail?.kind === 'add-expense') setExpenseOpen(true);
+    }
+    document.addEventListener(FAB_EVENT, handle);
+    return () => document.removeEventListener(FAB_EVENT, handle);
+  }, []);
 
   const m = metrics ?? {
     revenue: 0,
@@ -234,15 +246,11 @@ export function DashboardScreen(): JSX.Element {
         </section>
       </main>
 
-      <button
-        type="button"
-        data-testid="add-expense-fab"
-        onClick={() => setExpenseOpen(true)}
-        className="bg-accent absolute bottom-20 end-5 inline-flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium text-white shadow-lg"
-      >
-        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
-        {t('add_expense')}
-      </button>
+      {/* v0.6.4 — the dashboard's old `add-expense-fab` pill is now
+          replaced by the global circular Fab (ScreenLayout). The
+          Add Expense dialog stays mounted here; the FAB dispatches
+          a document-level event that the useEffect above listens
+          for, then opens the dialog. */}
 
       <Dialog.Root open={expenseOpen} onOpenChange={setExpenseOpen}>
         <Dialog.Portal>

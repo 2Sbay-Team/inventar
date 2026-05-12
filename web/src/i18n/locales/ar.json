@@ -27,7 +27,9 @@
     "dash": "—",
     "powered_by": "تم تصميمه بواسطة hoodhood.ai",
     "photo_take": "التقاط صورة",
-    "photo_gallery": "من المعرض"
+    "photo_gallery": "من المعرض",
+    "fab_add_article": "إضافة منتج جديد",
+    "fab_add_expense": "إضافة مصروف"
   },
   "nav": {
     "search": "بحث",

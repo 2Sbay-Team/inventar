@@ -36,7 +36,7 @@ test.describe('Dashboard + Expense modal', () => {
   });
 
   test('add expense FAB opens the sheet, save persists', async ({ page }) => {
-    await page.getByTestId('add-expense-fab').click();
+    await page.getByTestId('fab').click();
     await expect(page.getByTestId('expense-sheet')).toBeVisible();
     await page.getByTestId('expense-cat-rent').click();
     await page.getByTestId('expense-amount').fill('100');
@@ -63,7 +63,7 @@ test.describe('Dashboard + Expense modal', () => {
   });
 
   test('expense modal cancel button leaves data alone', async ({ page }) => {
-    await page.getByTestId('add-expense-fab').click();
+    await page.getByTestId('fab').click();
     await page.getByTestId('expense-amount').fill('100');
     await page.getByTestId('expense-cancel').click();
     await expect(page.getByTestId('expense-sheet')).toBeHidden();

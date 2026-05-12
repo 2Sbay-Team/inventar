@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { AppFooter } from './app-footer';
 import { BottomNav } from './bottom-nav';
+import { Fab } from './fab';
 
 interface ScreenLayoutProps {
   // The main content area; the layout adds the bottom nav and the standard
@@ -33,6 +34,11 @@ export function ScreenLayout({ children, hideNav }: ScreenLayoutProps): JSX.Elem
         <div className="flex flex-1 flex-col">{children}</div>
         <AppFooter />
         {hideNav ? null : <BottomNav />}
+        {/* v0.6.4 — global FAB self-determines visibility per route
+            (see web/src/components/fab.tsx). Mounted inside the shell
+            so its `absolute end-6 bottom-20` positioning hugs the
+            shell edge on wide viewports instead of the raw viewport. */}
+        <Fab />
       </div>
     </div>
   );

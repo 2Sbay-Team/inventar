@@ -27,7 +27,9 @@
     "dash": "—",
     "powered_by": "Built by hoodhood.ai",
     "photo_take": "Take photo",
-    "photo_gallery": "From gallery"
+    "photo_gallery": "From gallery",
+    "fab_add_article": "Add new article",
+    "fab_add_expense": "Add expense"
   },
   "nav": {
     "search": "Search",
