@@ -342,7 +342,7 @@
     "shop_subtypes_hint": "Toggle each sub-type your shop sells. Drives the default category list in Add Article and shapes the dashboard widgets.",
     "shop_subtypes_min_one": "Pick at least one sub-type",
     "fashion_subtypes_title": "Fashion sub-types",
-    "fashion_subtypes_hint": "Toggle every category you sell. Adding clothing_men or clothing_women unlocks letter sizes (S, M, L, XL, XXL) in Add Article; adding kids unlocks age sizes (3M, 2Y…).",
+    "fashion_subtypes_hint": "Toggle every category you sell. Adding Men's clothing or Women's clothing unlocks letter sizes (S, M, L, XL, XXL) in Add Article; adding Kids' clothing unlocks age sizes (3M, 2Y…).",
     "fashion_subtypes_min_one": "Pick at least one sub-type",
     "locations_title": "Stock locations",
     "locations_hint": "Rename your front and back zones to match how you talk about them in your shop. These names appear in stock counts, the matrix, and Quick Adjust.",

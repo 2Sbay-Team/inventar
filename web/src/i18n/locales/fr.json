@@ -342,7 +342,7 @@
     "shop_subtypes_hint": "Activez chaque sous-type que votre boutique vend. Détermine la liste des catégories par défaut dans Ajouter un article et façonne les widgets du tableau de bord.",
     "shop_subtypes_min_one": "Choisissez au moins un sous-type",
     "fashion_subtypes_title": "Sous-types mode",
-    "fashion_subtypes_hint": "Activez chaque catégorie que vous vendez. Ajouter clothing_men ou clothing_women débloque les tailles lettre (S, M, L, XL, XXL) dans Ajouter un article ; ajouter kids débloque les tailles enfant (3M, 2Y…).",
+    "fashion_subtypes_hint": "Activez chaque catégorie que vous vendez. Ajouter Vêtements hommes ou Vêtements femmes débloque les tailles lettre (S, M, L, XL, XXL) dans Ajouter un article ; ajouter Vêtements enfants débloque les tailles enfant (3M, 2Y…).",
     "fashion_subtypes_min_one": "Choisissez au moins un sous-type",
     "locations_title": "Emplacements de stock",
     "locations_hint": "Renommez les zones avant et arrière selon la façon dont vous en parlez dans votre boutique. Ces noms apparaîtront dans les comptages, la matrice et l'ajustement rapide.",
