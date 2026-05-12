@@ -147,6 +147,11 @@ function StockLocationsSection(): JSX.Element | null {
   const { t } = useTranslation('settings');
   const profile = useProfile();
   const labels = useLocationLabels();
+  // v0.6.1 — dropdown options follow the runtime UI locale, not the
+  // profile's frozen-at-onboarding locale. If the merchant onboarded
+  // in EN and later switched to FR/AR, they should still see the
+  // FR/AR option list here. Stored values stay verbatim (ADR-022).
+  const { locale } = useLocale();
   if (!profile) return null;
   // v0.6 — the picker is the source of truth while open; commit
   // happens on every change (no separate draft + blur dance). Empty
@@ -190,7 +195,7 @@ function StockLocationsSection(): JSX.Element | null {
             testId="settings-location-floor"
             value={labels.floor}
             onChange={(v) => void commitFloor(v)}
-            options={LOCATION_OPTIONS[profile.locale].floor}
+            options={LOCATION_OPTIONS[locale].floor}
             ariaLabel={t('location_floor_label')}
           />
         </div>
@@ -203,7 +208,7 @@ function StockLocationsSection(): JSX.Element | null {
             testId="settings-location-back"
             value={labels.back}
             onChange={(v) => void commitBack(v)}
-            options={LOCATION_OPTIONS[profile.locale].back}
+            options={LOCATION_OPTIONS[locale].back}
             ariaLabel={t('location_back_label')}
           />
         </div>
