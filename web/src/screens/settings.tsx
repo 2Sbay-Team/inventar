@@ -635,6 +635,29 @@ function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element 
         multiline
         onCommit={(value) => setField('description', value)}
       />
+      {/* Legal business name + Tax / fiscal ID surfaced here in addition
+          to the Invoicing section. Both write to the same
+          profile.legal_name / profile.fiscal_id columns — Invoicing
+          stays the canonical surface for "this is on every invoice"
+          and the merchant can edit either spot. */}
+      <IdentityTextField
+        testId="identity-legal-name"
+        label={t('identity_legal_name')}
+        placeholder={t('identity_legal_name_placeholder')}
+        hint={t('identity_legal_name_hint')}
+        initial={profile.legal_name}
+        maxLength={120}
+        onCommit={(value) => setField('legal_name', value)}
+      />
+      <IdentityTextField
+        testId="identity-fiscal-id"
+        label={t('identity_fiscal_id')}
+        placeholder={t('identity_fiscal_id_placeholder')}
+        hint={t('identity_fiscal_id_hint')}
+        initial={profile.fiscal_id}
+        maxLength={60}
+        onCommit={(value) => setField('fiscal_id', value)}
+      />
     </div>
   );
 }
