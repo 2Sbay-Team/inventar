@@ -601,10 +601,20 @@ export function OnboardingScreen(): JSX.Element {
                 onClick={pickLogo}
                 disabled={logoBusy}
                 aria-label={t('onboarding:logo_drop_zone')}
-                className="border-hair hover:border-accent active:scale-[0.99] group relative flex h-32 w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed bg-white transition-all duration-300 hover:bg-accent-soft/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                // v0.6.3 ADR-028 follow-up — when a logo has been
+                // committed (keyed PNG or kept-original JPEG), drop
+                // `bg-white` so a transparent-PNG logo isn't shown
+                // sitting on a white square. The dashed-border drop-
+                // zone keeps `bg-white` only in the empty state, where
+                // it backs the Upload icon. object-contain (vs cover)
+                // letterboxes non-square logos instead of cropping the
+                // edges off the merchant's mark.
+                className={`border-hair hover:border-accent active:scale-[0.99] group relative flex h-32 w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed transition-all duration-300 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                  logoPreview ? '' : 'bg-white hover:bg-accent-soft/20'
+                }`}
               >
                 {logoPreview ? (
-                  <img src={logoPreview} alt="" className="h-full w-full object-cover" />
+                  <img src={logoPreview} alt="" className="h-full w-full object-contain" />
                 ) : (
                   <div className="text-ink-3 group-hover:text-accent flex flex-col items-center justify-center gap-2 transition-colors">
                     <span className="bg-paper-deep group-hover:bg-accent-soft flex h-10 w-10 items-center justify-center rounded-full transition-colors">

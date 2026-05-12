@@ -178,6 +178,7 @@ export function InvoiceViewScreen(): JSX.Element | null {
                   photoId={profile.logo_photo_id}
                   size={48}
                   testId="invoice-issuer-logo"
+                  transparent
                 />
               </div>
             ) : null}
