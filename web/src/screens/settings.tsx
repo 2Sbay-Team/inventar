@@ -8,6 +8,7 @@ import { BrandColorPicker } from '../components/brand-color-picker';
 import { BusinessCard } from '../components/business-card';
 import { CompletionRing } from '../components/completion-ring';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
+import { OpeningHoursEditor } from '../components/opening-hours-editor';
 import { computeCompletion } from '../theme/profile-completion';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
@@ -429,6 +430,7 @@ function ShopIdentitySection(): JSX.Element | null {
         <IdentitySubsection profile={profile} />
         <ContactSubsection profile={profile} />
         <LocationSubsection profile={profile} />
+        <HoursSubsection profile={profile} />
         <SocialSubsection profile={profile} />
         <BusinessCardSubsection profile={profile} completionPercentage={completion.percentage} />
       </div>
@@ -675,6 +677,24 @@ function LocationSubsection({ profile }: { profile: ShopProfile }): JSX.Element 
           onCommit={(value) => setField('address_country', value)}
         />
       </div>
+    </div>
+  );
+}
+
+function HoursSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField, status } = useSubsectionAutosave(profile);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('opening_hours_title')}</h4>
+        <AutosaveBadge status={status} />
+      </div>
+      <p className="text-ink-3 text-[11px] leading-relaxed">{t('opening_hours_hint')}</p>
+      <OpeningHoursEditor
+        value={profile.opening_hours}
+        onChange={(next) => setField('opening_hours', next)}
+      />
     </div>
   );
 }
