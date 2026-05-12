@@ -1,42 +1,48 @@
 import { useCallback, useEffect, useState } from 'react';
 
 // localStorage key holding the merchant's per-section open/close state.
-// Versioned in case the schema grows (e.g. ordered visit history). Reads
-// are best-effort — any parse error / unavailable localStorage falls
-// back to the "all collapsed" default.
-const STORAGE_KEY = 'inventar.settings.sections.v1';
+// Versioned in case the schema grows (e.g. ordered visit history).
+export const SETTINGS_SECTIONS_STORAGE_KEY = 'inventar.settings.sections.v1';
 
 type SectionId = string;
 
-interface SectionState {
+export interface SectionState {
   [id: SectionId]: boolean;
 }
 
-function readStored(): SectionState {
-  if (typeof window === 'undefined') return {};
+// Parse a raw localStorage payload into a SectionState. Any malformed
+// input falls back to {} so a tampered key can't crash the screen.
+// Exported (and pure) so the unit tests can exercise the parser
+// without a DOM.
+export function parseSectionState(raw: string | null): SectionState {
+  if (!raw) return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      // Coerce every value to boolean so a tampered storage value can't
-      // crash the screen later.
-      const out: SectionState = {};
-      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-        out[k] = Boolean(v);
-      }
-      return out;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: SectionState = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      out[k] = Boolean(v);
     }
-    return {};
+    return out;
   } catch {
     return {};
   }
 }
 
+// Toggle a single id on/off; returns the next state. Pure for testing.
+export function toggleSection(state: SectionState, id: SectionId): SectionState {
+  return { ...state, [id]: !state[id] };
+}
+
+function readStored(): SectionState {
+  if (typeof window === 'undefined') return {};
+  return parseSectionState(window.localStorage.getItem(SETTINGS_SECTIONS_STORAGE_KEY));
+}
+
 function writeStored(state: SectionState): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(SETTINGS_SECTIONS_STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Quota / private mode — fail silently. The merchant's last-open
     // state isn't load-bearing for functionality, just for ergonomics.
