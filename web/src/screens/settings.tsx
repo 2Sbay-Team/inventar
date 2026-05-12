@@ -2135,7 +2135,7 @@ export function SettingsScreen(): JSX.Element {
         <Link
           to="/help"
           data-testid="help-link"
-          className="border-hair flex h-14 items-center justify-between rounded-2xl border bg-white px-4"
+          className="border-hair flex h-14 flex-shrink-0 items-center justify-between rounded-2xl border bg-white px-4"
         >
           <span className="font-display text-sm font-semibold text-ink">{t('help')}</span>
           <ChevronRight
@@ -2148,7 +2148,7 @@ export function SettingsScreen(): JSX.Element {
         <Link
           to="/settings/archive"
           data-testid="archive-bin-link"
-          className="border-hair flex h-14 items-center justify-between rounded-2xl border bg-white px-4"
+          className="border-hair flex h-14 flex-shrink-0 items-center justify-between rounded-2xl border bg-white px-4"
         >
           <span className="font-display text-sm font-semibold text-ink">{t('archive_bin')}</span>
           <ChevronRight

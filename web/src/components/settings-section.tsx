@@ -1,21 +1,29 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 
 // Collapsible Settings section. Header is a single 56px tap target with
 // the section name on the leading edge, an optional one-line summary
-// on the trailing edge, and a chevron that rotates 90° when open. The
-// body smoothly slides in/out over 250ms.
+// on the trailing edge, and a chevron that rotates 90° when open.
 //
 // Open state is controlled by the parent — pass `open` + `onToggle`.
 // That keeps localStorage persistence and "remember last state per
 // section" logic in one place (the Settings screen) instead of
 // fragmenting it across each accordion instance.
 //
-// RTL handling: the chevron uses lucide's ChevronRight which is
-// `dir="ltr"` by default in our app. Tailwind's `rtl:rotate-180`
-// flips it to point left in Arabic, then the open-state rotation
-// applies on top of that so it still rotates "down" visually when
-// expanded in either direction.
+// Expansion uses the CSS grid `1fr ↔ 0fr` trick (Chrome 117+, Firefox
+// 117+, Safari 17.1+ — all current PWA-capable runtimes). It animates
+// directly from / to "the content's natural height", so dynamic body
+// content — an autosave badge appearing, the completion ring
+// re-rendering, an image finishing decode — pushes the section open
+// without any JS measurement. Before this we measured scrollHeight
+// once on toggle, locked the body to that pixel value, and anything
+// that grew after the measurement (async logo load, deferred autosave
+// chrome) got clipped — exactly the "last rows partially hidden"
+// regression the merchant reported.
+//
+// RTL handling: lucide's ChevronRight points right by default. In
+// Arabic we mirror it horizontally so it points toward the body in
+// both writing directions. The 90° rotate-on-open stacks on top.
 
 interface SettingsSectionProps {
   // Unique id, used both for localStorage and for the data-testid.
@@ -41,52 +49,12 @@ export function SettingsSection({
   onToggle,
   children,
 }: SettingsSectionProps): JSX.Element {
-  // Measured content height. Without this the CSS transition can't
-  // animate to/from a known value (max-height: 100% / auto don't
-  // transition). On open we measure the live content height each
-  // time so dynamic body content (a freshly-uploaded logo, a newly-
-  // added sub-type chip) doesn't get clipped.
-  const bodyRef = useRef<HTMLDivElement | null>(null);
-  const [bodyHeight, setBodyHeight] = useState<number>(0);
-
-  useEffect(() => {
-    if (!open) {
-      setBodyHeight(0);
-      return;
-    }
-    const el = bodyRef.current;
-    if (!el) return;
-    // Initial measurement.
-    setBodyHeight(el.scrollHeight);
-    // Re-measure when content inside the body changes height (e.g.
-    // the merchant types into an autosaved input, a banner appears).
-    const observer = new ResizeObserver(() => {
-      setBodyHeight(el.scrollHeight);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [open]);
-
-  // After the header expands, nudge it back into view so the merchant
-  // doesn't lose the title behind the on-screen keyboard or another
-  // section. Runs after the transition so the scroll lands on the
-  // final layout.
-  const headerRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const id = window.setTimeout(() => {
-      headerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 260);
-    return () => window.clearTimeout(id);
-  }, [open]);
-
   return (
     <section
       data-testid={`section-${id}`}
-      className="border-hair overflow-hidden rounded-2xl border bg-white"
+      className="border-hair flex-shrink-0 rounded-2xl border bg-white"
     >
       <button
-        ref={headerRef}
         type="button"
         data-testid={`section-${id}-header`}
         onClick={onToggle}
@@ -109,15 +77,20 @@ export function SettingsSection({
           strokeWidth={2}
         />
       </button>
+      {/* Outer grid wrapper animates row 0fr → 1fr. The inner div has
+          `overflow: hidden` + `min-height: 0` so its children clip
+          cleanly during the transition without forcing a measured
+          pixel height. */}
       <div
         id={`section-${id}-body`}
         data-testid={`section-${id}-body`}
         aria-hidden={!open}
-        style={{ height: open ? bodyHeight : 0 }}
-        className="overflow-hidden transition-[height] duration-[250ms] ease-out"
+        className={`grid transition-[grid-template-rows] duration-[250ms] ease-out ${
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
       >
-        <div ref={bodyRef} className="border-hair border-t px-4 py-4">
-          {children}
+        <div className="min-h-0 overflow-hidden">
+          <div className="border-hair border-t px-4 py-4">{children}</div>
         </div>
       </div>
     </section>
