@@ -167,12 +167,21 @@ export function getSizeSuggestions(input: SizeSuggestionInput): readonly string[
   const fashion = storeType === 'fashion';
 
   if (fashion && unit === 'pair') {
-    if (hasAnySubtype(fashionSubtypes, ['shoes_kids'])) {
-      return KIDS_SHOE_SIZES_BY_STANDARD[sizeStandard];
+    const hasAdult = hasAnySubtype(fashionSubtypes, ['shoes']);
+    const hasKids = hasAnySubtype(fashionSubtypes, ['shoes_kids']);
+    // When the merchant stocks BOTH adult and kids' shoes, we can't
+    // tell from the profile alone which range applies to the current
+    // article — surface both ranges (kids first, adult after) and let
+    // them tap. Picking kids-only or adult-only at the profile level
+    // narrows to that range. Otherwise: empty fall-through.
+    if (hasAdult && hasKids) {
+      return [
+        ...KIDS_SHOE_SIZES_BY_STANDARD[sizeStandard],
+        ...SHOE_SIZES_BY_STANDARD[sizeStandard],
+      ];
     }
-    if (hasAnySubtype(fashionSubtypes, ['shoes'])) {
-      return SHOE_SIZES_BY_STANDARD[sizeStandard];
-    }
+    if (hasKids) return KIDS_SHOE_SIZES_BY_STANDARD[sizeStandard];
+    if (hasAdult) return SHOE_SIZES_BY_STANDARD[sizeStandard];
   }
 
   if (unit === 'piece') {

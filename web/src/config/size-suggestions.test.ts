@@ -86,8 +86,64 @@ describe('getSizeSuggestions — shoes', () => {
     ]);
   });
 
-  it('fashion+shoes_kids overrides adult shoes when both selected', () => {
-    expect(fashion({ fashionSubtypes: ['shoes', 'shoes_kids'], unit: 'pair' })).toContain('20');
+  // Bug-fix coverage — a merchant with BOTH adult and kids' shoe
+  // sub-types should see the combined chip pool (kids first, then
+  // adult). Previously the kids' check short-circuited first and
+  // hid adult chips entirely.
+  it('shoes + shoes_kids → combined chips: kids 20-35 then adult 36-46 (EU)', () => {
+    const chips = fashion({ fashionSubtypes: ['shoes', 'shoes_kids'], unit: 'pair' });
+    expect(chips).toContain('20');
+    expect(chips).toContain('35');
+    expect(chips).toContain('36');
+    expect(chips).toContain('46');
+    // Order: kids range comes first.
+    expect(chips.indexOf('20')).toBeLessThan(chips.indexOf('36'));
+  });
+});
+
+describe('getSizeSuggestions — bug-fix: chip range follows profile sub-types', () => {
+  // N+1
+  it('adult shoes ONLY → chips show 36-46 (no kids 20s)', () => {
+    const chips = fashion({ fashionSubtypes: ['shoes'], unit: 'pair' });
+    expect(chips).toContain('36');
+    expect(chips).toContain('46');
+    expect(chips).not.toContain('20');
+    expect(chips).not.toContain('35');
+  });
+
+  // N+2
+  it("kids' shoes ONLY → chips show 20-35 (no adult 36-46)", () => {
+    const chips = fashion({ fashionSubtypes: ['shoes_kids'], unit: 'pair' });
+    expect(chips).toContain('20');
+    expect(chips).toContain('35');
+    expect(chips).not.toContain('36');
+    expect(chips).not.toContain('46');
+  });
+
+  // N+3
+  it('both adult + kids → chips span both ranges', () => {
+    const chips = fashion({ fashionSubtypes: ['shoes', 'shoes_kids'], unit: 'pair' });
+    expect(chips).toEqual(
+      expect.arrayContaining(['20', '24', '28', '32', '35', '36', '40', '44', '46']),
+    );
+  });
+
+  // N+4
+  it("men's clothing → letter sizes (XS..XXXL), no shoe numerics", () => {
+    const chips = fashion({ fashionSubtypes: ['clothing_men'], unit: 'piece' });
+    expect(chips).toContain('XS');
+    expect(chips).toContain('XXXL');
+    expect(chips).not.toContain('36');
+    expect(chips).not.toContain('46');
+  });
+
+  it("women's clothing → letter + numeric sizes, no shoe-range duplicates", () => {
+    const chips = fashion({ fashionSubtypes: ['clothing_women'], unit: 'piece' });
+    expect(chips).toContain('XS');
+    expect(chips).toContain('XXL');
+    // EU women's numerics overlap with EU shoe sizes — that's expected;
+    // what we want to guard is that kids shoe 20s never leak in here.
+    expect(chips).not.toContain('20');
   });
 });
 
