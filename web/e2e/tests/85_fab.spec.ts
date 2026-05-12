@@ -28,8 +28,9 @@ test.describe('v0.6.4 — global FAB', () => {
     await expect(page.getByTestId('fab')).toBeVisible();
     await expect(page.getByTestId('fab')).toHaveAttribute('aria-label', 'Add new article');
 
-    // /list → FAB visible.
-    await page.getByTestId('nav-list').click();
+    // /list → FAB visible (route still serves ListScreen, just not
+    // in the nav since v0.7 ADR-037 — direct URL only).
+    await page.goto('/list');
     await expect(page.getByTestId('fab')).toBeVisible();
     await expect(page.getByTestId('fab')).toHaveAttribute('aria-label', 'Add new article');
 
@@ -40,9 +41,9 @@ test.describe('v0.6.4 — global FAB', () => {
     await expect(page.getByTestId('fab')).toHaveAttribute('aria-label', 'Add expense');
 
     // /add → FAB hidden (we're already on the destination). /add
-    // uses hideNav, so the bottom-nav is gone here; navigate the
-    // remaining hidden routes via page.goto.
-    await page.getByTestId('nav-add').click();
+    // uses hideNav, so the bottom-nav is gone here; v0.7 also
+    // dropped the nav-add tab in favour of the FAB. Reach via URL.
+    await page.goto('/add');
     await expect(page.getByTestId('add-step-indicator')).toBeVisible();
     await expect(page.getByTestId('fab')).toBeHidden();
 
@@ -62,7 +63,7 @@ test.describe('v0.6.4 — global FAB', () => {
 
   test('tap on /list → navigates to /add', async ({ page }) => {
     await gotoSearch(page);
-    await page.getByTestId('nav-list').click();
+    await page.goto('/list');
     await expect(page.getByTestId('fab')).toBeVisible();
     await page.getByTestId('fab').click();
     await expect(page).toHaveURL(/\/add$/);
@@ -109,7 +110,7 @@ test.describe('v0.6.4 — global FAB', () => {
 
   test('long scroll on /list — FAB stays at the same bottom offset', async ({ page }) => {
     await gotoSearch(page);
-    await page.getByTestId('nav-list').click();
+    await page.goto('/list');
     await expect(page.getByTestId('fab')).toBeVisible();
     // Capture the FAB's screen-space position before and after a
     // forceful scroll. With `absolute` inside the shell + the shell

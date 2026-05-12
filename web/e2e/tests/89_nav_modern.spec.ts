@@ -50,15 +50,13 @@ test.describe('v0.6.9 — modern fixed bottom nav', () => {
   test("active tab carries data-state='active' on its indicator; switching moves the marker", async ({
     page,
   }) => {
+    // v0.7 ADR-037 — nav-list is gone; the test now hops Articles →
+    // Dashboard → Settings to exercise pill movement across the
+    // four-tab layout.
     await gotoSearch(page);
-    // Initial route is /, so the search tab is active.
+    // Initial route is /, so the Articles tab (nav-search testid) is active.
     await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute('data-state', 'active');
-    await expect(page.getByTestId('nav-list-indicator')).toHaveAttribute('data-state', 'inactive');
-
-    await page.getByTestId('nav-list').click();
-    await expect(page).toHaveURL(/\/list$/);
-    await expect(page.getByTestId('nav-list-indicator')).toHaveAttribute('data-state', 'active');
-    await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute(
+    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
       'data-state',
       'inactive',
     );
@@ -69,7 +67,21 @@ test.describe('v0.6.9 — modern fixed bottom nav', () => {
       'data-state',
       'active',
     );
-    await expect(page.getByTestId('nav-list-indicator')).toHaveAttribute('data-state', 'inactive');
+    await expect(page.getByTestId('nav-search-indicator')).toHaveAttribute(
+      'data-state',
+      'inactive',
+    );
+
+    await page.getByTestId('nav-settings').click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByTestId('nav-settings-indicator')).toHaveAttribute(
+      'data-state',
+      'active',
+    );
+    await expect(page.getByTestId('nav-dashboard-indicator')).toHaveAttribute(
+      'data-state',
+      'inactive',
+    );
   });
 
   test('FAB bottom edge clears nav top edge — LTR (FAB on right)', async ({ page }) => {

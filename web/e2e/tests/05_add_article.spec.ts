@@ -18,7 +18,7 @@ test.describe('Add Article — two-step flow, fields, validation, save', () => {
     await page.goto('/');
     await onboardViaSeed(page, { lang: 'fr', shopName: 'Add Test' });
     await page.reload();
-    await page.getByTestId('nav-add').click();
+    await page.goto('/add');
     await expect(page.getByTestId('step-1')).toBeVisible();
   });
 

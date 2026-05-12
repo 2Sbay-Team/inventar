@@ -71,7 +71,8 @@ test.describe('Multi-vertical store types', () => {
     // when the merchant lands on Add Article.
     await page.goto('/');
     await onboardViaUI(page, { lang: 'en', shopName: 'Default Shop' });
-    await page.getByTestId('nav-add').click();
+    // v0.7 ADR-037 — nav-add was dropped; reach /add via direct URL.
+    await page.goto('/add');
 
     // Fashion's fallback categories include sport / dress / casual
     // (inherited from shoes) — at least one must render.

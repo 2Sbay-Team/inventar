@@ -88,7 +88,7 @@ test('stress: 200 articles — list screen renders without timeout', async ({ pa
   });
   await expect(page.getByTestId('search-screen')).toBeVisible();
 
-  await page.getByTestId('nav-list').click();
+  await page.goto('/list');
   await expect(page.getByTestId('list-screen')).toBeVisible({ timeout: 5000 });
   // At least one result-card rendered = list is not stuck on loading state.
   await expect(page.getByTestId('result-card').first()).toBeVisible({ timeout: 5000 });

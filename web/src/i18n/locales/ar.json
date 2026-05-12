@@ -32,13 +32,10 @@
     "fab_add_expense": "إضافة مصروف"
   },
   "nav": {
-    "search": "بحث",
-    "list": "قائمة",
-    "add": "إضافة",
-    "receive": "استلام",
+    "articles": "المنتجات",
     "sell": "بيع",
-    "dashboard": "لوحة",
-    "settings": "إعدادات"
+    "dashboard": "لوحة التحكم",
+    "settings": "الإعدادات"
   },
   "header": {
     "articles_items": "{{articles}} منتج · {{items}} قطعة"

@@ -23,7 +23,7 @@ test.describe('Add Article — multi-colour with location split', () => {
     await page.goto('/');
     await onboardViaSeed(page, { lang: 'fr', shopName: 'Multi Colour' });
     await page.reload();
-    await page.getByTestId('nav-add').click();
+    await page.goto('/add');
     await expect(page.getByTestId('step-1')).toBeVisible();
 
     // Step 1 — basics.

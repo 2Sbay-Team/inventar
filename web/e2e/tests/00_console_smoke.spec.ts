@@ -27,7 +27,7 @@ test('no console errors during a representative flow', async ({ page }) => {
   await page.getByTestId('adjust-confirm').click();
   await page.getByTestId('detail-back').click();
 
-  await page.getByTestId('nav-list').click();
+  await page.goto('/list');
   await expect(page.getByTestId('list-screen')).toBeVisible();
   await page.getByTestId('sort-az').click();
 

@@ -29,7 +29,7 @@ test.describe('QR display + scan', () => {
   });
 
   test('add-article scan button opens the scanner sheet', async ({ page }) => {
-    await page.getByTestId('nav-add').click();
+    await page.goto('/add');
     await page.getByTestId('add-scan').click();
     // The scanner mounts even when BarcodeDetector / camera aren't
     // available in headless chromium — it just shows the unsupported

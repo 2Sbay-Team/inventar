@@ -32,12 +32,9 @@
     "fab_add_expense": "Ajouter une dépense"
   },
   "nav": {
-    "search": "Recherche",
-    "list": "Liste",
-    "add": "Ajouter",
-    "receive": "Recevoir",
+    "articles": "Articles",
     "sell": "Vendre",
-    "dashboard": "Tableau",
+    "dashboard": "Bilan",
     "settings": "Réglages"
   },
   "header": {

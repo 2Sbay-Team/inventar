@@ -10,16 +10,30 @@ test.describe('Search screen — buttons + nav', () => {
     });
   });
 
-  test('bottom nav has all 5 tabs and they navigate', async ({ page }) => {
+  test('bottom nav has 4 tabs (Articles / Sell / Dashboard / Settings) and they navigate', async ({
+    page,
+  }) => {
+    // v0.7 ADR-037 — was 5 tabs (Search / List / Add / Dashboard /
+    // Settings); the redesign collapsed Search + List into "Articles"
+    // and dropped Add as a tab in favour of the FAB. The `nav-search`
+    // testid is preserved on the Articles tab so this file's other
+    // tests don't churn; the new Sell tab gets `nav-sell`.
     await expect(page.getByTestId('bottom-nav')).toBeVisible();
-    for (const id of ['nav-search', 'nav-list', 'nav-add', 'nav-dashboard', 'nav-settings']) {
+    for (const id of ['nav-search', 'nav-sell', 'nav-dashboard', 'nav-settings']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
-    await page.getByTestId('nav-list').click();
+    // Dropped tabs are gone from the nav.
+    await expect(page.getByTestId('nav-list')).toHaveCount(0);
+    await expect(page.getByTestId('nav-add')).toHaveCount(0);
+    await expect(page.getByTestId('nav-receive')).toHaveCount(0);
+
+    // /list is still a reachable route via deep link / muscle memory.
+    await page.goto('/list');
     await expect(page.getByTestId('list-screen')).toBeVisible();
     await page.getByTestId('nav-search').click();
     await expect(page.getByTestId('search-screen')).toBeVisible();
-    await page.getByTestId('nav-add').click();
+    // /add likewise — accessed via FAB on the Articles screen now.
+    await page.goto('/add');
     await expect(page.getByTestId('add-cancel')).toBeVisible();
     await page.getByTestId('add-cancel').click();
     await page.getByTestId('nav-dashboard').click();

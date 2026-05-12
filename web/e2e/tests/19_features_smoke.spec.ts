@@ -27,7 +27,7 @@ test.describe('feature smoke — buttons that other specs miss', () => {
   test('list screen: sort buttons + show-archived toggle work', async ({ page }) => {
     const archived = { ...standardCatalogue[2], archived: true };
     await seedFresh(page, { articles: [...standardCatalogue.slice(0, 2), archived] });
-    await page.getByTestId('nav-list').click();
+    await page.goto('/list');
     await expect(page).toHaveURL(/\/list$/);
 
     // Two non-archived articles by default
@@ -141,7 +141,7 @@ test.describe('feature smoke — buttons that other specs miss', () => {
     // floor + back steppers. The legacy qty-plus/qty-minus controls were
     // removed when the multi-block form landed.
     await seedFresh(page, { articles: [] });
-    await page.getByTestId('nav-add').click();
+    await page.goto('/add');
     await expect(page.getByTestId('step-1')).toBeVisible();
 
     // Brand field on Step 1 is writable.

@@ -119,7 +119,15 @@ test.describe('Clothes vertical — end-to-end smoke', () => {
     expect(totalUnits).toBe(9); // 4 + 2 + 3
   });
 
-  test('clothes nav surfaces "Add" as the primary tab (not "Receive")', async ({ page }) => {
+  test('clothes nav shows the 4-tab unified layout (Articles / Sell / Dashboard / Settings)', async ({
+    page,
+  }) => {
+    // v0.7 ADR-037 — the per-vertical SCAN_ITEMS vs ADD_ITEMS split
+    // is gone; every vertical shows the same 4 tabs. The Add tab is
+    // removed (replaced by the FAB on Articles); Receive is removed
+    // from the nav (still reachable via deep link / article detail).
+    // This test originally pinned the add-first vs scan-first branching;
+    // updated to pin the unified contract.
     await page.goto('/');
     await onboardViaSeed(page, {
       lang: 'en',
@@ -127,11 +135,10 @@ test.describe('Clothes vertical — end-to-end smoke', () => {
       storeType: 'clothes',
     });
     await page.reload();
-    // Clothes is primary_flow='add', so nav-add is rendered (the same
-    // way shoes works). Shop is the only vertical that swaps it for
-    // nav-receive — proving here that clothes follows the add-first
-    // contract.
-    await expect(page.getByTestId('nav-add')).toBeVisible();
+    for (const id of ['nav-search', 'nav-sell', 'nav-dashboard', 'nav-settings']) {
+      await expect(page.getByTestId(id)).toBeVisible();
+    }
+    await expect(page.getByTestId('nav-add')).toHaveCount(0);
     await expect(page.getByTestId('nav-receive')).toHaveCount(0);
   });
 });

@@ -18,7 +18,7 @@ test.describe('Persistence', () => {
   });
 
   test('photo survives a full reload and is ≤ 200 KB', async ({ page }) => {
-    await page.getByTestId('nav-add').click();
+    await page.goto('/add');
     // v0.3: Add Article is two steps — basics on Step 1, photo + variants
     // on Step 2. Photo lives inside the first colour block.
     await page.getByTestId('field-name').fill('Persistence shoe');
