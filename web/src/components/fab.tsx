@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
+import { db } from '../db/db';
+import { useLive } from '../hooks/use-live';
 
 // v0.6.4 — Floating Action Button. Sits above the bottom nav on
 // catalogue-shaped screens and routes / dispatches the primary
@@ -51,7 +53,24 @@ export function Fab(): JSX.Element | null {
   const location = useLocation();
   const pathname = location.pathname;
 
+  // v0.9 — empty-state catalogue (0 visible articles) already exposes a
+  // centred "Add your first article" CTA inside SearchScreen; the FAB
+  // on top of it would duplicate the affordance. Hide the FAB until the
+  // merchant creates their first article. `undefined` here means
+  // "liveQuery hasn't resolved yet" — treat as zero so the FAB never
+  // flashes on cold load. The filter matches SearchScreen's empty-zero
+  // check (search.ts excludes both deleted_at and archived_at rows by
+  // default), so the FAB stays hidden if the catalogue happens to be
+  // entirely archived — same surface the merchant sees.
+  const articleCount = useLive<number>(
+    async () =>
+      (await db.articles.toArray()).filter((a) => a.deleted_at === null && a.archived_at === null)
+        .length,
+    [],
+  );
+
   if (NAV_TO_ADD_ROUTES.has(pathname)) {
+    if (articleCount === undefined || articleCount === 0) return null;
     return (
       <FabButton
         testId="fab"

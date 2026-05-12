@@ -11,9 +11,28 @@ import { onboardViaSeed } from '../helpers/onboarding';
 // existing action-bar already exposes Sell + Restock. See the
 // matrix comment in src/components/fab.tsx.
 
-async function gotoSearch(page: Page, lang: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
+async function gotoSearch(
+  page: Page,
+  lang: 'en' | 'fr' | 'ar' = 'en',
+  options: { seedArticle?: boolean } = { seedArticle: true },
+): Promise<void> {
   await page.goto('/');
   await onboardViaSeed(page, { lang, shopName: 'FAB Shop' });
+  // v0.9 — the FAB on /products hides itself when the catalogue is
+  // empty (the empty-state already exposes a centred CTA), so most
+  // FAB tests need at least one article seeded before they can
+  // assert visibility. The single dedicated empty-state test below
+  // calls this helper with seedArticle: false.
+  if (options.seedArticle !== false) {
+    await page.evaluate(async (locale) => {
+      await window.__inventarSeed!.seed({
+        shopName: 'FAB Shop',
+        locale,
+        articles: [{ name: 'Seeded Article', sizes: [{ size: '42', qty: 1 }] }],
+        reset: false,
+      });
+    }, lang);
+  }
   await page.reload();
   await expect(page.getByTestId('search-screen')).toBeVisible({ timeout: 10_000 });
 }
@@ -127,5 +146,48 @@ test.describe('v0.6.4 — global FAB', () => {
     const after = await page.getByTestId('fab').boundingBox();
     if (!before || !after) throw new Error('fab box missing');
     expect(Math.abs(after.y - before.y)).toBeLessThan(2);
+  });
+
+  // v0.9 — duplicate-CTA fix. The Products empty-state already
+  // shows a centred "Add your first article" button (testid
+  // `empty-zero-cta`); rendering the FAB on top of it produced two
+  // visually distinct buttons that did the same thing. The FAB now
+  // self-hides on /, /products, /list when the catalogue is empty,
+  // and reappears as soon as the merchant creates their first
+  // article (or the seed surface inserts one).
+  test('hidden on / when catalogue is empty; empty-state CTA is the only add affordance', async ({
+    page,
+  }) => {
+    await gotoSearch(page, 'en', { seedArticle: false });
+
+    // The empty-state lives where the result list would be; its
+    // CTA is the centred button the merchant should tap first.
+    await expect(page.getByTestId('empty-zero')).toBeVisible();
+    await expect(page.getByTestId('empty-zero-cta')).toBeVisible();
+    // FAB is gone — no rival add-button.
+    await expect(page.getByTestId('fab')).toBeHidden();
+
+    // /products mirrors / (same SearchScreen component, v0.8).
+    await page.goto('/products');
+    await expect(page.getByTestId('empty-zero')).toBeVisible();
+    await expect(page.getByTestId('fab')).toBeHidden();
+
+    // /list redirects to /products — empty state still drives the
+    // single-CTA invariant.
+    await page.goto('/list');
+    await expect(page).toHaveURL(/\/products$/);
+    await expect(page.getByTestId('fab')).toBeHidden();
+
+    // Once an article exists the FAB returns. Seed one without a
+    // reload-roundtrip — Dexie's liveQuery picks the change up.
+    await page.evaluate(async () => {
+      await window.__inventarSeed!.seed({
+        shopName: 'FAB Shop',
+        locale: 'en',
+        articles: [{ name: 'First Article', sizes: [{ size: '42', qty: 1 }] }],
+        reset: false,
+      });
+    });
+    await expect(page.getByTestId('fab')).toBeVisible();
   });
 });

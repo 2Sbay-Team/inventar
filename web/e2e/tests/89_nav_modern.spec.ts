@@ -20,9 +20,26 @@ import { onboardViaSeed } from '../helpers/onboarding';
 // implementations — same behavioural outcome via two architectural
 // routes).
 
-async function gotoSearch(page: Page, lang: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
+async function gotoSearch(
+  page: Page,
+  lang: 'en' | 'fr' | 'ar' = 'en',
+  options: { seedArticle?: boolean } = { seedArticle: true },
+): Promise<void> {
   await page.goto('/');
   await onboardViaSeed(page, { lang, shopName: 'Nav Test Shop' });
+  // v0.9 — the FAB self-hides on the Products empty-state to avoid
+  // duplicating the centred "Add your first article" CTA. Tests that
+  // measure FAB geometry need at least one article in the catalogue.
+  if (options.seedArticle !== false) {
+    await page.evaluate(async (locale) => {
+      await window.__inventarSeed!.seed({
+        shopName: 'Nav Test Shop',
+        locale,
+        articles: [{ name: 'Nav Seeded Article', sizes: [{ size: '42', qty: 1 }] }],
+        reset: false,
+      });
+    }, lang);
+  }
   await page.reload();
   await expect(page.getByTestId('search-screen')).toBeVisible({ timeout: 10_000 });
 }
