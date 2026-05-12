@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AppThemePicker } from '../components/app-theme-picker';
 import { BrandColorPicker } from '../components/brand-color-picker';
+import { BusinessCard } from '../components/business-card';
 import { CompletionRing } from '../components/completion-ring';
 import { LogoPreviewDialog } from '../components/logo-preview-dialog';
 import { computeCompletion } from '../theme/profile-completion';
@@ -429,6 +430,7 @@ function ShopIdentitySection(): JSX.Element | null {
         <ContactSubsection profile={profile} />
         <LocationSubsection profile={profile} />
         <SocialSubsection profile={profile} />
+        <BusinessCardSubsection profile={profile} completionPercentage={completion.percentage} />
       </div>
     </section>
   );
@@ -484,6 +486,42 @@ function useSubsectionAutosave(profile: ShopProfile): {
     [autosave],
   );
   return { setField, status: autosave.status };
+}
+
+// v0.9 Phase 6 — Digital business card. The brief gates this
+// subsection at "≥ 30% complete" — below that we render a teaser
+// pointing the merchant at what to fill. The completion threshold
+// is purely about motivating the merchant to fill more fields; the
+// card would render fine at 0% but with very little to show.
+function BusinessCardSubsection({
+  profile,
+  completionPercentage,
+}: {
+  profile: ShopProfile;
+  completionPercentage: number;
+}): JSX.Element {
+  const { t } = useTranslation('settings');
+  const unlocked = completionPercentage >= 30;
+  return (
+    <div className="space-y-3" data-testid="section-business-card">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('card_title')}</h4>
+      </div>
+      {unlocked ? (
+        <>
+          <p className="text-ink-3 text-[11px] leading-relaxed">{t('card_hint')}</p>
+          <BusinessCard profile={profile} />
+        </>
+      ) : (
+        <p
+          data-testid="business-card-teaser"
+          className="border-hair text-ink-3 rounded-xl border border-dashed bg-white px-3 py-4 text-xs leading-relaxed"
+        >
+          {t('card_teaser')}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function BrandColorSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
