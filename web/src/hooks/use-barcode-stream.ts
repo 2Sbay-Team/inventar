@@ -104,6 +104,15 @@ export function useBarcodeStream(opts: UseBarcodeStreamOptions): UseBarcodeStrea
     let cancelled = false;
     let rafId: number | null = null;
     let stream: MediaStream | null = null;
+    // Desktop edge case: on platforms where BarcodeDetector exists
+    // (recent Chromium on Mac/ChromeOS/Android) but getUserMedia
+    // resolves with a stream that never produces frames — no real
+    // camera, virtual camera idle, autoplay queued past a missing
+    // gesture — the <video> element sits black with no error fired.
+    // The watchdog flips to the existing error path after 2.5s if
+    // the video metadata hasn't loaded, surfacing the "Camera
+    // unavailable" fallback card the caller already renders.
+    let watchdog: ReturnType<typeof setTimeout> | null = null;
 
     const Detector = getBarcodeDetector();
     if (!Detector) return;
@@ -123,8 +132,20 @@ export function useBarcodeStream(opts: UseBarcodeStreamOptions): UseBarcodeStrea
         v.srcObject = stream;
         await v.play();
 
+        watchdog = setTimeout(() => {
+          if (cancelled) return;
+          const el = videoRef.current;
+          if (!el || el.videoWidth === 0) {
+            setError('camera unavailable');
+          }
+        }, 2500);
+
         const tick = async (): Promise<void> => {
           if (cancelled || !videoRef.current) return;
+          if (watchdog !== null && videoRef.current.videoWidth > 0) {
+            clearTimeout(watchdog);
+            watchdog = null;
+          }
           try {
             const codes = await detector.detect(videoRef.current);
             if (codes.length > 0 && codes[0]) {
@@ -144,6 +165,7 @@ export function useBarcodeStream(opts: UseBarcodeStreamOptions): UseBarcodeStrea
 
     return () => {
       cancelled = true;
+      if (watchdog !== null) clearTimeout(watchdog);
       if (rafId !== null) cancelAnimationFrame(rafId);
       if (stream) stream.getTracks().forEach((tr) => tr.stop());
     };

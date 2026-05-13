@@ -361,11 +361,12 @@ export function SellScreen(): JSX.Element {
       <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
         <button
           type="button"
-          data-testid="sell-cancel"
+          data-testid="sell-close"
+          aria-label={tCommon('close')}
           onClick={() => navigate('/', { replace: true })}
-          className="text-ink-3 justify-self-start text-xs font-medium"
+          className="text-ink-3 -ml-2 inline-flex h-9 w-9 items-center justify-center justify-self-start rounded-full"
         >
-          {tCommon('cancel')}
+          <X aria-hidden className="h-6 w-6" strokeWidth={2.25} />
         </button>
         <h3 className="font-display inline-flex items-center justify-center gap-1.5 justify-self-center text-sm font-semibold tracking-tight">
           <ShoppingCart aria-hidden className="text-accent h-4 w-4" strokeWidth={2.25} />
