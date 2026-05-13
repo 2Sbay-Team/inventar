@@ -99,7 +99,10 @@ async function issueInvoiceViaSell(page: Page): Promise<void> {
 }
 
 test.describe('v0.6.6 — invoice Done button respects history', () => {
-  test('from past-invoices list: Done returns to the list, not /search', async ({ page }) => {
+  // v0.9.x — both back-button cases depend on issuing an invoice via
+  // /sell, which no longer hosts the invoice block. Re-enable once the
+  // Documents tab ships a real invoice issuance flow (v0.8).
+  test.skip('from past-invoices list: Done returns to the list, not /search', async ({ page }) => {
     await page.goto('/');
     await onboardViaSeed(page, {
       lang: 'en',
@@ -126,7 +129,7 @@ test.describe('v0.6.6 — invoice Done button respects history', () => {
     expect(new URL(page.url()).pathname).toBe('/invoices');
   });
 
-  test('right after issuing from /sell: Done returns the merchant to /search (the sell entry point)', async ({
+  test.skip('right after issuing from /sell: Done returns the merchant to /search (the sell entry point)', async ({
     page,
   }) => {
     await page.goto('/');

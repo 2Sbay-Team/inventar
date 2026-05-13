@@ -7,7 +7,9 @@ import { onboardViaSeed } from '../helpers/onboarding';
 // against the catalogue and lets the merchant tap a result. Either way
 // the cart row that gets added is identical to a camera scan.
 
-test('sell: Type instead → typing the full EAN of a known article adds the same cart row as a scan', async ({
+// v0.9.x — "Type instead" sheet was replaced by a search-first input
+// bar. New equivalents tested in 94_sell_session_flow.spec.ts.
+test.skip('sell: Type instead → typing the full EAN of a known article adds the same cart row as a scan', async ({
   page,
 }) => {
   await page.goto('/');
@@ -122,7 +124,9 @@ test('sell: Type instead → typing the full EAN of a known article adds the sam
   expect(sales[0]!.delta).toBe(-1);
 });
 
-test('sell: Type instead → name search finds the article and tapping the result adds it', async ({
+// v0.9.x — "Type instead" sheet was replaced by a search-first input
+// bar. New equivalents tested in 94_sell_session_flow.spec.ts.
+test.skip('sell: Type instead → name search finds the article and tapping the result adds it', async ({
   page,
 }) => {
   await page.goto('/');

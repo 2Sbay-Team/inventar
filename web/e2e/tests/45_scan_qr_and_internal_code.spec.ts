@@ -151,7 +151,10 @@ test.describe('Scanner accepts Inventar QR URL + internal_code', () => {
     await expect(page.getByTestId('receive-unknown-sheet')).toHaveCount(0);
   });
 
-  test('/sell: QR-URL scan → adds the article to cart', async ({ page }) => {
+  // v0.9.x — Sell flow no longer adds to a cart pill; scan opens the
+  // variant picker. Replacement coverage lives in
+  // 94_sell_session_flow.spec.ts.
+  test.skip('/sell: QR-URL scan → adds the article to cart', async ({ page }) => {
     await page.goto('/');
     await onboardViaSeed(page, {
       lang: 'en',
@@ -172,7 +175,7 @@ test.describe('Scanner accepts Inventar QR URL + internal_code', () => {
     await expect(page.getByTestId('sell-cart-toggle')).toContainText('1');
   });
 
-  test('/sell: internal_code scan → adds the article to cart', async ({ page }) => {
+  test.skip('/sell: internal_code scan → adds the article to cart', async ({ page }) => {
     await page.goto('/');
     await onboardViaSeed(page, {
       lang: 'en',

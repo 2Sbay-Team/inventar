@@ -1,17 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { onboardViaSeed } from '../helpers/onboarding';
 
-// v0.5 ADR-018: /sell builds a cart from camera scans, one cart row per
-// distinct article. Done writes one sale Movement per cart row with
-// delta=-row.qty, all sharing the receiving session's transaction_id.
-//
-// The brief's test description says "three sale Movements" from a 2+1
-// scan sequence, but the brief's design text says "Create one Movement
-// per cart item" with delta=-quantity. We follow the design text:
-// two movements with deltas -2 and -1 share a transaction_id. Noted
-// in the commit message.
-
-test('sell: scan A twice + B once → cart has 2 rows; Done writes 2 sale movements (deltas -2, -1) with shared transaction_id', async ({
+// v0.9.x — the cart-based /sale flow this spec was written against no
+// longer exists (one Movement per Confirm, no cart drawer). The
+// shared-transaction_id-per-session invariant is now covered by
+// 94_sell_session_flow.spec.ts. Skipping here until a parity rewrite
+// lands.
+test.skip('sell: scan A twice + B once → cart has 2 rows; Done writes 2 sale movements (deltas -2, -1) with shared transaction_id', async ({
   page,
 }) => {
   await page.goto('/');

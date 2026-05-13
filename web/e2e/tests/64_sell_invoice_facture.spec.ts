@@ -77,7 +77,12 @@ async function seedShopWithArticle(page: Page): Promise<void> {
   }, EAN);
 }
 
-test('sell → invoice block → /invoice/:id renders subtotal/VAT/total + customer + Print', async ({
+// v0.9.x — Sell screen no longer hosts the invoice block; that
+// functionality is moving to the Documents sub-tab (placeholder for
+// v0.8). The repo layer (createInvoice, invoice-pdf) and the
+// /invoice/:id view still exist and are exercised by the unit tests
+// in src/repos/invoices.test.ts + src/repos/invoice-pdf.test.ts.
+test.skip('sell → invoice block → /invoice/:id renders subtotal/VAT/total + customer + Print', async ({
   page,
 }) => {
   await page.goto('/');
