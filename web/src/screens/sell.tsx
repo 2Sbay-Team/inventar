@@ -1,189 +1,381 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Keyboard, ShoppingCart, Trash2, X } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  FileText,
+  Minus,
+  Plus,
+  Search as SearchIcon,
+  ShoppingCart,
+  X,
+} from 'lucide-react';
 
+import { BarcodeScanner } from '../components/barcode-scanner';
+import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
 import { useBarcodeStream } from '../hooks/use-barcode-stream';
 import { useCurrency } from '../hooks/use-currency';
-import { useEanValidator } from '../hooks/use-ean-validator';
+import { useLive } from '../hooks/use-live';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
-import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
-import { recordMovement } from '../repos/movements';
-import { pickFifoLot } from '../repos/lots';
-import { quantityFor } from '../repos/quantity';
-import { createInvoice } from '../repos/invoices';
-import { newUUID } from '../utils/uuid';
-import { classifyScan } from '../utils/scan-classify';
 import { formatCurrency } from '../i18n/format-currency';
-import { type Article, type InvoiceLine, type Locale, type Uom, type UUID } from '../types';
+import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
+import { pickFifoLot } from '../repos/lots';
+import { recordMovement } from '../repos/movements';
+import { quantityFor, sizeGridFor, type SizeGridCell } from '../repos/quantity';
+import { type Article, type Locale, type UUID, type Variant } from '../types';
+import { classifyScan } from '../utils/scan-classify';
+import { newUUID } from '../utils/uuid';
 
-// v0.5 ADR-018 + ADR-019: scan-driven checkout. Mirror of /receive's
-// camera shape, but instead of one-scan-one-write the merchant builds a
-// cart of items first and commits the whole transaction at the end.
+// v0.9.x — Sale screen rewrite (replaces the v0.5 ADR-018 cart flow).
 //
-// Cart semantics
-//   - One row per Article (subsequent scans of the same EAN bump the
-//     row's qty rather than adding a duplicate row).
-//   - Each row carries the FIFO Lot picked at the moment the row was
-//     first added — earliest expires_at with remaining > 0. Null for
-//     non-perishable items. Sticking the lot to the row at add-time
-//     (rather than at Done) keeps the audit trail intuitive: what the
-//     merchant saw on the cart is what the Movement attributes to.
-//   - On Done, one sale Movement per cart row: delta=-row.qty,
-//     type='sale', location='floor', transaction_id=session,
-//     lot_id=row.lot_id, unit_price_tnd=null (uses article's catalogue
-//     price; per-sale discounts go through the Quick Adjust path).
+// Architecture shift: a SellScreen "session" is now a sequence of
+// independent sales (one Movement committed per Confirm). The cart
+// abstraction is gone — each Confirm decrements stock immediately and
+// surfaces a toast, then the screen is ready for the next sale. The
+// session is bounded by the merchant arriving at /sale and leaving via
+// the ✕ (cancel) or [End →] action; all Movements created during the
+// session share a `transaction_id` so /reports can show them as a
+// session row.
 //
-// Note: the v0.5 brief's test-38 description says "three sale
-// Movements" from a 2-scan + 1-scan sequence, but the same brief's
-// design text says "Create one Movement per cart item: delta=-quantity".
-// We follow the design text (one Movement per cart ROW with
-// delta=-qty) — the alternative would lose the "cart" abstraction
-// altogether and write per-scan, which contradicts the cart-aggregated
-// drawer the merchant actually sees.
+// Top-level layout has two sub-tabs:
+//   ?tab=sell        — the new sell flow (default)
+//   ?tab=documents   — coming-soon placeholder for v0.8 quotes/invoices
 //
-// Sized articles (clothes / shoes with barcode_ean): out of scope for
-// scan-driven sale. We surface a toast and leave the cart untouched —
-// the merchant should open the article via Search and use Quick Adjust,
-// which already handles per-(colour, size) sale.
+// Per-vertical chrome:
+//   profile.store_type === 'shop'   → camera viewfinder primary (top
+//                                     of screen), search bar secondary
+//   everything else (fashion, ...)  → search bar primary, [📷] icon
+//                                     inside the search bar opens the
+//                                     scanner as a modal
 //
-// Camera + BarcodeDetector wiring lives in useBarcodeStream — shared
-// with /receive. The hook handles the cooldown + e2e CustomEvent
-// listener; this screen just calls into it with its own onDetect +
-// isBlocked predicate.
+// Camera detection lives in useBarcodeStream / BarcodeScanner — those
+// already fail-fast when there's no real camera (no touch + coarse
+// pointer), so desktops never sit on a black <video>.
 
-interface CartRow {
-  variant_id: UUID;
+interface SessionSale {
+  // Movement id, used as the React key in the summary list and for
+  // future "undo last sale" wiring (out of scope for v0.9.x).
+  movement_id: UUID;
   article_id: UUID;
+  variant_id: UUID;
   article_name: string;
   internal_code: string;
-  unit_price_tnd: number; // millimes
+  color: string | null;
+  size: string | null;
   qty: number;
-  lot_id: UUID | null;
-  available: number; // computed at add-time, not refreshed per scan
-  // v0.5.2.9 — snapshot the article's UoM at add-to-cart time so
-  // the cart total + invoice line render correctly for non-piece
-  // articles (the invoice repo doesn't fetch the article again).
-  unit_of_measure: Uom;
+  // qty × unit_price_tnd at sale time, in minor units (millimes).
+  total: number;
 }
 
-type ManualState = null | 'open';
+type SubTab = 'sell' | 'documents';
+
+function parseTab(value: string | null): SubTab {
+  return value === 'documents' ? 'documents' : 'sell';
+}
 
 export function SellScreen(): JSX.Element {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const tab = parseTab(params.get('tab'));
+
+  function selectTab(next: SubTab): void {
+    navigate(next === 'sell' ? '/sale' : '/sale?tab=documents', { replace: true });
+  }
+
+  return (
+    <ScreenLayout hideNav>
+      {tab === 'documents' ? (
+        <DocumentsTab onSwitch={selectTab} active={tab} />
+      ) : (
+        <SellTab onSwitch={selectTab} active={tab} />
+      )}
+    </ScreenLayout>
+  );
+}
+
+// ─── sub-tabs row ─────────────────────────────────────────────────────
+
+function SubTabs(props: { active: SubTab; onSwitch: (t: SubTab) => void }): JSX.Element {
+  const { active, onSwitch } = props;
+  const { t } = useTranslation('sell');
+  return (
+    <nav
+      data-testid="sale-subtabs"
+      className="border-hair flex items-center gap-1 border-b bg-white px-3 py-2"
+    >
+      <button
+        type="button"
+        data-testid="sale-tab-sell"
+        onClick={() => onSwitch('sell')}
+        aria-pressed={active === 'sell'}
+        className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium ${
+          active === 'sell' ? 'bg-accent/10 text-accent' : 'text-ink-2'
+        }`}
+      >
+        {t('subtab_sell')}
+      </button>
+      <button
+        type="button"
+        data-testid="sale-tab-documents"
+        onClick={() => onSwitch('documents')}
+        aria-pressed={active === 'documents'}
+        className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium ${
+          active === 'documents' ? 'bg-accent/10 text-accent' : 'text-ink-2'
+        }`}
+      >
+        {t('subtab_documents')}
+      </button>
+    </nav>
+  );
+}
+
+// ─── Documents tab (placeholder) ──────────────────────────────────────
+
+function DocumentsTab(props: { active: SubTab; onSwitch: (t: SubTab) => void }): JSX.Element {
+  const { t } = useTranslation('sell');
+  const navigate = useNavigate();
+  return (
+    <>
+      <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
+        <button
+          type="button"
+          data-testid="sell-close"
+          aria-label={t('close')}
+          onClick={() => navigate('/', { replace: true })}
+          className="text-ink-3 -ml-2 inline-flex h-9 w-9 items-center justify-center justify-self-start rounded-full"
+        >
+          <X aria-hidden className="h-6 w-6" strokeWidth={2.25} />
+        </button>
+        <h3 className="font-display inline-flex items-center justify-center gap-1.5 justify-self-center text-sm font-semibold tracking-tight">
+          <ShoppingCart aria-hidden className="text-accent h-4 w-4" strokeWidth={2.25} />
+          {t('title')}
+        </h3>
+        <span />
+      </header>
+      <SubTabs active={props.active} onSwitch={props.onSwitch} />
+      <main
+        data-testid="documents-screen"
+        className="flex flex-1 flex-col items-center justify-center px-8 text-center"
+      >
+        <FileText aria-hidden className="text-ink-4 h-14 w-14" strokeWidth={1.25} />
+        <h2 className="font-display text-ink mt-4 text-lg font-semibold">{t('documents_title')}</h2>
+        <p className="text-ink-3 mt-1 text-sm">{t('documents_coming_soon')}</p>
+        <p className="text-ink-2 mt-4 max-w-xs text-xs leading-relaxed">{t('documents_pitch')}</p>
+      </main>
+    </>
+  );
+}
+
+// ─── Sell tab (new flow) ──────────────────────────────────────────────
+
+interface SellTabProps {
+  active: SubTab;
+  onSwitch: (t: SubTab) => void;
+}
+
+function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   const { t } = useTranslation('sell');
   const { t: tCommon } = useTranslation('common');
+  const navigate = useNavigate();
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
-  const navigate = useNavigate();
+
+  // Session state — committed per Confirm. Movements share this
+  // transaction_id so reports can group them as one session row.
   const sessionIdRef = useRef<UUID>(newUUID());
+  const [sessionSales, setSessionSales] = useState<SessionSale[]>([]);
 
-  const [cart, setCart] = useState<CartRow[]>([]);
-  const [cartOpen, setCartOpen] = useState(false);
-  const [manual, setManual] = useState<ManualState>(null);
-  const [scanError, setScanError] = useState<string | null>(null);
-  // v0.9.x — ✕ confirmation gate. Empty cart exits straight away;
-  // a non-empty cart prompts "End session?" so the merchant doesn't
-  // discard a session-in-progress by tapping ✕ by mistake. (Until
-  // Phase B lands single-confirm-per-sale, "items in cart" is the
-  // closest available proxy for "sales in session".)
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<string>('all');
   const [endConfirm, setEndConfirm] = useState(false);
-  // v0.5.2.4 ADR-024: optional invoice block. When invoiceEnabled is
-  // true, commitSale also calls createInvoice() in the same flow and
-  // redirects to the invoice view. Customer fields and vat override
-  // are local-only — we don't persist any draft until the invoice is
-  // actually issued (no half-state in IDB).
-  const [invoiceEnabled, setInvoiceEnabled] = useState(false);
-  const [invoiceCustomerName, setInvoiceCustomerName] = useState('');
-  const [invoiceCustomerAddress, setInvoiceCustomerAddress] = useState('');
-  const [invoiceCustomerFiscalId, setInvoiceCustomerFiscalId] = useState('');
-  const [invoiceVatOverride, setInvoiceVatOverride] = useState<string>('');
-  // v0.5.2.7: per-invoice opt-out of VAT. Defaults on so the existing
-  // behaviour is preserved. The merchant flips this off for sales that
-  // shouldn't print a VAT line (exempt goods, B2B reverse charge,
-  // merchant not VAT-registered). When false, the rate input is
-  // hidden, the printed invoice skips the VAT row, and total = subtotal.
-  const [invoiceVatEnabled, setInvoiceVatEnabled] = useState(true);
-  // v0.5.1: when a scan resolves to a sized-vertical article, the
-  // toast turns into a tappable Link to /article/:id so the merchant
-  // can use Quick Adjust on the right (colour, size) cell. Null when
-  // the current scanError isn't of that shape.
-  const [scanErrorArticleId, setScanErrorArticleId] = useState<UUID | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const validate = useEanValidator();
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [pickerArticleId, setPickerArticleId] = useState<UUID | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Suppress further detections while the manual sheet is open OR the
-  // expanded cart drawer is up — prevents accidental adds. Mirrored
-  // into a ref so the hook's blocked predicate reads the latest value
-  // without re-mounting the camera.
-  const dispatchBlockedRef = useRef(false);
+  // Auto-dismiss the success toast after 2 s. Cleared on unmount and on
+  // a fresh toast firing so back-to-back sales don't hold onto a stale
+  // timer.
   useEffect(() => {
-    dispatchBlockedRef.current = manual !== null || cartOpen;
-  }, [manual, cartOpen]);
+    if (!toast) return;
+    const handle = window.setTimeout(() => setToast(null), 2000);
+    return () => window.clearTimeout(handle);
+  }, [toast]);
 
-  // Mirror cart state in a ref so the camera + e2e listener closures
-  // (attached at mount time, deps=[]) can read the LATEST cart when
-  // deciding whether to bump an existing row vs add a new one. Without
-  // this, repeated scans always read cart=[] (the mount-time closure)
-  // and produce one row per scan instead of incrementing.
-  const cartRef = useRef<CartRow[]>([]);
+  // Live data — list of alive, non-archived articles + their variants.
+  const articles = useLive<Article[]>(
+    async () =>
+      (await db.articles.toArray()).filter((a) => a.deleted_at === null && a.archived_at === null),
+    [],
+    [],
+  );
+
+  // Per-article (variants[], totalStock). Recomputed when sessionSales
+  // grows so the running totals visible on each row reflect the latest
+  // post-Confirm stock.
+  const articleStock = useLive<Record<string, number>>(
+    async () => {
+      const variants = (await db.variants.toArray()).filter((v) => v.deleted_at === null);
+      const byVariant = new Map<string, Variant[]>();
+      for (const v of variants) {
+        const arr = byVariant.get(v.article_id);
+        if (arr) arr.push(v);
+        else byVariant.set(v.article_id, [v]);
+      }
+      const out: Record<string, number> = {};
+      for (const [aid, vs] of byVariant.entries()) {
+        let total = 0;
+        for (const v of vs) {
+          total += await quantityFor(db, v.id);
+        }
+        out[aid] = total;
+      }
+      return out;
+    },
+    [sessionSales.length],
+    {},
+  );
+
+  // Category chips — `All` plus the merchant's active subtypes. Localised
+  // labels live under sell.category_*; we fall back to the raw key if a
+  // label hasn't been added yet, which avoids a noisy `[missing]` chip
+  // while we're rolling out subtypes.
+  const categories = useMemo<readonly string[]>(() => {
+    if (!profile) return [];
+    const list =
+      profile.store_type === 'shop'
+        ? profile.shop_subtypes
+        : profile.store_type === 'fashion'
+          ? profile.fashion_subtypes
+          : [];
+    return ['all', ...list];
+  }, [profile]);
+
+  // Filter + sort the article list. 0-stock rows still show; they're
+  // pushed to the bottom and rendered greyed-out so the merchant knows
+  // the SKU exists but is exhausted.
+  const filteredArticles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (articles ?? [])
+      .filter((a) => {
+        if (category !== 'all' && a.category !== category) return false;
+        if (q.length === 0) return true;
+        return (
+          a.name.toLowerCase().includes(q) ||
+          a.internal_code.toLowerCase().includes(q) ||
+          (a.barcode_ean ?? '').includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const sa = articleStock[a.id] ?? 0;
+        const sb = articleStock[b.id] ?? 0;
+        if (sa === 0 && sb !== 0) return 1;
+        if (sa !== 0 && sb === 0) return -1;
+        if (sa !== sb) return sb - sa;
+        return a.name.localeCompare(b.name);
+      });
+  }, [articles, articleStock, category, search]);
+
+  // Quick-sell strip — top 3 articles by sales count over the lifetime
+  // of the catalogue. Computed once at mount via a Movement scan; the
+  // session itself is short-lived so re-fetching on each Confirm would
+  // be wasteful and visually jumpy.
+  const topSold = useLive<Article[]>(
+    async () => {
+      const sales = (await db.movements.toArray()).filter(
+        (m) => m.type === 'sale' && m.deleted_at === null,
+      );
+      const variants = await db.variants.toArray();
+      const variantToArticle = new Map<string, string>();
+      for (const v of variants) variantToArticle.set(v.id, v.article_id);
+      const tally = new Map<string, number>();
+      for (const s of sales) {
+        const aid = variantToArticle.get(s.variant_id);
+        if (!aid) continue;
+        tally.set(aid, (tally.get(aid) ?? 0) - s.delta);
+      }
+      const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      const out: Article[] = [];
+      for (const [aid] of ranked) {
+        const a = await db.articles.get(aid);
+        if (a && a.deleted_at === null && a.archived_at === null) out.push(a);
+      }
+      return out;
+    },
+    [],
+    [],
+  );
+
+  // Exact-code-match: typing the internal code (or a scannable EAN) of
+  // an article jumps directly to the variant picker for that article.
+  // Doesn't trigger if the typed value also matches the start of more
+  // than one product's code prefix (we want a deterministic exact-hit).
   useEffect(() => {
-    cartRef.current = cart;
-  }, [cart]);
+    const q = search.trim();
+    if (q.length < 3) return;
+    const exact = (articles ?? []).find(
+      (a) => a.internal_code.toLowerCase() === q.toLowerCase() || a.barcode_ean === q,
+    );
+    if (exact) {
+      setPickerArticleId(exact.id);
+      setSearch('');
+    }
+  }, [search, articles]);
 
-  // Camera + e2e listener call this — they're suppressed while a sheet
-  // is open so accidental detections during interaction don't pollute
-  // the cart. Manual entry uses processBarcode directly so the user's
-  // explicit submit always runs.
-  function ingestBarcode(rawValue: string): void {
-    if (dispatchBlockedRef.current) return;
-    processBarcode(rawValue);
+  // ─── confirm-sale glue ─────────────────────────────────────────────
+  async function confirmSale(input: {
+    article: Article;
+    variant: Variant;
+    qty: number;
+  }): Promise<void> {
+    const { article, variant, qty } = input;
+    if (qty <= 0) return;
+    const lot = await pickFifoLot(db, variant.id);
+    const mv = await recordMovement(db, {
+      variant_id: variant.id,
+      delta: -qty,
+      type: 'sale',
+      location: 'floor',
+      transaction_id: sessionIdRef.current,
+      lot_id: lot?.id ?? null,
+      unit_price_tnd: article.sale_price_tnd,
+    });
+    const sale: SessionSale = {
+      movement_id: mv.id,
+      article_id: article.id,
+      variant_id: variant.id,
+      article_name: article.name,
+      internal_code: article.internal_code,
+      color: variant.color,
+      size: variant.size,
+      qty,
+      total: qty * article.sale_price_tnd,
+    };
+    setSessionSales((s) => [...s, sale]);
+    setPickerArticleId(null);
+    const label = [article.name, variant.color, variant.size]
+      .filter((p): p is string => typeof p === 'string' && p.length > 0)
+      .join(' ');
+    setToast(t('toast_sold', { label, total: formatCurrency(sale.total, locale, currency) }));
   }
 
-  function processBarcode(value: string): void {
-    // v0.5.1 widens the accepted shapes — Inventar QR / internal_code
-    // labels resolve here too. EAN inputs still pass through the active
-    // validator (loose 12/13 by default; strict checksum if Settings
-    // opts in). Other shapes route directly to catalogue lookup.
-    const cls = classifyScan(value);
+  // ─── camera handler ────────────────────────────────────────────────
+  async function onScanDetected(rawValue: string): Promise<void> {
+    setScannerOpen(false);
+    const cls = classifyScan(rawValue);
     if (!cls) {
       setScanError(t('scan_invalid'));
-      setScanErrorArticleId(null);
       return;
     }
-    if (cls.kind === 'ean' && !validate(cls.value)) {
-      setScanError(t('scan_invalid'));
-      setScanErrorArticleId(null);
-      return;
-    }
-    setScanError(null);
-    setScanErrorArticleId(null);
-    void resolveAndAdd(cls);
-  }
-
-  async function resolveAndAdd(cls: ReturnType<typeof classifyScan>): Promise<void> {
-    if (!cls) return;
-    try {
-      await resolveAndAddInner(cls);
-    } catch (e) {
-      // Surface async failures (Dexie errors, promise rejections) so
-      // the user sees something rather than a silent dead cart. Without
-      // this catch, fire-and-forget resolveAndAdd swallows everything.
-      // Logged to console for debugging; user-visible message stays
-      // generic so it's understandable in any locale.
-
-      console.error('sell.resolveAndAdd failed', e);
-      setScanError(t('scan_internal_error'));
-    }
-  }
-
-  async function resolveAndAddInner(
-    cls: NonNullable<ReturnType<typeof classifyScan>>,
-  ): Promise<void> {
     let article: Article | undefined;
     if (cls.kind === 'article_url') {
       const row = await db.articles.get(cls.articleId);
@@ -197,185 +389,32 @@ export function SellScreen(): JSX.Element {
       setScanError(t('scan_unknown'));
       return;
     }
-    // Sized vertical with EAN = ambiguous which variant. Reject + route
-    // to manual open of the article. Decision per the v0.5 plan, Q-E.
-    const variants = await db.variants
-      .where('article_id')
-      .equals(article.id)
-      .filter((v) => v.deleted_at === null)
-      .toArray();
-    if (variants.length > 1) {
-      setScanError(t('scan_sized_multi'));
-      setScanErrorArticleId(article.id);
-      return;
-    }
-    const variant = variants[0];
-    if (!variant) {
-      setScanError(t('scan_unknown'));
-      return;
-    }
-    // v0.5.2.9 — non-piece UoM (kg / g / l / ml) can't be sold via
-    // the scan-and-add-to-cart flow because each scan would mean
-    // "+1 smallest unit" (i.e. +1 gram), which is never what the
-    // merchant wants. These articles are weighed on a scale, then
-    // the merchant enters the weight via Article Detail → Quick
-    // Adjust. Surface a clear scan-error pointing at the right
-    // workflow instead of silently stocking 1 g per scan.
-    // Defensive `?? 'piece'` covers test-seeded articles (raw IDB
-    // writes bypass Dexie's v12 migration) and any pre-migration
-    // row that surfaces before the upgrade callback runs.
-    const articleUom = article.unit_of_measure ?? 'piece';
-    if (variant && articleUom !== 'piece') {
-      setScanError(t('scan_uom_not_piece', { uom: articleUom }));
-      setScanErrorArticleId(article.id);
-      return;
-    }
-    // Same article already in cart → bump qty. Read from cartRef so
-    // mount-time closures see the LATEST cart, not the empty one
-    // captured at first render.
-    const existing = cartRef.current.find((r) => r.variant_id === variant.id);
-    if (existing) {
-      const stock = await quantityFor(db, variant.id);
-      if (existing.qty + 1 > stock) {
-        setScanError(t('scan_out_of_stock'));
-        return;
-      }
-      setCart((c) =>
-        c.map((r) =>
-          r.variant_id === variant.id ? { ...r, qty: r.qty + 1, available: stock } : r,
-        ),
-      );
-      return;
-    }
-    const stock = await quantityFor(db, variant.id);
-    if (stock <= 0) {
-      setScanError(t('scan_out_of_stock'));
-      return;
-    }
-    const lot = await pickFifoLot(db, variant.id);
-    setCart((c) => [
-      ...c,
-      {
-        variant_id: variant.id,
-        article_id: article.id,
-        article_name: article.name,
-        internal_code: article.internal_code,
-        unit_price_tnd: article.sale_price_tnd,
-        qty: 1,
-        lot_id: lot?.id ?? null,
-        available: stock,
-        unit_of_measure: article.unit_of_measure ?? 'piece',
-      },
-    ]);
+    setPickerArticleId(article.id);
+    setScanError(null);
   }
 
-  const {
-    videoRef,
-    supported,
-    error: scannerError,
-  } = useBarcodeStream({
-    onDetect: ingestBarcode,
-    isBlocked: () => dispatchBlockedRef.current,
-  });
-
-  // ─── cart actions ───────────────────────────────────────────────────
-  function removeRow(variantId: UUID): void {
-    setCart((c) => c.filter((r) => r.variant_id !== variantId));
-  }
-
-  async function adjustQty(variantId: UUID, nextQty: number): Promise<void> {
-    if (nextQty <= 0) {
-      removeRow(variantId);
+  // ─── X / End session ───────────────────────────────────────────────
+  function handleClose(): void {
+    if (sessionSales.length === 0) {
+      navigate('/', { replace: true });
       return;
     }
-    const row = cart.find((r) => r.variant_id === variantId);
-    if (!row) return;
-    if (nextQty > row.available) {
-      setScanError(t('scan_out_of_stock'));
-      return;
-    }
-    setCart((c) => c.map((r) => (r.variant_id === variantId ? { ...r, qty: nextQty } : r)));
+    setEndConfirm(true);
   }
 
-  async function commitSale(): Promise<void> {
-    if (cart.length === 0) return;
-    setSubmitting(true);
-    try {
-      for (const row of cart) {
-        await recordMovement(db, {
-          variant_id: row.variant_id,
-          delta: -row.qty,
-          type: 'sale',
-          location: 'floor',
-          transaction_id: sessionIdRef.current,
-          lot_id: row.lot_id,
-          // v0.5.1: snapshot the catalogue price at sale time. Future
-          // returns linked to this sale will refund the same amount
-          // even if Article.sale_price_tnd is changed later.
-          unit_price_tnd: row.unit_price_tnd,
-        });
-      }
-      // v0.5.2.4 ADR-024: optional invoice generation. Only runs when
-      // the merchant ticked the invoice block in the cart drawer. The
-      // VAT rate falls back through merchant override → profile default
-      // → 0%. Customer fields are stored verbatim (or null when blank).
-      if (invoiceEnabled) {
-        const lines: InvoiceLine[] = cart.map((row) => ({
-          description: row.article_name,
-          reference: row.internal_code,
-          qty: row.qty,
-          unit_of_measure: row.unit_of_measure,
-          unit_price_minor: row.unit_price_tnd,
-        }));
-        const overridePct = invoiceVatOverride.trim() === '' ? null : Number(invoiceVatOverride);
-        const vatPct =
-          overridePct != null && Number.isFinite(overridePct) && overridePct >= 0
-            ? Math.round(overridePct)
-            : (profile?.default_vat_pct ?? 0);
-        const inv = await createInvoice(db, {
-          transaction_id: sessionIdRef.current,
-          customer_name: invoiceCustomerName.trim() === '' ? null : invoiceCustomerName.trim(),
-          customer_address:
-            invoiceCustomerAddress.trim() === '' ? null : invoiceCustomerAddress.trim(),
-          customer_fiscal_id:
-            invoiceCustomerFiscalId.trim() === '' ? null : invoiceCustomerFiscalId.trim(),
-          lines,
-          currency,
-          vat_pct: vatPct,
-          vat_enabled: invoiceVatEnabled,
-          // TODO(v0.7) — see Invoice.notes in types/index.ts. The
-          // PDF renderer and locale labels support a notes field;
-          // no Sell UI captures one yet. v0.6.6 audit decided not
-          // to build the input in-scope.
-          notes: null,
-        });
-        navigate(`/invoice/${inv.id}`, { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const sessionCount = sessionSales.length;
+  const sessionRevenue = sessionSales.reduce((s, x) => s + x.total, 0);
+  const cameraFirst = profile?.store_type === 'shop';
 
-  const cartCount = cart.reduce((s, r) => s + r.qty, 0);
-  const cartTotal = cart.reduce((s, r) => s + r.qty * r.unit_price_tnd, 0);
-
-  // ─── render ─────────────────────────────────────────────────────────
+  // ─── render ────────────────────────────────────────────────────────
   return (
-    <ScreenLayout hideNav>
+    <>
       <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
         <button
           type="button"
           data-testid="sell-close"
           aria-label={tCommon('close')}
-          onClick={() => {
-            if (cart.length === 0) {
-              navigate('/', { replace: true });
-              return;
-            }
-            setEndConfirm(true);
-          }}
+          onClick={handleClose}
           className="text-ink-3 -ml-2 inline-flex h-9 w-9 items-center justify-center justify-self-start rounded-full"
         >
           <X aria-hidden className="h-6 w-6" strokeWidth={2.25} />
@@ -384,150 +423,128 @@ export function SellScreen(): JSX.Element {
           <ShoppingCart aria-hidden className="text-accent h-4 w-4" strokeWidth={2.25} />
           {t('title')}
         </h3>
-        <button
-          type="button"
-          data-testid="sell-cart-toggle"
-          onClick={() => setCartOpen(true)}
-          className="text-ink-3 justify-self-end font-mono text-[11px]"
-          dir="ltr"
-        >
-          {t('cart_toggle', {
-            n: cartCount,
-            total: formatCurrency(cartTotal, locale, currency),
-          })}
-        </button>
-      </header>
-
-      <main
-        data-testid="sell-screen"
-        className="bg-ink relative flex flex-1 flex-col overflow-hidden"
-      >
-        {!supported ? (
-          <div className="text-ink-2 bg-paper m-6 rounded-2xl border p-6 text-center text-sm">
-            {t('scanner_unsupported_short')}
-          </div>
-        ) : scannerError ? (
-          <div className="text-bad bg-paper m-6 rounded-2xl border p-6 text-center text-sm">
-            <p className="font-medium">{t('scanner_error_short')}</p>
-            <p className="text-ink-3 mt-1 text-xs">{scannerError}</p>
-          </div>
-        ) : (
-          <div className="relative flex-1 overflow-hidden bg-black">
-            <video
-              ref={videoRef}
-              data-testid="sell-video"
-              playsInline
-              muted
-              className="h-full w-full object-cover"
-              aria-label={t('title')}
-            />
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="border-accent/80 h-48 w-48 rounded-2xl border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
-            </div>
-          </div>
-        )}
-
-        {scanError ? (
-          scanErrorArticleId ? (
-            <Link
-              data-testid="sell-scan-error"
-              to={`/article/${scanErrorArticleId}`}
-              role="alert"
-              className="text-bad bg-bad/10 border-bad/30 absolute left-3 right-3 top-3 inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-center text-xs"
-            >
-              <span>{scanError}</span>
-              <span className="text-bad font-medium">{t('scan_open_arrow')}</span>
-            </Link>
-          ) : (
-            <p
-              data-testid="sell-scan-error"
-              className="text-bad bg-bad/10 border-bad/30 absolute left-3 right-3 top-3 rounded-xl border px-3 py-2 text-center text-xs"
-              role="alert"
-            >
-              {scanError}
-            </p>
-          )
-        ) : null}
-
-        {/* Peek strip: small confirmation each time the cart changes */}
-        {cart.length > 0 ? (
+        {sessionCount > 0 ? (
           <button
             type="button"
-            data-testid="sell-cart-peek"
-            onClick={() => setCartOpen(true)}
-            className="bg-accent absolute bottom-20 left-3 right-3 inline-flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium text-white shadow-lg"
+            data-testid="sell-end-session"
+            onClick={() => setSummaryOpen(true)}
+            className="bg-accent inline-flex items-center justify-self-end gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-white"
+            dir="ltr"
           >
-            <span>{t('peek_count', { n: cartCount })}</span>
-            <span className="font-mono tabular-nums" dir="ltr">
-              {formatCurrency(cartTotal, locale, currency)}
-            </span>
+            {t('end_session_chip', {
+              n: sessionCount,
+              total: formatCurrency(sessionRevenue, locale, currency),
+            })}
+            <ArrowRight aria-hidden className="h-3 w-3" strokeWidth={2.5} />
           </button>
-        ) : null}
+        ) : (
+          <span
+            data-testid="sell-empty-counter"
+            className="text-ink-3 justify-self-end font-mono text-[11px]"
+            dir="ltr"
+          >
+            {t('empty_counter', { total: formatCurrency(0, locale, currency) })}
+          </span>
+        )}
+      </header>
 
-        <button
-          type="button"
-          data-testid="sell-type-instead"
-          onClick={() => setManual('open')}
-          className="bg-ink absolute bottom-5 right-5 inline-flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium text-white shadow-lg"
-        >
-          <Keyboard aria-hidden className="h-4 w-4" strokeWidth={2.25} />
-          {t('type_instead')}
-        </button>
-      </main>
+      <SubTabs active={active} onSwitch={onSwitch} />
 
-      {manual === 'open' ? (
-        <ManualEntrySheet
-          open={true}
-          onClose={() => setManual(null)}
-          onSubmit={(value) => {
-            setManual(null);
-            // Bypass the dispatch gate: the user's explicit submit IS
-            // the scan they want, even though dispatchBlockedRef will
-            // still read true until the next render commits.
-            processBarcode(value);
-          }}
-          isBarcodeShaped={validate}
-          tCommon={tCommon}
+      <main data-testid="sell-screen" className="flex flex-1 flex-col overflow-y-auto">
+        {cameraFirst ? <ShopCameraStrip onDetected={onScanDetected} /> : null}
+
+        <SearchScanBar
+          value={search}
+          onChange={setSearch}
+          onOpenCamera={() => setScannerOpen(true)}
+          showCameraIcon={!cameraFirst}
           t={t}
         />
+
+        {categories.length > 1 ? (
+          <CategoryChips categories={categories} active={category} onSelect={setCategory} t={t} />
+        ) : null}
+
+        {scanError ? (
+          <p
+            data-testid="sell-scan-error"
+            role="alert"
+            className="text-bad bg-bad/10 border-bad/30 mx-4 mt-2 rounded-xl border px-3 py-2 text-center text-xs"
+          >
+            {scanError}
+          </p>
+        ) : null}
+
+        {topSold.length > 0 ? (
+          <QuickSellStrip
+            articles={topSold}
+            stock={articleStock}
+            onPick={(a) => setPickerArticleId(a.id)}
+            t={t}
+          />
+        ) : null}
+
+        <section className="mt-3 px-4 pb-4">
+          <p className="text-ink-3 mb-2 text-[11px] font-medium uppercase tracking-wide">
+            {t('all_products_heading')}
+          </p>
+          {filteredArticles.length === 0 ? (
+            <p data-testid="sell-list-empty" className="text-ink-3 mt-6 text-center text-xs">
+              {search.trim() === ''
+                ? t('list_no_products')
+                : t('list_no_match', { query: search.trim() })}
+            </p>
+          ) : (
+            <ul data-testid="sell-products-list" className="space-y-1.5">
+              {filteredArticles.map((a) => (
+                <ProductRow
+                  key={a.id}
+                  article={a}
+                  stock={articleStock[a.id] ?? 0}
+                  currency={currency}
+                  locale={locale}
+                  onTap={() => setPickerArticleId(a.id)}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
+
+      {toast ? (
+        <output
+          data-testid="sell-toast"
+          aria-live="polite"
+          className="bg-good fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl px-4 py-2.5 text-sm font-medium text-white shadow-lg"
+        >
+          {toast}
+        </output>
       ) : null}
 
-      {cartOpen ? (
-        <CartDrawer
-          open={true}
-          rows={cart}
-          total={cartTotal}
+      <BarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onDetected={(v) => void onScanDetected(v)}
+        keepOpenAfterDetect={false}
+      />
+
+      {pickerArticleId ? (
+        <VariantPicker
+          articleId={pickerArticleId}
           locale={locale}
           currency={currency}
-          submitting={submitting}
-          onClose={() => setCartOpen(false)}
-          onAdjust={(id, n) => void adjustQty(id, n)}
-          onRemove={(id) => removeRow(id)}
-          onContinue={() => setCartOpen(false)}
-          onDone={() => void commitSale()}
-          invoiceEnabled={invoiceEnabled}
-          onToggleInvoice={() => setInvoiceEnabled((v) => !v)}
-          invoiceCustomerName={invoiceCustomerName}
-          onChangeInvoiceCustomerName={setInvoiceCustomerName}
-          invoiceCustomerAddress={invoiceCustomerAddress}
-          onChangeInvoiceCustomerAddress={setInvoiceCustomerAddress}
-          invoiceCustomerFiscalId={invoiceCustomerFiscalId}
-          onChangeInvoiceCustomerFiscalId={setInvoiceCustomerFiscalId}
-          invoiceVatOverride={invoiceVatOverride}
-          onChangeInvoiceVatOverride={setInvoiceVatOverride}
-          invoiceVatEnabled={invoiceVatEnabled}
-          onToggleInvoiceVatEnabled={() => setInvoiceVatEnabled((v) => !v)}
-          invoiceDefaultVatPct={profile?.default_vat_pct ?? null}
-          tCommon={tCommon}
+          onClose={() => setPickerArticleId(null)}
+          onConfirm={(input) => void confirmSale(input)}
           t={t}
+          tCommon={tCommon}
         />
       ) : null}
 
       {endConfirm ? (
         <EndSessionDialog
           open={true}
-          count={cartCount}
-          total={cartTotal}
+          count={sessionCount}
+          total={sessionRevenue}
           locale={locale}
           currency={currency}
           onKeep={() => setEndConfirm(false)}
@@ -538,7 +555,445 @@ export function SellScreen(): JSX.Element {
           t={t}
         />
       ) : null}
-    </ScreenLayout>
+
+      {summaryOpen ? (
+        <SessionSummary
+          open={true}
+          count={sessionCount}
+          total={sessionRevenue}
+          locale={locale}
+          currency={currency}
+          onBack={() => navigate('/products', { replace: true })}
+          onReports={() => navigate('/reports', { replace: true })}
+          onResume={() => setSummaryOpen(false)}
+          t={t}
+        />
+      ) : null}
+    </>
+  );
+}
+
+// ─── shop-vertical camera strip ───────────────────────────────────────
+
+function ShopCameraStrip(props: { onDetected: (v: string) => void }): JSX.Element | null {
+  const { onDetected } = props;
+  // Always-on viewfinder at the top of the screen for the shop vertical.
+  // useBarcodeStream is the existing inline-scanner hook; it self-gates
+  // on touch + coarse pointer, so desktops drop straight through to
+  // `supported=false` and we render nothing (spec: "Camera failure →
+  // hide viewfinder silently"). The screen's search bar remains the
+  // user's escape hatch.
+  const onDetectedRef = useRef(onDetected);
+  onDetectedRef.current = onDetected;
+  const { videoRef, supported, error } = useBarcodeStream({
+    onDetect: (v) => onDetectedRef.current(v),
+  });
+  if (!supported || error) return null;
+  return (
+    <div
+      data-testid="sell-camera-strip"
+      className="relative mx-3 mt-3 aspect-[5/3] overflow-hidden rounded-2xl bg-black"
+    >
+      <video
+        ref={videoRef}
+        data-testid="sell-camera-video"
+        playsInline
+        muted
+        className="h-full w-full object-cover"
+      />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="border-accent/80 h-28 w-40 rounded-xl border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
+      </div>
+    </div>
+  );
+}
+
+// ─── search + scan input bar ──────────────────────────────────────────
+
+function SearchScanBar(props: {
+  value: string;
+  onChange: (v: string) => void;
+  onOpenCamera: () => void;
+  showCameraIcon: boolean;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+}): JSX.Element {
+  const { value, onChange, onOpenCamera, showCameraIcon, t } = props;
+  return (
+    <div className="px-4 pt-3">
+      <div className="border-hair flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 shadow-sm">
+        <SearchIcon aria-hidden className="text-ink-3 h-4 w-4" strokeWidth={2} />
+        <input
+          data-testid="sell-search-input"
+          type="text"
+          inputMode="search"
+          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={t('search_placeholder_v2')}
+          className="text-ink flex-1 bg-transparent text-sm outline-none placeholder:text-ink-4"
+        />
+        {showCameraIcon ? (
+          <button
+            type="button"
+            data-testid="sell-scan-trigger"
+            aria-label={t('open_scanner')}
+            onClick={onOpenCamera}
+            className="text-ink-3 -mr-1 inline-flex h-8 w-8 items-center justify-center rounded-lg"
+          >
+            <Camera aria-hidden className="h-5 w-5" strokeWidth={2.25} />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── category chips ───────────────────────────────────────────────────
+
+function CategoryChips(props: {
+  categories: readonly string[];
+  active: string;
+  onSelect: (c: string) => void;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+}): JSX.Element {
+  const { categories, active, onSelect, t } = props;
+  return (
+    <div data-testid="sell-category-chips" className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-4">
+      {categories.map((c) => (
+        <button
+          key={c}
+          type="button"
+          data-testid={`sell-chip-${c}`}
+          onClick={() => onSelect(c)}
+          aria-pressed={active === c}
+          className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+            active === c ? 'bg-accent text-white' : 'border-hair text-ink-2 border bg-white'
+          }`}
+        >
+          {c === 'all' ? t('category_all') : t(`category_${c}`, { defaultValue: c })}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── quick sell strip ─────────────────────────────────────────────────
+
+function QuickSellStrip(props: {
+  articles: readonly Article[];
+  stock: Record<string, number>;
+  onPick: (a: Article) => void;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+}): JSX.Element {
+  const { articles, stock, onPick, t } = props;
+  return (
+    <section className="mt-4 px-4">
+      <p className="text-ink-3 mb-2 text-[11px] font-medium uppercase tracking-wide">
+        {t('quick_sell_heading')}
+      </p>
+      <div data-testid="sell-quick-strip" className="-mx-1 flex gap-2 overflow-x-auto pb-1">
+        {articles.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            data-testid={`sell-quick-${a.internal_code}`}
+            onClick={() => onPick(a)}
+            className="border-hair flex w-[120px] flex-shrink-0 flex-col items-center gap-1 rounded-2xl border bg-white p-2"
+          >
+            <PhotoThumb photoId={a.photo_id} size={88} />
+            <span className="text-ink line-clamp-1 w-full text-center text-xs font-medium">
+              {a.name}
+            </span>
+            <span className="text-ink-3 font-mono text-[10px]" dir="ltr">
+              {stock[a.id] ?? 0}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── product list row ─────────────────────────────────────────────────
+
+function ProductRow(props: {
+  article: Article;
+  stock: number;
+  currency: string;
+  locale: Locale;
+  onTap: () => void;
+}): JSX.Element {
+  const { article, stock, currency, locale, onTap } = props;
+  const outOfStock = stock <= 0;
+  return (
+    <li>
+      <button
+        type="button"
+        data-testid={`sell-row-${article.internal_code}`}
+        onClick={onTap}
+        className={`border-hair flex w-full items-center gap-3 rounded-xl border bg-white p-2.5 text-start ${
+          outOfStock ? 'opacity-60' : ''
+        }`}
+      >
+        <PhotoThumb photoId={article.photo_id} size={44} />
+        <div className="min-w-0 flex-1">
+          <div className="text-ink line-clamp-1 text-sm font-medium">{article.name}</div>
+          <div className="text-ink-3 mt-0.5 font-mono text-[11px]" dir="ltr">
+            {article.internal_code}
+          </div>
+        </div>
+        <span className="text-ink font-mono text-xs tabular-nums" dir="ltr">
+          {formatCurrency(article.sale_price_tnd, locale, currency)}
+        </span>
+        <span
+          data-testid={`sell-row-${article.internal_code}-stock`}
+          className={`inline-flex items-center gap-0.5 font-mono text-xs tabular-nums ${
+            outOfStock ? 'text-bad' : 'text-ink-2'
+          }`}
+          dir="ltr"
+        >
+          {stock}
+          <ArrowRight aria-hidden className="h-3 w-3" strokeWidth={2.5} />
+        </span>
+      </button>
+    </li>
+  );
+}
+
+// ─── variant picker bottom sheet ──────────────────────────────────────
+
+function VariantPicker(props: {
+  articleId: UUID;
+  locale: Locale;
+  currency: string;
+  onClose: () => void;
+  onConfirm: (input: { article: Article; variant: Variant; qty: number }) => void;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+  tCommon: (k: string) => string;
+}): JSX.Element {
+  const { articleId, locale, currency, onClose, onConfirm, t, tCommon } = props;
+  const [article, setArticle] = useState<Article | null>(null);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [grid, setGrid] = useState<SizeGridCell[]>([]);
+  const [color, setColor] = useState<string | null>(null);
+  const [size, setSize] = useState<string | null>(null);
+  const [qty, setQty] = useState(1);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const a = await db.articles.get(articleId);
+      const vs = (await db.variants.toArray()).filter(
+        (v) => v.article_id === articleId && v.deleted_at === null,
+      );
+      const g = await sizeGridFor(db, articleId);
+      if (cancelled) return;
+      setArticle(a ?? null);
+      setVariants(vs);
+      setGrid(g);
+      // Pre-select the (color, size) cell with the highest stock so the
+      // merchant can confirm without scrolling. Ties go to the first
+      // alphabetical/numeric variant — deterministic on a re-mount.
+      const best = g.slice().sort((p, q) => q.qty - p.qty)[0];
+      if (best) {
+        setColor(best.color);
+        setSize(best.size);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [articleId]);
+
+  const colors = useMemo<Array<string | null>>(() => {
+    const seen = new Set<string>();
+    const out: Array<string | null> = [];
+    for (const cell of grid) {
+      const key = cell.color ?? '';
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(cell.color);
+    }
+    return out;
+  }, [grid]);
+
+  const sizesForColor = useMemo<SizeGridCell[]>(() => {
+    return grid.filter((c) => (c.color ?? '') === (color ?? ''));
+  }, [grid, color]);
+
+  const activeCell = useMemo<SizeGridCell | null>(() => {
+    return (
+      grid.find((c) => (c.color ?? '') === (color ?? '') && (c.size ?? '') === (size ?? '')) ?? null
+    );
+  }, [grid, color, size]);
+
+  const activeVariant = useMemo<Variant | null>(() => {
+    if (!activeCell) return null;
+    return variants.find((v) => v.id === activeCell.variant_id) ?? null;
+  }, [activeCell, variants]);
+
+  if (!article) {
+    // Article still loading — render an empty sheet for a frame so the
+    // open/close animation runs predictably from the call site.
+    return (
+      <Dialog.Root open={true} onOpenChange={(o) => !o && onClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+          <Dialog.Content className="bg-paper fixed inset-x-0 bottom-0 rounded-t-3xl p-5">
+            <Dialog.Title className="sr-only">{t('variant_picker_title')}</Dialog.Title>
+            <p className="text-ink-3 text-center text-xs">{tCommon('saving')}</p>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    );
+  }
+
+  const available = activeCell?.qty ?? 0;
+  const total = qty * article.sale_price_tnd;
+  const canConfirm = qty > 0 && qty <= available && activeVariant !== null;
+
+  return (
+    <Dialog.Root open={true} onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+        <Dialog.Content
+          data-testid="sell-variant-picker"
+          className="bg-paper fixed inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-3xl p-5 shadow-xl"
+        >
+          <div className="bg-hair mx-auto mb-3 h-1 w-10 rounded-full" />
+          <div className="flex items-start gap-3">
+            <PhotoThumb photoId={article.photo_id} size={56} />
+            <div className="flex-1">
+              <Dialog.Title className="font-display text-base font-semibold">
+                {article.name}
+              </Dialog.Title>
+              <p className="text-ink-3 mt-0.5 font-mono text-[11px]" dir="ltr">
+                {article.internal_code}
+              </p>
+            </div>
+            <Dialog.Close
+              type="button"
+              data-testid="sell-variant-close"
+              className="text-ink-3 -mr-1 -mt-1 inline-flex h-7 w-7 items-center justify-center"
+              aria-label={tCommon('close')}
+            >
+              <X aria-hidden className="h-5 w-5" strokeWidth={2} />
+            </Dialog.Close>
+          </div>
+
+          {colors.length > 1 || colors[0] !== null ? (
+            <div className="mt-4">
+              <p className="text-ink-3 mb-1.5 text-[11px] font-medium uppercase tracking-wide">
+                {t('variant_color_label')}
+              </p>
+              <div data-testid="sell-color-row" className="flex flex-wrap gap-1.5">
+                {colors.map((c) => (
+                  <button
+                    key={c ?? '__none'}
+                    type="button"
+                    data-testid={`sell-color-${c ?? 'none'}`}
+                    onClick={() => setColor(c)}
+                    aria-pressed={color === c}
+                    className={`border-hair rounded-full border px-3 py-1 text-xs ${
+                      color === c ? 'bg-ink text-white' : 'bg-white'
+                    }`}
+                  >
+                    {c ?? t('variant_color_default')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {sizesForColor.length > 1 || sizesForColor[0]?.size !== null ? (
+            <div className="mt-4">
+              <p className="text-ink-3 mb-1.5 text-[11px] font-medium uppercase tracking-wide">
+                {t('variant_size_label')}
+              </p>
+              <div data-testid="sell-size-row" className="flex flex-wrap gap-1.5">
+                {sizesForColor.map((cell) => {
+                  const selected = (size ?? '') === (cell.size ?? '');
+                  const oos = cell.qty <= 0;
+                  return (
+                    <button
+                      key={cell.variant_id || `${cell.color}-${cell.size}`}
+                      type="button"
+                      data-testid={`sell-size-${cell.size ?? 'none'}`}
+                      onClick={() => {
+                        setSize(cell.size);
+                        setQty(1);
+                      }}
+                      aria-pressed={selected}
+                      className={`border-hair flex flex-col items-center rounded-xl border px-2.5 py-1.5 text-xs ${
+                        selected ? 'bg-ink text-white' : 'bg-white'
+                      } ${oos ? 'opacity-50' : ''}`}
+                    >
+                      <span className="font-medium">{cell.size ?? t('variant_size_default')}</span>
+                      <span
+                        className={`mt-0.5 font-mono text-[10px] tabular-nums ${
+                          selected ? 'text-white/80' : 'text-ink-3'
+                        }`}
+                        dir="ltr"
+                      >
+                        {cell.qty}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <p data-testid="sell-variant-stock-line" className="text-ink-2 mt-3 text-xs">
+            {t('variant_in_stock', { n: available })}
+          </p>
+
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-ink-3 text-xs">{t('variant_qty_label')}</span>
+            <button
+              type="button"
+              data-testid="sell-qty-minus"
+              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              className="border-hair h-8 w-8 rounded-lg border bg-white text-base"
+            >
+              <Minus aria-hidden className="mx-auto h-3.5 w-3.5" strokeWidth={2.5} />
+            </button>
+            <span data-testid="sell-qty-value" className="font-mono text-sm tabular-nums" dir="ltr">
+              {qty}
+            </span>
+            <button
+              type="button"
+              data-testid="sell-qty-plus"
+              onClick={() => setQty((q) => Math.min(available, q + 1))}
+              disabled={qty >= available}
+              className="border-hair h-8 w-8 rounded-lg border bg-white text-base disabled:opacity-40"
+            >
+              <Plus aria-hidden className="mx-auto h-3.5 w-3.5" strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <div className="border-hair text-ink mt-4 flex items-center justify-between border-t pt-3 text-sm font-semibold">
+            <span>{t('variant_total_label')}</span>
+            <span data-testid="sell-variant-total" className="font-mono tabular-nums" dir="ltr">
+              {formatCurrency(total, locale, currency)}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            data-testid="sell-confirm"
+            disabled={!canConfirm}
+            onClick={() => {
+              if (!activeVariant) return;
+              onConfirm({ article, variant: activeVariant, qty });
+            }}
+            className="bg-accent mt-4 w-full rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {t('variant_confirm')}
+          </button>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -596,395 +1051,80 @@ function EndSessionDialog(props: {
   );
 }
 
-// ─── manual entry ─────────────────────────────────────────────────────
+// ─── session summary screen (modal) ───────────────────────────────────
 
-function ManualEntrySheet(props: {
+function SessionSummary(props: {
   open: boolean;
-  onClose: () => void;
-  onSubmit: (value: string) => void;
-  // v0.5.1: pass the active validator so strict mode treats a 12-digit
-  // UPC-A as free-text instead of short-circuiting to the scan path
-  // (which would then immediately reject it).
-  isBarcodeShaped: (input: string) => boolean;
-  tCommon: (k: string) => string;
-  t: (k: string, opts?: Record<string, unknown>) => string;
-}): JSX.Element {
-  const { open, onClose, onSubmit, isBarcodeShaped, tCommon, t } = props;
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Article[]>([]);
-  const [searched, setSearched] = useState(false);
-
-  async function runSearch(): Promise<void> {
-    const trimmed = query.trim();
-    if (trimmed.length === 0) return;
-    if (isBarcodeShaped(trimmed)) {
-      // Defer to the scan path for any plausible barcode.
-      onSubmit(trimmed);
-      return;
-    }
-    const all = await db.articles.toArray();
-    const lower = trimmed.toLowerCase();
-    const matches = all.filter(
-      (a) =>
-        a.deleted_at === null &&
-        a.archived_at === null &&
-        (a.internal_code.toLowerCase().includes(lower) ||
-          a.name.toLowerCase().includes(lower) ||
-          (a.barcode_ean ?? '').includes(trimmed)),
-    );
-    setResults(matches);
-    setSearched(true);
-  }
-
-  function pickResult(a: Article): void {
-    if (a.barcode_ean) {
-      onSubmit(a.barcode_ean);
-    } else {
-      onSubmit(a.internal_code);
-    }
-  }
-
-  return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-        <Dialog.Content
-          data-testid="sell-manual-sheet"
-          className="bg-paper fixed inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-3xl p-5 shadow-xl"
-        >
-          <div className="mb-3 flex items-center justify-between">
-            <Dialog.Title className="font-display text-base font-semibold">
-              {t('type_instead')}
-            </Dialog.Title>
-            <Dialog.Close type="button" data-testid="sell-manual-close" className="text-ink-3">
-              <X aria-hidden className="h-5 w-5" strokeWidth={2} />
-            </Dialog.Close>
-          </div>
-          <input
-            data-testid="sell-manual-input"
-            autoFocus
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSearched(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void runSearch();
-            }}
-            placeholder={t('search_placeholder')}
-            className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
-          />
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              data-testid="sell-manual-cancel"
-              onClick={onClose}
-              className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
-            >
-              {tCommon('cancel')}
-            </button>
-            <button
-              type="button"
-              data-testid="sell-manual-submit"
-              onClick={() => void runSearch()}
-              disabled={query.trim().length === 0}
-              className="bg-ink flex-1 rounded-xl py-2.5 text-sm text-white disabled:opacity-50"
-            >
-              {tCommon('continue')}
-            </button>
-          </div>
-          {searched ? (
-            results.length === 0 ? (
-              <p data-testid="sell-manual-no-match" className="text-ink-3 mt-3 text-center text-xs">
-                {t('search_no_match', { query })}
-              </p>
-            ) : (
-              <ul data-testid="sell-manual-results" className="mt-3 space-y-2">
-                {results.map((a) => (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      data-testid={`sell-manual-result-${a.internal_code}`}
-                      onClick={() => pickResult(a)}
-                      className="border-hair w-full rounded-xl border bg-white p-3 text-start"
-                    >
-                      <div className="text-ink text-sm font-medium">{a.name}</div>
-                      <div className="text-ink-3 mt-0.5 font-mono text-[11px]" dir="ltr">
-                        {a.internal_code}
-                        {a.barcode_ean ? ` · ${a.barcode_ean}` : ''}
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : null}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
-// ─── cart drawer ──────────────────────────────────────────────────────
-
-function CartDrawer(props: {
-  open: boolean;
-  rows: CartRow[];
+  count: number;
   total: number;
   locale: Locale;
   currency: string;
-  submitting: boolean;
-  onClose: () => void;
-  onAdjust: (variantId: UUID, nextQty: number) => void;
-  onRemove: (variantId: UUID) => void;
-  onContinue: () => void;
-  onDone: () => void;
-  // v0.5.2.4 ADR-024 — invoice block. invoiceEnabled toggles the
-  // collapsible; the four customer fields and the VAT override are
-  // local state on SellScreen because we don't persist any draft.
-  invoiceEnabled: boolean;
-  onToggleInvoice: () => void;
-  invoiceCustomerName: string;
-  onChangeInvoiceCustomerName: (v: string) => void;
-  invoiceCustomerAddress: string;
-  onChangeInvoiceCustomerAddress: (v: string) => void;
-  invoiceCustomerFiscalId: string;
-  onChangeInvoiceCustomerFiscalId: (v: string) => void;
-  invoiceVatOverride: string;
-  onChangeInvoiceVatOverride: (v: string) => void;
-  invoiceVatEnabled: boolean;
-  onToggleInvoiceVatEnabled: () => void;
-  invoiceDefaultVatPct: number | null;
-  tCommon: (k: string) => string;
+  onBack: () => void;
+  onReports: () => void;
+  onResume: () => void;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
-  const {
-    open,
-    rows,
-    total,
-    locale,
-    currency,
-    submitting,
-    onClose,
-    onAdjust,
-    onRemove,
-    onContinue,
-    onDone,
-    invoiceEnabled,
-    onToggleInvoice,
-    invoiceCustomerName,
-    onChangeInvoiceCustomerName,
-    invoiceCustomerAddress,
-    onChangeInvoiceCustomerAddress,
-    invoiceCustomerFiscalId,
-    onChangeInvoiceCustomerFiscalId,
-    invoiceVatOverride,
-    onChangeInvoiceVatOverride,
-    invoiceVatEnabled,
-    onToggleInvoiceVatEnabled,
-    invoiceDefaultVatPct,
-    tCommon,
-    t,
-  } = props;
-
+  const { open, count, total, locale, currency, onBack, onReports, onResume, t } = props;
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog.Root open={open} onOpenChange={(o) => !o && onResume()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+        <Dialog.Overlay className="fixed inset-0 bg-black/60" />
         <Dialog.Content
-          data-testid="sell-cart-sheet"
-          className="bg-paper fixed inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-3xl p-5 shadow-xl"
+          data-testid="sell-session-summary"
+          className="bg-paper fixed inset-x-3 top-1/2 -translate-y-1/2 rounded-3xl p-6 shadow-xl sm:left-1/2 sm:right-auto sm:w-[420px] sm:-translate-x-1/2"
         >
-          <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 aria-hidden className="text-good h-6 w-6" strokeWidth={2} />
             <Dialog.Title className="font-display text-base font-semibold">
-              {t('cart_title')}
+              {t('session_complete')}
             </Dialog.Title>
-            <Dialog.Close type="button" data-testid="sell-cart-close" className="text-ink-3">
-              <X aria-hidden className="h-5 w-5" strokeWidth={2} />
-            </Dialog.Close>
           </div>
-          {rows.length === 0 ? (
-            <p data-testid="sell-cart-empty" className="text-ink-3 mt-2 text-center text-xs">
-              {t('cart_empty')}
-            </p>
-          ) : (
-            <ul data-testid="sell-cart-rows" className="space-y-2">
-              {rows.map((row) => (
-                <li
-                  key={row.variant_id}
-                  data-testid={`sell-cart-row-${row.internal_code}`}
-                  className="border-hair flex items-center justify-between rounded-xl border bg-white p-3"
-                >
-                  <div className="flex flex-1 flex-col">
-                    <div className="text-ink text-sm font-medium">{row.article_name}</div>
-                    <div className="text-ink-3 mt-0.5 font-mono text-[11px]" dir="ltr">
-                      {row.internal_code} · ×{row.qty}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      data-testid={`sell-cart-row-${row.internal_code}-minus`}
-                      onClick={() => onAdjust(row.variant_id, row.qty - 1)}
-                      className="bg-paper border-hair h-8 w-8 rounded-lg border text-base"
-                    >
-                      −
-                    </button>
-                    <button
-                      type="button"
-                      data-testid={`sell-cart-row-${row.internal_code}-plus`}
-                      onClick={() => onAdjust(row.variant_id, row.qty + 1)}
-                      className="bg-paper border-hair h-8 w-8 rounded-lg border text-base"
-                    >
-                      +
-                    </button>
-                    <span
-                      data-testid={`sell-cart-row-${row.internal_code}-line`}
-                      className="font-mono text-sm tabular-nums"
-                      dir="ltr"
-                    >
-                      {formatCurrency(row.qty * row.unit_price_tnd, locale, currency)}
-                    </span>
-                    <button
-                      type="button"
-                      data-testid={`sell-cart-row-${row.internal_code}-remove`}
-                      onClick={() => onRemove(row.variant_id)}
-                      className="text-ink-3"
-                      aria-label={t('cart_remove')}
-                    >
-                      <Trash2 aria-hidden className="h-4 w-4" strokeWidth={2} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          {rows.length > 0 ? (
-            <div className="border-hair text-ink mt-3 flex items-center justify-between border-t pt-3 text-base font-semibold">
-              <span>{t('cart_total')}</span>
-              <span data-testid="sell-cart-total" className="font-mono tabular-nums" dir="ltr">
-                {formatCurrency(total, locale, currency)}
-              </span>
-            </div>
-          ) : null}
-          {rows.length > 0 ? (
-            <section
-              data-testid="sell-invoice-block"
-              className="border-hair mt-3 rounded-xl border bg-white p-3"
-            >
-              <button
-                type="button"
-                data-testid="sell-invoice-toggle"
-                onClick={onToggleInvoice}
-                aria-pressed={invoiceEnabled}
-                className="flex w-full items-center gap-2 text-sm font-medium"
+
+          <div className="bg-paper-deep mt-4 grid grid-cols-2 gap-3 rounded-2xl p-4">
+            <div>
+              <p className="text-ink-3 text-[11px] uppercase tracking-wide">
+                {t('summary_sales_label')}
+              </p>
+              <p
+                data-testid="sell-summary-count"
+                className="text-ink font-display mt-1 text-2xl"
+                dir="ltr"
               >
-                <span
-                  aria-hidden
-                  className={`flex h-4 w-4 items-center justify-center rounded border-2 ${
-                    invoiceEnabled ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
-                  }`}
-                >
-                  {invoiceEnabled ? '✓' : ''}
-                </span>
-                {t('invoice_toggle')}
-              </button>
-              {invoiceEnabled ? (
-                <div data-testid="sell-invoice-fields" className="mt-3 space-y-2">
-                  <input
-                    type="text"
-                    data-testid="sell-invoice-customer-name"
-                    value={invoiceCustomerName}
-                    onChange={(e) => onChangeInvoiceCustomerName(e.target.value)}
-                    placeholder={t('invoice_customer_name')}
-                    maxLength={120}
-                    className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
-                  />
-                  <textarea
-                    data-testid="sell-invoice-customer-address"
-                    value={invoiceCustomerAddress}
-                    onChange={(e) => onChangeInvoiceCustomerAddress(e.target.value)}
-                    placeholder={t('invoice_customer_address')}
-                    rows={2}
-                    maxLength={300}
-                    className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="text"
-                    data-testid="sell-invoice-customer-fiscal-id"
-                    value={invoiceCustomerFiscalId}
-                    onChange={(e) => onChangeInvoiceCustomerFiscalId(e.target.value)}
-                    placeholder={t('invoice_customer_fiscal_id')}
-                    maxLength={40}
-                    dir="ltr"
-                    className="border-hair w-full rounded-lg border px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    data-testid="sell-invoice-vat-enabled-toggle"
-                    onClick={onToggleInvoiceVatEnabled}
-                    aria-pressed={invoiceVatEnabled}
-                    className="flex w-full items-center gap-2 rounded-lg border border-hair bg-white px-3 py-2 text-start text-xs"
-                  >
-                    <span
-                      aria-hidden
-                      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2 ${
-                        invoiceVatEnabled
-                          ? 'border-accent bg-accent text-white'
-                          : 'border-hair bg-white'
-                      }`}
-                    >
-                      {invoiceVatEnabled ? '✓' : ''}
-                    </span>
-                    <span className="text-ink">{t('invoice_vat_apply_label')}</span>
-                  </button>
-                  {invoiceVatEnabled ? (
-                    <div className="flex items-center gap-2">
-                      <label htmlFor="sell-invoice-vat" className="text-ink-3 text-xs">
-                        {t('invoice_vat_label')}
-                      </label>
-                      <input
-                        id="sell-invoice-vat"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={50}
-                        step={1}
-                        data-testid="sell-invoice-vat"
-                        value={invoiceVatOverride}
-                        onChange={(e) => onChangeInvoiceVatOverride(e.target.value)}
-                        placeholder={
-                          invoiceDefaultVatPct != null ? String(invoiceDefaultVatPct) : '0'
-                        }
-                        dir="ltr"
-                        className="border-hair w-20 rounded-lg border px-3 py-2 text-sm"
-                      />
-                      <span className="text-ink-3 text-xs">%</span>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </section>
-          ) : null}
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              data-testid="sell-continue-scanning"
-              onClick={onContinue}
-              className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
-            >
-              {t('continue_scanning')}
-            </button>
-            <button
-              type="button"
-              data-testid="sell-done"
-              disabled={rows.length === 0 || submitting}
-              onClick={onDone}
-              className="bg-accent flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {tCommon('save')}
-            </button>
+                {count}
+              </p>
+            </div>
+            <div>
+              <p className="text-ink-3 text-[11px] uppercase tracking-wide">
+                {t('summary_revenue_label')}
+              </p>
+              <p
+                data-testid="sell-summary-total"
+                className="text-ink font-display mt-1 text-2xl"
+                dir="ltr"
+              >
+                {formatCurrency(total, locale, currency)}
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            data-testid="sell-summary-back"
+            onClick={onBack}
+            className="bg-accent mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-white"
+          >
+            <ArrowLeft aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+            {t('summary_back_to_products')}
+          </button>
+
+          <button
+            type="button"
+            data-testid="sell-summary-reports"
+            onClick={onReports}
+            className="text-accent mt-3 block w-full text-center text-sm font-medium"
+          >
+            {t('summary_view_reports')}
+          </button>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
