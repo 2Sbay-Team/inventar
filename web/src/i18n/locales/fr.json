@@ -604,7 +604,11 @@
     "invoice_customer_address": "Adresse du client (optionnel)",
     "invoice_customer_fiscal_id": "Matricule fiscal du client (optionnel)",
     "invoice_vat_label": "TVA %",
-    "invoice_vat_apply_label": "Appliquer la TVA à cette facture"
+    "invoice_vat_apply_label": "Appliquer la TVA à cette facture",
+    "end_session_title": "Terminer la session ?",
+    "end_session_body": "Vous avez effectué {{n}} ventes ({{total}}).",
+    "end_session_confirm": "Terminer",
+    "keep_selling": "Continuer à vendre"
   },
   "receive": {
     "title": "Réception stock",

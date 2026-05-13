@@ -63,10 +63,38 @@ export interface UseBarcodeStreamResult {
   error: string | null;
 }
 
+// v0.9.x — desktops without a real camera produce a multi-second black
+// <video> before our 2.5s watchdog kicks in. Most non-touch devices that
+// land on /sale don't actually have a usable camera (laptop webcams in
+// landscape are useless for the merchant's POS use case), so we gate the
+// camera path on "this is a touch device" plus the standard
+// BarcodeDetector + mediaDevices checks. Desktops fall straight through
+// to the existing `!supported` fallback card — no black flash.
+function hasCameraAffordance(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (typeof navigator === 'undefined') return false;
+  if (!navigator.mediaDevices?.getUserMedia) return false;
+  // Touch-capable + a coarse pointer = phone or tablet, the actual POS
+  // form-factors merchants use. Desktop Chrome reports neither even with
+  // a webcam attached, which gives us the desktop short-circuit we want.
+  const touchPoints = typeof navigator.maxTouchPoints === 'number' ? navigator.maxTouchPoints : 0;
+  const hasTouch = touchPoints > 0 || 'ontouchstart' in window;
+  const coarsePointer =
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(pointer: coarse)').matches
+      : false;
+  return hasTouch && coarsePointer;
+}
+
 export function useBarcodeStream(opts: UseBarcodeStreamOptions): UseBarcodeStreamResult {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const supported = getBarcodeDetector() !== null;
+  // BarcodeDetector + a real camera-shaped device. The latter is the
+  // new gate (v0.9.x): desktops with BarcodeDetector but no real camera
+  // were sitting on a black <video> for ~2.5 s before the watchdog
+  // surfaced the fallback card. Failing fast here flips them straight
+  // into the unsupported branch with no black flash.
+  const supported = getBarcodeDetector() !== null && hasCameraAffordance();
 
   // Refs so the camera loop reads the latest closures without
   // re-initialising the camera on every render.

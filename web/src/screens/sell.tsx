@@ -86,6 +86,12 @@ export function SellScreen(): JSX.Element {
   const [cartOpen, setCartOpen] = useState(false);
   const [manual, setManual] = useState<ManualState>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // v0.9.x — ✕ confirmation gate. Empty cart exits straight away;
+  // a non-empty cart prompts "End session?" so the merchant doesn't
+  // discard a session-in-progress by tapping ✕ by mistake. (Until
+  // Phase B lands single-confirm-per-sale, "items in cart" is the
+  // closest available proxy for "sales in session".)
+  const [endConfirm, setEndConfirm] = useState(false);
   // v0.5.2.4 ADR-024: optional invoice block. When invoiceEnabled is
   // true, commitSale also calls createInvoice() in the same flow and
   // redirects to the invoice view. Customer fields and vat override
@@ -363,7 +369,13 @@ export function SellScreen(): JSX.Element {
           type="button"
           data-testid="sell-close"
           aria-label={tCommon('close')}
-          onClick={() => navigate('/', { replace: true })}
+          onClick={() => {
+            if (cart.length === 0) {
+              navigate('/', { replace: true });
+              return;
+            }
+            setEndConfirm(true);
+          }}
           className="text-ink-3 -ml-2 inline-flex h-9 w-9 items-center justify-center justify-self-start rounded-full"
         >
           <X aria-hidden className="h-6 w-6" strokeWidth={2.25} />
@@ -510,7 +522,77 @@ export function SellScreen(): JSX.Element {
           t={t}
         />
       ) : null}
+
+      {endConfirm ? (
+        <EndSessionDialog
+          open={true}
+          count={cartCount}
+          total={cartTotal}
+          locale={locale}
+          currency={currency}
+          onKeep={() => setEndConfirm(false)}
+          onEnd={() => {
+            setEndConfirm(false);
+            navigate('/', { replace: true });
+          }}
+          t={t}
+        />
+      ) : null}
     </ScreenLayout>
+  );
+}
+
+// ─── end-session confirmation ─────────────────────────────────────────
+
+function EndSessionDialog(props: {
+  open: boolean;
+  count: number;
+  total: number;
+  locale: Locale;
+  currency: string;
+  onKeep: () => void;
+  onEnd: () => void;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+}): JSX.Element {
+  const { open, count, total, locale, currency, onKeep, onEnd, t } = props;
+  return (
+    <Dialog.Root open={open} onOpenChange={(o) => !o && onKeep()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
+        <Dialog.Content
+          data-testid="sell-end-confirm"
+          className="bg-paper fixed left-1/2 top-1/2 w-[min(90vw,360px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-5 shadow-xl"
+        >
+          <Dialog.Title className="font-display text-base font-semibold">
+            {t('end_session_title')}
+          </Dialog.Title>
+          <Dialog.Description className="text-ink-2 mt-2 text-sm">
+            {t('end_session_body', {
+              n: count,
+              total: formatCurrency(total, locale, currency),
+            })}
+          </Dialog.Description>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              data-testid="sell-end-keep"
+              onClick={onKeep}
+              className="border-hair flex-1 rounded-xl border bg-white py-2.5 text-sm"
+            >
+              {t('keep_selling')}
+            </button>
+            <button
+              type="button"
+              data-testid="sell-end-confirm-ok"
+              onClick={onEnd}
+              className="bg-bad flex-1 rounded-xl py-2.5 text-sm font-medium text-white"
+            >
+              {t('end_session_confirm')}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

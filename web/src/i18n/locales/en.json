@@ -604,7 +604,11 @@
     "invoice_customer_address": "Customer address (optional)",
     "invoice_customer_fiscal_id": "Customer fiscal ID (optional)",
     "invoice_vat_label": "VAT %",
-    "invoice_vat_apply_label": "Apply VAT to this invoice"
+    "invoice_vat_apply_label": "Apply VAT to this invoice",
+    "end_session_title": "End session?",
+    "end_session_body": "You've made {{n}} sales ({{total}}).",
+    "end_session_confirm": "End session",
+    "keep_selling": "Keep selling"
   },
   "receive": {
     "title": "Receive stock",
