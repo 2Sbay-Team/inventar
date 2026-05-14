@@ -10,6 +10,9 @@ import { PhotoThumb } from '../components/photo-thumb';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Camera, Minus, Plus, QrCode, X } from 'lucide-react';
 import { ArticleQR } from '../components/article-qr';
+import { ModernQRCode } from '../components/ModernQRCode';
+import { useQrBranding } from '../hooks/use-qr-branding';
+import { flagEnabled } from '../utils/feature-flags';
 import {
   articleHasExpiry,
   articleHasSizes,
@@ -47,6 +50,7 @@ export function ArticleDetailScreen(): JSX.Element {
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
   const [moreOpen, setMoreOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const qrBranding = useQrBranding();
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   // v0.5.2.8 — industry-standard photo-per-colour pattern (Shopify /
@@ -599,11 +603,23 @@ export function ArticleDetailScreen(): JSX.Element {
             </div>
             <div className="mt-4 flex flex-col items-center gap-3">
               <div className="border-hair rounded-2xl border bg-white p-4">
-                <ArticleQR
-                  articleId={article.id}
-                  size={224}
-                  brandColor={profile?.brand_primary_color}
-                />
+                {flagEnabled('modern_qr_style') ? (
+                  <ModernQRCode
+                    value={`https://inventar.hoodhood.ai/article/${article.id}`}
+                    brandColor={profile?.brand_primary_color}
+                    logoUrl={qrBranding?.logoDataUrl}
+                    centerText={qrBranding?.text}
+                    size={224}
+                    testId="article-qr"
+                  />
+                ) : (
+                  <ArticleQR
+                    articleId={article.id}
+                    size={224}
+                    branding={qrBranding}
+                    brandColor={profile?.brand_primary_color}
+                  />
+                )}
               </div>
               <div className="text-center">
                 <p className="text-ink text-sm font-medium">{article.name}</p>
