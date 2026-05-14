@@ -243,7 +243,7 @@ function QrBrandingPicker(): JSX.Element | null {
     >
       <h4 className="text-ink font-display text-sm font-medium">{t('qr_branding_title')}</h4>
       <p className="text-ink-3 mb-2 mt-1 text-xs leading-relaxed">{t('qr_branding_hint')}</p>
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <RadioGroup.Root
           value={effectiveMode}
           onValueChange={(v) => void setMode(v as QrCenterMode)}
@@ -284,7 +284,7 @@ function QrBrandingPicker(): JSX.Element | null {
         </RadioGroup.Root>
         <div
           data-testid="qr-branding-preview"
-          className="border-hair flex h-[120px] w-[120px] flex-shrink-0 items-center justify-center rounded-xl border bg-white p-2"
+          className="border-hair mx-auto flex h-[120px] w-[120px] flex-shrink-0 items-center justify-center rounded-xl border bg-white p-2 sm:mx-0"
           aria-label={t('qr_branding_preview_label')}
         >
           {flagEnabled('modern_qr_style') ? (
@@ -1597,7 +1597,7 @@ export function SettingsScreen(): JSX.Element {
     : `${t('backup_last')}: ${t('backup_never')}`;
 
   return (
-    <ScreenLayout>
+    <ScreenLayout wide>
       <ShopHeader />
       <main
         data-testid="settings-screen"
@@ -1633,7 +1633,7 @@ export function SettingsScreen(): JSX.Element {
           open={sections.isOpen('shop-profile')}
           onToggle={() => sections.toggle('shop-profile')}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <PhotoThumb
               photoId={profile?.logo_photo_id ?? null}
               size={56}

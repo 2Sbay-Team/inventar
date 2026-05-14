@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 
-// Collapsible Settings section. Header is a single 56px tap target with
+// Collapsible Settings section. Header is a single tap target with
 // the section name on the leading edge, an optional one-line summary
 // on the trailing edge, and a chevron that rotates 90° when open.
 //
@@ -23,6 +23,12 @@ import { ChevronRight } from 'lucide-react';
 // `1fr` with no explicit container height resolved smaller than the
 // content's max-content. The transitionend + auto-height approach
 // pins the final state to "natural height" and works in every browser.
+//
+// Mobile Safari note: the header uses min-h-[56px] + py-3 rather than
+// the equivalent h-14 because iOS Safari does not honour a fixed
+// `height` on a display:flex <button> — the element collapses to the
+// border/padding size, making the title invisible. min-height is
+// respected correctly in all tested browsers.
 //
 // RTL: lucide's ChevronRight points right; mirror it horizontally for
 // Arabic so it always points toward the body, then rotate 90° on open.
@@ -69,10 +75,10 @@ export function SettingsSection({
       // Snapshot the natural content height so the 0 → measured
       // transition has a target. Run on the next frame so the
       // child layout has settled before we read scrollHeight.
-      const id = window.requestAnimationFrame(() => {
+      const raf = window.requestAnimationFrame(() => {
         setHeight(el.scrollHeight);
       });
-      return () => window.cancelAnimationFrame(id);
+      return () => window.cancelAnimationFrame(raf);
     }
     // Closing path: if we're currently in 'auto' mode we'd snap to 0
     // and skip the transition. Take a measurement first, commit it
@@ -80,10 +86,10 @@ export function SettingsSection({
     // frame so the browser registers the intermediate value.
     if (height === 'auto') {
       setHeight(el.scrollHeight);
-      const id = window.requestAnimationFrame(() => {
+      const raf = window.requestAnimationFrame(() => {
         setHeight(0);
       });
-      return () => window.cancelAnimationFrame(id);
+      return () => window.cancelAnimationFrame(raf);
     }
     setHeight(0);
     // We intentionally don't depend on `height` — only on `open` —
@@ -104,20 +110,41 @@ export function SettingsSection({
       data-testid={`section-${id}`}
       className="border-hair flex-shrink-0 rounded-2xl border bg-white"
     >
+      {/*
+       * min-h-[56px] + py-3 instead of h-14:
+       * iOS Safari ignores a fixed `height` on display:flex <button>
+       * elements, collapsing them to a thin sliver. min-height is
+       * honoured correctly and lets the header grow naturally when
+       * the title wraps (e.g. long RTL strings).
+       */}
       <button
         type="button"
         data-testid={`section-${id}-header`}
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={`section-${id}-body`}
-        className="flex h-14 w-full items-center gap-3 px-4 text-start"
+        className="flex min-h-[56px] w-full items-center gap-3 px-4 py-3 text-start"
       >
-        <span className="font-display flex-1 text-sm font-semibold text-ink">{title}</span>
+        {/* min-w-0 prevents the span from overflowing its flex parent
+            when the title is longer than the available space. Without
+            it, the flex child ignores truncate and pushes the chevron
+            off-screen on narrow phones. */}
+        <span
+          data-testid={`section-${id}-title`}
+          className="font-display min-w-0 flex-1 truncate text-sm font-semibold text-ink"
+        >
+          {title}
+        </span>
+
         {summary ? (
-          <span data-testid={`section-${id}-summary`} className="text-ink-3 truncate text-[12px]">
+          <span
+            data-testid={`section-${id}-summary`}
+            className="text-ink-3 max-w-[42%] flex-shrink truncate text-[12px]"
+          >
             {summary}
           </span>
         ) : null}
+
         <ChevronRight
           aria-hidden
           data-testid={`section-${id}-chevron`}
@@ -127,6 +154,7 @@ export function SettingsSection({
           strokeWidth={2}
         />
       </button>
+
       <div
         id={`section-${id}-body`}
         data-testid={`section-${id}-body`}

@@ -10,6 +10,10 @@ interface ScreenLayoutProps {
   // Set to true on Article detail / Add Article — those screens use their
   // own action bar at the bottom and should not show the bottom nav.
   hideNav?: boolean;
+  // Set to true on content-heavy screens (e.g. Settings) to allow a
+  // slightly wider column at desktop widths. Keeps all the phone/tablet
+  // breakpoints unchanged — only the ≥1280px tier widens from 880→1120px.
+  wide?: boolean;
 }
 
 // Outer wrapper paints the paper across the full viewport; the inner shell
@@ -23,8 +27,8 @@ interface ScreenLayoutProps {
 //   ≥ 600px  : 540px (small tablet / large phone landscape)
 //   ≥ 768px  : 640px (tablet portrait)
 //   ≥ 1024px : 768px (laptop / tablet landscape)
-//   ≥ 1280px : 880px (desktop)
-export function ScreenLayout({ children, hideNav }: ScreenLayoutProps): JSX.Element {
+//   ≥ 1280px : 880px (desktop)  OR  1120px (desktop, wide=true)
+export function ScreenLayout({ children, hideNav, wide }: ScreenLayoutProps): JSX.Element {
   // v0.6.8 — shell uses `h-[100dvh]` (dynamic viewport height) instead
   // of `min-h-screen` so the layout boundary stays at the visible
   // viewport edge even when inner content exceeds viewport. `min-h-0`
@@ -40,11 +44,12 @@ export function ScreenLayout({ children, hideNav }: ScreenLayoutProps): JSX.Elem
   // the flow below children — it's a small "powered by" credit and
   // landing behind the nav is acceptable; users don't need it
   // always-visible.
+  const desktopMax = wide ? 'min-[1280px]:max-w-[1120px]' : 'min-[1280px]:max-w-[880px]';
   return (
     <div className="bg-paper flex min-h-screen w-full flex-col items-center">
       <div
         data-testid="app-shell"
-        className="border-hair relative flex h-[100dvh] w-full flex-col bg-paper min-[600px]:max-w-[540px] min-[600px]:border-x min-[600px]:shadow-sm min-[768px]:max-w-[640px] min-[1024px]:max-w-[768px] min-[1280px]:max-w-[880px]"
+        className={`border-hair relative flex h-[100dvh] w-full flex-col bg-paper min-[600px]:max-w-[540px] min-[600px]:border-x min-[600px]:shadow-sm min-[768px]:max-w-[640px] min-[1024px]:max-w-[768px] ${desktopMax}`}
       >
         <div
           className={`flex min-h-0 flex-1 flex-col ${

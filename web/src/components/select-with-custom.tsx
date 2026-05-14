@@ -96,25 +96,29 @@ export function SelectWithCustom({
 
   if (customMode) {
     return (
-      <input
-        ref={inputRef}
-        id={id}
-        type="text"
-        dir={resolvedDir}
-        data-testid={`${testId}-custom-input`}
-        aria-label={ariaLabel}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commitCustom}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commitCustom();
-          }
-        }}
-        maxLength={MAX_LENGTH}
-        className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-      />
+      <div>
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          dir={resolvedDir}
+          data-testid={`${testId}-custom-input`}
+          aria-label={ariaLabel}
+          value={draft}
+          placeholder={customLabel}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitCustom}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitCustom();
+            }
+          }}
+          maxLength={MAX_LENGTH}
+          className="border-hair text-ink placeholder:text-ink-3 w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        />
+        <p className="text-ink-3 mt-1 text-[11px]">{customLabel}</p>
+      </div>
     );
   }
 
