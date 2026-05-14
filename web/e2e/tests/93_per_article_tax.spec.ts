@@ -56,17 +56,18 @@ async function bootstrap(
 }
 
 test.describe('v0.9 ADR-041 — per-article tax category UI', () => {
-  test('N+1: "View past invoices" link is gone from Settings → Invoicing', async ({ page }) => {
+  test('N+1: Invoicing section is gone — merged into Shop Identity; no past-invoices link', async ({
+    page,
+  }) => {
     await bootstrap(page, { lang: 'en' });
     await page.getByTestId('nav-settings').click();
     await expect(page.getByTestId('settings-screen')).toBeVisible({ timeout: 10_000 });
-    // The Invoicing section still renders (legal name, address,
-    // fiscal ID, default VAT) but its old "View past invoices"
-    // link was lifted out. The /invoices route still resolves direct
-    // links — that's covered by 64_sell_invoice_facture.spec.ts and
-    // 87_invoice_back_button.spec.ts.
-    await expect(page.getByTestId('section-invoicing')).toBeVisible();
+    // Standalone Invoicing section was consolidated into Shop Identity.
+    await expect(page.getByTestId('section-invoicing')).toHaveCount(0);
+    // Past-invoices link was already gone; confirm it stays gone.
     await expect(page.getByTestId('settings-past-invoices')).toHaveCount(0);
+    // Shop Identity is still present.
+    await expect(page.getByTestId('section-shop-identity')).toBeVisible();
   });
 
   test('N+6: tax-rate radio block is HIDDEN when shop has no default VAT', async ({ page }) => {

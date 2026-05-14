@@ -50,7 +50,7 @@ import { extractDominantColorFromBlob } from '../theme/extract-logo-color-from-b
 import { downloadBackupFile } from '../backup/download';
 import { APP_VERSION } from '../config/app-version';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
-import { CurrencyPicker } from '../components/currency-picker';
+import { listSupportedCurrencies } from '../i18n/currency';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
@@ -67,10 +67,8 @@ import {
   type StoreType,
 } from '../types';
 import { ArticleQR } from '../components/article-qr';
-import { ModernQRCode } from '../components/ModernQRCode';
 import { useLogoDataUrl } from '../hooks/use-logo-data-url';
 import { type QrBrandingOptions } from '../utils/qr-branding';
-import { flagEnabled } from '../utils/feature-flags';
 
 const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 
@@ -287,24 +285,12 @@ function QrBrandingPicker(): JSX.Element | null {
           className="border-hair mx-auto flex h-[120px] w-[120px] flex-shrink-0 items-center justify-center rounded-xl border bg-white p-2 sm:mx-0"
           aria-label={t('qr_branding_preview_label')}
         >
-          {flagEnabled('modern_qr_style') ? (
-            <ModernQRCode
-              value={`https://inventar.hoodhood.ai/article/${QR_BRANDING_PREVIEW_ARTICLE_ID}`}
-              brandColor={profile.brand_primary_color}
-              logoUrl={previewBranding.logoDataUrl}
-              centerText={previewBranding.text}
-              size={104}
-              testId="qr-branding-preview-qr"
-            />
-          ) : (
-            <ArticleQR
-              articleId={QR_BRANDING_PREVIEW_ARTICLE_ID}
-              size={104}
-              testId="qr-branding-preview-qr"
-              branding={previewBranding}
-              brandColor={profile.brand_primary_color}
-            />
-          )}
+          <ArticleQR
+            articleId={QR_BRANDING_PREVIEW_ARTICLE_ID}
+            size={104}
+            testId="qr-branding-preview-qr"
+            branding={previewBranding}
+          />
         </div>
       </div>
     </section>
@@ -474,6 +460,7 @@ function ShopIdentitySection({ sections }: { sections: SettingsSectionsApi }): J
         <LocationSubsection profile={profile} />
         <HoursSubsection profile={profile} />
         <SocialSubsection profile={profile} />
+        <BusinessSubsection profile={profile} />
         <BusinessCardSubsection profile={profile} completionPercentage={completion.percentage} />
       </div>
     </SettingsSection>
@@ -649,11 +636,6 @@ function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element 
         multiline
         onCommit={(value) => setField('description', value)}
       />
-      {/* Legal business name + Tax / fiscal ID surfaced here in addition
-          to the Invoicing section. Both write to the same
-          profile.legal_name / profile.fiscal_id columns — Invoicing
-          stays the canonical surface for "this is on every invoice"
-          and the merchant can edit either spot. */}
       <IdentityTextField
         testId="identity-legal-name"
         label={t('identity_legal_name')}
@@ -662,15 +644,6 @@ function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element 
         initial={profile.legal_name}
         maxLength={120}
         onCommit={(value) => setField('legal_name', value)}
-      />
-      <IdentityTextField
-        testId="identity-fiscal-id"
-        label={t('identity_fiscal_id')}
-        placeholder={t('identity_fiscal_id_placeholder')}
-        hint={t('identity_fiscal_id_hint')}
-        initial={profile.fiscal_id}
-        maxLength={60}
-        onCommit={(value) => setField('fiscal_id', value)}
       />
     </div>
   );
@@ -686,6 +659,13 @@ function ContactSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
         <h4 className="font-display text-sm font-medium">{t('identity_section_contact')}</h4>
         <AutosaveBadge status={status} />
       </div>
+      <IdentityTextField
+        testId="identity-phone"
+        label={t('identity_phone')}
+        placeholder={t('identity_phone_placeholder')}
+        initial={profile.phone}
+        onCommit={(value) => setField('phone', value)}
+      />
       <IdentityTextField
         testId="identity-whatsapp"
         label={t('identity_whatsapp')}
@@ -937,168 +917,63 @@ function IdentityEmailField(props: {
   );
 }
 
-function InvoicingSection({ sections }: { sections: SettingsSectionsApi }): JSX.Element | null {
+function BusinessSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
   const { t } = useTranslation('settings');
-  const profile = useProfile();
-  const [legalNameDraft, setLegalNameDraft] = useState<string | null>(null);
-  const [legalAddressDraft, setLegalAddressDraft] = useState<string | null>(null);
-  const [fiscalIdDraft, setFiscalIdDraft] = useState<string | null>(null);
+  const { setField, status } = useSubsectionAutosave(profile);
   const [vatDraft, setVatDraft] = useState<string | null>(null);
-  const [phoneDraft, setPhoneDraft] = useState<string | null>(null);
-  if (!profile) return null;
-  const legalNameValue = legalNameDraft ?? profile.legal_name ?? '';
-  const legalAddressValue = legalAddressDraft ?? profile.legal_address ?? '';
-  const phoneValue = phoneDraft ?? profile.phone ?? '';
-  const fiscalIdValue = fiscalIdDraft ?? profile.fiscal_id ?? '';
-  const vatValue =
-    vatDraft ?? (profile.default_vat_pct == null ? '' : String(profile.default_vat_pct));
-  async function commit(
-    patch:
-      | { legal_name: string | null }
-      | { legal_address: string | null }
-      | { fiscal_id: string | null }
-      | { default_vat_pct: number | null }
-      | { phone: string | null },
-  ): Promise<void> {
-    if (!profile) return;
-    await upsertProfile(db, {
-      name: profile.name,
-      locale: profile.locale,
-      ...patch,
-    });
-  }
-  function trimToNullable(value: string): string | null {
-    return value.trim() === '' ? null : value.trim();
-  }
+
   function parseVat(value: string): number | null {
     const trimmed = value.trim();
     if (trimmed === '') return null;
     const n = Number(trimmed);
-    // Reject NaN, negatives, and absurdly-high values. No country has
-    // a VAT rate above 50% in practice.
     if (!Number.isFinite(n) || n < 0 || n > 50) return null;
     return Math.round(n);
   }
-  const summary =
-    profile.default_vat_pct != null
-      ? t('invoicing_summary_configured', { pct: profile.default_vat_pct })
-      : t('not_configured_yet');
+
+  const vatDisplay =
+    vatDraft ?? (profile.default_vat_pct == null ? '' : String(profile.default_vat_pct));
+
   return (
-    <SettingsSection
-      id="invoicing"
-      title={t('invoicing_title')}
-      summary={summary}
-      open={sections.isOpen('invoicing')}
-      onToggle={() => sections.toggle('invoicing')}
-    >
-      <p className="text-ink-3 mb-3 text-xs leading-relaxed">{t('invoicing_hint')}</p>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <label htmlFor="settings-legal-name" className="text-ink-2 block text-xs font-medium">
-            {t('invoicing_legal_name')}
-          </label>
-          <input
-            id="settings-legal-name"
-            data-testid="settings-legal-name"
-            type="text"
-            value={legalNameValue}
-            placeholder={profile.name}
-            onChange={(e) => setLegalNameDraft(e.target.value)}
-            onBlur={(e) => {
-              void commit({ legal_name: trimToNullable(e.target.value) });
-              setLegalNameDraft(null);
-            }}
-            maxLength={120}
-            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="settings-legal-address" className="text-ink-2 block text-xs font-medium">
-            {t('invoicing_legal_address')}
-          </label>
-          <textarea
-            id="settings-legal-address"
-            data-testid="settings-legal-address"
-            value={legalAddressValue}
-            placeholder={t('invoicing_address_placeholder')}
-            onChange={(e) => setLegalAddressDraft(e.target.value)}
-            onBlur={(e) => {
-              void commit({ legal_address: trimToNullable(e.target.value) });
-              setLegalAddressDraft(null);
-            }}
-            rows={3}
-            maxLength={300}
-            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="settings-phone" className="text-ink-2 block text-xs font-medium">
-            {t('invoicing_phone')}
-          </label>
-          <input
-            id="settings-phone"
-            data-testid="settings-phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            value={phoneValue}
-            placeholder={t('invoicing_phone_placeholder')}
-            onChange={(e) => setPhoneDraft(e.target.value)}
-            onBlur={(e) => {
-              void commit({ phone: trimToNullable(e.target.value) });
-              setPhoneDraft(null);
-            }}
-            maxLength={40}
-            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
-            dir="ltr"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="settings-fiscal-id" className="text-ink-2 block text-xs font-medium">
-            {t('invoicing_fiscal_id')}
-          </label>
-          <input
-            id="settings-fiscal-id"
-            data-testid="settings-fiscal-id"
-            type="text"
-            value={fiscalIdValue}
-            placeholder={t('invoicing_fiscal_id_placeholder')}
-            onChange={(e) => setFiscalIdDraft(e.target.value)}
-            onBlur={(e) => {
-              void commit({ fiscal_id: trimToNullable(e.target.value) });
-              setFiscalIdDraft(null);
-            }}
-            maxLength={40}
-            className="border-hair focus-visible:ring-accent/40 w-full rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
-            dir="ltr"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="settings-default-vat" className="text-ink-2 block text-xs font-medium">
-            {t('invoicing_default_vat')}
-          </label>
-          <input
-            id="settings-default-vat"
-            data-testid="settings-default-vat"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={50}
-            step={1}
-            value={vatValue}
-            placeholder="19"
-            onChange={(e) => setVatDraft(e.target.value)}
-            onBlur={(e) => {
-              void commit({ default_vat_pct: parseVat(e.target.value) });
-              setVatDraft(null);
-            }}
-            className="border-hair focus-visible:ring-accent/40 w-32 rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
-            dir="ltr"
-          />
-          <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h4 className="font-display text-sm font-medium">{t('identity_section_business')}</h4>
+        <AutosaveBadge status={status} />
       </div>
-    </SettingsSection>
+      <p className="text-ink-3 text-[11px] leading-relaxed">{t('identity_business_hint')}</p>
+      <IdentityTextField
+        testId="identity-fiscal-id"
+        label={t('identity_fiscal_id')}
+        placeholder={t('identity_fiscal_id_placeholder')}
+        hint={t('identity_fiscal_id_hint')}
+        initial={profile.fiscal_id}
+        maxLength={60}
+        onCommit={(value) => setField('fiscal_id', value)}
+      />
+      <div className="space-y-1">
+        <label htmlFor="identity-default-vat" className="text-ink-2 block text-xs font-medium">
+          {t('invoicing_default_vat')}
+        </label>
+        <input
+          id="identity-default-vat"
+          data-testid="identity-default-vat"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={50}
+          step={1}
+          value={vatDisplay}
+          placeholder="19"
+          onChange={(e) => setVatDraft(e.target.value)}
+          onBlur={(e) => {
+            setField('default_vat_pct', parseVat(e.target.value));
+            setVatDraft(null);
+          }}
+          className="border-hair focus-visible:ring-accent/40 w-32 rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+          dir="ltr"
+        />
+        <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
+      </div>
+    </div>
   );
 }
 
@@ -1300,6 +1175,7 @@ export function SettingsScreen(): JSX.Element {
   // draft state, no Save button) — matches the expiry-threshold and
   // EAN-strict toggles. The trade-off is one IDB write per chip tap;
   // at 8 chips that's bounded and fine.
+  const currencies = useMemo(() => listSupportedCurrencies(), []);
   const installState = useInstallPrompt();
   const autoBackupSupported = useMemo(() => isAutoBackupSupported(), []);
   const autoBackupFolder = useLive<string | null>(
@@ -1644,13 +1520,13 @@ export function SettingsScreen(): JSX.Element {
               // white Settings card.
               transparent={!!profile?.logo_photo_id}
             />
-            <div className="flex flex-1 flex-col gap-2">
+            <div className="flex w-full flex-1 flex-col gap-2">
               <button
                 type="button"
                 data-testid="shop-logo-pick"
                 onClick={pickLogoFile}
                 disabled={logoBusy}
-                className="border-hair rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
+                className="border-hair w-full rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
               >
                 {profile?.logo_photo_id ? t('shop_logo_change') : t('shop_logo_add')}
               </button>
@@ -1660,7 +1536,7 @@ export function SettingsScreen(): JSX.Element {
                   data-testid="shop-logo-remove"
                   onClick={() => void removeLogo()}
                   disabled={logoBusy}
-                  className="text-bad border-bad/30 rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
+                  className="text-bad border-bad/30 w-full rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
                 >
                   {t('shop_logo_remove')}
                 </button>
@@ -1729,12 +1605,22 @@ export function SettingsScreen(): JSX.Element {
             className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
           />
 
-          <p className="text-ink-3 mt-4 mb-1 text-xs">{t('currency')}</p>
-          <CurrencyPicker
-            value={profile?.currency ?? 'TND'}
-            onChange={selectCurrency}
-            testId="settings-currency"
-          />
+          <label htmlFor="settings-currency" className="text-ink-3 mt-4 mb-1 block text-xs">
+            {t('currency')}
+          </label>
+          <select
+            id="settings-currency"
+            data-testid="settings-currency"
+            value={profile?.currency ?? ''}
+            onChange={(e) => selectCurrency(e.target.value)}
+            className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
+          >
+            {currencies.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
 
           {pendingCurrency ? (
             <div
@@ -1955,14 +1841,6 @@ export function SettingsScreen(): JSX.Element {
         {profile?.store_type === 'shop' ? (
           <EanStrictSection profileLoaded={Boolean(profile)} sections={sections} />
         ) : null}
-
-        {/* v0.5.2.7: surfaced Invoicing higher in the list — merchants
-            reported they couldn't find legal name / address / fiscal ID
-            / VAT when these lived at the bottom of Settings.
-            v0.9: the "View past invoices" link moved out — Past Invoices
-            belongs on the Sale tab → Documents sub-tab, not Settings.
-            The /invoices route still resolves direct links. */}
-        <InvoicingSection sections={sections} />
 
         <SettingsSection
           id="install"
