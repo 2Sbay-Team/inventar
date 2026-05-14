@@ -55,7 +55,13 @@ export function ArticleLabelScreen(): JSX.Element | null {
             </p>
           ) : null}
           <div className="border-hair rounded-xl border bg-white p-2 print:border-0 print:p-0">
-            <ArticleQR articleId={article.id} size={256} testId="label-qr" branding={branding} />
+            <ArticleQR
+              articleId={article.id}
+              size={256}
+              testId="label-qr"
+              branding={branding}
+              brandColor={profile?.brand_primary_color}
+            />
           </div>
           <div className="text-center">
             <p

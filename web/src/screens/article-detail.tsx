@@ -599,7 +599,11 @@ export function ArticleDetailScreen(): JSX.Element {
             </div>
             <div className="mt-4 flex flex-col items-center gap-3">
               <div className="border-hair rounded-2xl border bg-white p-4">
-                <ArticleQR articleId={article.id} size={224} />
+                <ArticleQR
+                  articleId={article.id}
+                  size={224}
+                  brandColor={profile?.brand_primary_color}
+                />
               </div>
               <div className="text-center">
                 <p className="text-ink text-sm font-medium">{article.name}</p>

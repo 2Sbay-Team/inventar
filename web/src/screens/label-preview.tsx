@@ -54,6 +54,7 @@ export function LabelPreviewScreen(): JSX.Element | null {
               size={256}
               testId="label-qr"
               branding={branding}
+              brandColor={profile?.brand_primary_color}
             />
           </div>
           <div className="text-center">

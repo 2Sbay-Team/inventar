@@ -290,6 +290,7 @@ function QrBrandingPicker(): JSX.Element | null {
             size={104}
             testId="qr-branding-preview-qr"
             branding={previewBranding}
+            brandColor={profile.brand_primary_color}
           />
         </div>
       </div>

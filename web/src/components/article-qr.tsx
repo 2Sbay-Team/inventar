@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import QRCode from 'qrcode';
+import { generateModernQrSvg } from '../utils/qr-svg-renderer';
 import { injectQrCenterBranding, type QrBrandingOptions } from '../utils/qr-branding';
 
 interface ArticleQRProps {
@@ -13,6 +13,9 @@ interface ArticleQRProps {
   // Detail QR dialog leaves it undefined so its QR stays plain for
   // fastest in-app scanning.
   branding?: QrBrandingOptions;
+  // Merchant brand color (hex). When set, QR dots and finder patterns
+  // render in this color instead of the default dark ink.
+  brandColor?: string | null;
 }
 
 // Renders a QR code that, when scanned with any phone camera, opens the
@@ -24,32 +27,20 @@ export function ArticleQR({
   size = 128,
   testId,
   branding,
+  brandColor,
 }: ArticleQRProps): JSX.Element {
   const [rawSvg, setRawSvg] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
     // Hard-code the production origin so a printed label keeps working
     // even when scanned offline by a phone whose camera doesn't know we
     // were on localhost during dev. If the QR is generated against
     // localhost, the scan opens an unreachable URL.
     const url = `https://inventar.hoodhood.ai/article/${articleId}`;
-    void QRCode.toString(url, {
-      type: 'svg',
-      // v0.6 ADR-030 — level Q gives ~25 % obscured-area recovery so
-      // the centre branding overlay (≤ 22 % edge) stays within the
-      // scanner's error-correction budget.
-      errorCorrectionLevel: 'Q',
-      margin: 1,
-      color: { dark: '#1F2937', light: '#FFFFFF' },
-    }).then((svgString) => {
-      if (cancelled) return;
-      setRawSvg(svgString);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [articleId]);
+    // Error correction level H (30 % tolerance) keeps the centre
+    // branding overlay (≤ 22 % edge) well within the scanner's budget.
+    setRawSvg(generateModernQrSvg(url, { darkColor: brandColor, errorCorrectionLevel: 'H' }));
+  }, [articleId, brandColor]);
 
   // Apply branding on top of the raw QR SVG. Cheap (regex + string
   // concat) so re-running on every render is fine when the parent
