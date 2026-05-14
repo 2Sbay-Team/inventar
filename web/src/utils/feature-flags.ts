@@ -7,8 +7,8 @@
 
 const DEFAULTS: Readonly<Record<string, boolean>> = {
   // Enables ModernQRCode (qr-code-styling) instead of the custom SVG
-  // renderer. Keep false for ≥2 releases while the rollout is verified.
-  modern_qr_style: false,
+  // renderer. Enabled for all users after N+9 automated scan test passed.
+  modern_qr_style: true,
 };
 
 export function flagEnabled(flag: string): boolean {
