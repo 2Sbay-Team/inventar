@@ -280,4 +280,37 @@ describe('applyTheme — side effects via a stub StyleTarget', () => {
     // module in node doesn't blow up at import time.
     expect(() => applyTheme(profileWith({ brand_primary_color: '#FF0000' }))).not.toThrow();
   });
+
+  it('sets light ink vars when theme_bg_color is a dark background (Slate)', () => {
+    const target = makeStyleTarget();
+    applyTheme(profileWith({ theme_bg_color: '#1E2433' }), target);
+    // Slate luminance ≈ 0.016 → below 0.08 threshold → near-white text.
+    expect(target.values.get('--color-ink-rgb')).toBe('241 245 249');
+    expect(target.values.get('--color-ink-2-rgb')).toBe('203 213 225');
+    expect(target.values.get('--color-ink-3-rgb')).toBe('148 163 184');
+    expect(target.values.get('--color-ink-4-rgb')).toBe('100 116 139');
+  });
+
+  it('sets light ink vars when theme_bg_color is Ink (#111111)', () => {
+    const target = makeStyleTarget();
+    applyTheme(profileWith({ theme_bg_color: '#111111' }), target);
+    expect(target.values.get('--color-ink-rgb')).toBe('241 245 249');
+  });
+
+  it('clears ink vars when switching from dark back to a light background', () => {
+    const target = makeStyleTarget();
+    applyTheme(profileWith({ theme_bg_color: '#1E2433' }), target);
+    expect(target.values.has('--color-ink-rgb')).toBe(true);
+    applyTheme(profileWith({ theme_bg_color: '#FFFFFF' }), target);
+    expect(target.values.has('--color-ink-rgb')).toBe(false);
+    expect(target.values.has('--color-ink-2-rgb')).toBe(false);
+  });
+
+  it('does not set ink vars for light backgrounds', () => {
+    const target = makeStyleTarget();
+    applyTheme(profileWith({ theme_bg_color: '#FFF8F2' }), target); // Cream
+    expect(target.values.has('--color-ink-rgb')).toBe(false);
+    applyTheme(profileWith({ theme_bg_color: '#F0EDE8' }), target); // Stone
+    expect(target.values.has('--color-ink-rgb')).toBe(false);
+  });
 });

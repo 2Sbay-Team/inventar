@@ -36,6 +36,29 @@ const BRAND_SOFT_VAR = '--color-brand-soft-rgb';
 const BRAND_INK_VAR = '--color-brand-ink-rgb';
 const BG_VAR = '--color-bg-rgb';
 const BG_DEEP_VAR = '--color-bg-deep-rgb';
+// v0.9.1 — ink vars (text colours) for dark-theme adaptation.
+const INK_VAR = '--color-ink-rgb';
+const INK_2_VAR = '--color-ink-2-rgb';
+const INK_3_VAR = '--color-ink-3-rgb';
+const INK_4_VAR = '--color-ink-4-rgb';
+
+// Near-white palette used when the page background is dark (luminance < 0.08).
+// Slate-100 / 300 / 400 / 500 from Tailwind's colour scale — warm-neutral,
+// pairs naturally with both Slate (#1E2433) and Ink (#111111) backgrounds.
+const DARK_INK = '241 245 249'; // slate-100  #F1F5F9
+const DARK_INK_2 = '203 213 225'; // slate-300  #CBD5E1
+const DARK_INK_3 = '148 163 184'; // slate-400  #94A3B8
+const DARK_INK_4 = '100 116 139'; // slate-500  #64748B
+
+// WCAG relative luminance of an sRGB triple. Returns 0 (pure black) … 1
+// (pure white). Values below ~0.08 are "dark" for our purposes.
+function relativeLuminance({ r, g, b }: Rgb): number {
+  const lin = (c: number): number => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
 
 const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -94,13 +117,16 @@ export function inkShade(brand: Rgb): Rgb {
   return mixRgb(brand, BLACK, 0.65);
 }
 
-// Light-mode bg-deep: 5% darker than bg. Mirrors the
-// #FFF8F2 → #FCE7D0 ratio in the v0.8 hard-coded paper gradient
-// well enough to keep the "warm sunrise" feel intact on any
-// light-toned bg. Dark presets (when they ship) will need a
-// different rule — LIGHTER than bg, not darker. Phase 2 only
-// targets light theming.
+// bg-deep gradient stop: slightly lighter for dark backgrounds, slightly
+// darker for light backgrounds. Both give a subtle depth gradient without
+// looking flat. The 8% white mix on dark is enough to read as a gradient
+// without washing out the dark tone.
 export function bgDeepShade(bg: Rgb): Rgb {
+  if (relativeLuminance(bg) < 0.08) {
+    // Dark bg → lighten by 8% so the gradient goes dark→slightly-less-dark.
+    return mixRgb(bg, WHITE, 0.08);
+  }
+  // Light bg → darken by 5% (original formula, keeps the sunrise feel).
   return mixRgb(bg, BLACK, 0.95);
 }
 
@@ -150,6 +176,7 @@ export function applyTheme(profile: ShopProfile | null | undefined, target?: Sty
   const root: StyleTarget | null = target ?? resolveDocumentRoot();
   if (root === null) return;
   const vars = computeThemeVars(profile);
+
   const pairs: ReadonlyArray<readonly [string, string | null]> = [
     [BRAND_VAR, vars.brand],
     [BRAND_SOFT_VAR, vars.brandSoft],
@@ -158,6 +185,26 @@ export function applyTheme(profile: ShopProfile | null | undefined, target?: Sty
     [BG_DEEP_VAR, vars.bgDeep],
   ];
   for (const [name, value] of pairs) {
+    if (value === null) {
+      root.removeProperty(name);
+    } else {
+      root.setProperty(name, value);
+    }
+  }
+
+  // Ink-colour adaptation: when the page background is dark (luminance < 0.08)
+  // flip text tokens to a near-white palette so text stays readable without
+  // touching individual components. When bg is light or unset, remove the
+  // overrides so :root CSS defaults (dark text) take over.
+  const bgRgb = parseHex(profile?.theme_bg_color ?? null);
+  const isDark = bgRgb !== null && relativeLuminance(bgRgb) < 0.08;
+  const inkPairs: ReadonlyArray<readonly [string, string | null]> = [
+    [INK_VAR, isDark ? DARK_INK : null],
+    [INK_2_VAR, isDark ? DARK_INK_2 : null],
+    [INK_3_VAR, isDark ? DARK_INK_3 : null],
+    [INK_4_VAR, isDark ? DARK_INK_4 : null],
+  ];
+  for (const [name, value] of inkPairs) {
     if (value === null) {
       root.removeProperty(name);
     } else {

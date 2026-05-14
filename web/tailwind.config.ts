@@ -23,12 +23,19 @@ const config: Config = {
           DEFAULT: 'rgb(var(--color-bg-rgb) / <alpha-value>)',
           deep: 'rgb(var(--color-bg-deep-rgb) / <alpha-value>)',
         },
+        // v0.9.1 — ink tokens route through CSS custom properties so dark
+        // backgrounds (Slate, Ink) flip text to near-white at runtime.
+        // Light-mode defaults in :root match the old hex exactly, so an
+        // install with no theme_bg_color is pixel-identical to v0.9.0.
         ink: {
-          DEFAULT: '#1F2937',
-          '2': '#4B5563',
-          '3': '#6B7280',
-          '4': '#9CA3AF',
+          DEFAULT: 'rgb(var(--color-ink-rgb) / <alpha-value>)',
+          '2': 'rgb(var(--color-ink-2-rgb) / <alpha-value>)',
+          '3': 'rgb(var(--color-ink-3-rgb) / <alpha-value>)',
+          '4': 'rgb(var(--color-ink-4-rgb) / <alpha-value>)',
         },
+        // hair (border/divider) stays hardcoded-dark because it is used on
+        // white cards that don't invert in dark mode — dark alpha on white
+        // reads correctly regardless of the page background.
         hair: {
           DEFAULT: 'rgba(31, 41, 55, 0.08)',
           '2': 'rgba(31, 41, 55, 0.14)',

@@ -21,6 +21,14 @@
   --color-brand-ink-rgb: 196 68 23; /* #C44417 — accent-ink (text on soft) */
   --color-bg-rgb: 255 248 242; /* #FFF8F2 — paper top */
   --color-bg-deep-rgb: 252 231 208; /* #FCE7D0 — paper gradient bottom */
+  /* v0.9.1 — ink text tokens. applyTheme() overwrites with near-white
+     values when the merchant selects a dark background (Slate, Ink).
+     Defaults match the prior hardcoded hex so no visual change occurs
+     without a dark theme_bg_color on the profile. */
+  --color-ink-rgb: 31 41 55; /* #1F2937 */
+  --color-ink-2-rgb: 75 85 99; /* #4B5563 */
+  --color-ink-3-rgb: 107 114 128; /* #6B7280 */
+  --color-ink-4-rgb: 156 163 175; /* #9CA3AF */
 }
 
 /* Soft warm gradient — cream at top fading into a warmer peach at the

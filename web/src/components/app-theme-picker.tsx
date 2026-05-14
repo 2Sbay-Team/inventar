@@ -18,7 +18,7 @@ import { parseHex } from '../theme/apply-theme';
 // stored value matches its hex exactly.
 
 interface ThemePreset {
-  key: 'cream' | 'white' | 'stone';
+  key: 'cream' | 'white' | 'stone' | 'slate' | 'ink';
   hex: string;
 }
 
@@ -26,6 +26,8 @@ const THEME_PRESETS: readonly ThemePreset[] = [
   { key: 'cream', hex: '#FFF8F2' }, // current default
   { key: 'white', hex: '#FFFFFF' },
   { key: 'stone', hex: '#F0EDE8' },
+  { key: 'slate', hex: '#1E2433' },
+  { key: 'ink', hex: '#111111' },
 ];
 
 function normaliseHex(hex: string | null | undefined): string | null {
@@ -62,7 +64,7 @@ export function AppThemePicker({
 
   return (
     <div className="space-y-3" data-testid="app-theme-picker">
-      <div className="grid grid-cols-3 gap-2" data-testid="theme-presets">
+      <div className="grid grid-cols-5 gap-2" data-testid="theme-presets">
         {THEME_PRESETS.map((preset) => {
           const isActive = currentHex === normaliseHex(preset.hex);
           return (
