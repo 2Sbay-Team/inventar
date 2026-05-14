@@ -3,9 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, Check } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { ArticleQR } from '../components/article-qr';
+import { ModernQRCode } from '../components/ModernQRCode';
 import { useArticleDetail } from '../hooks/use-article-detail';
 import { useProfile } from '../hooks/use-profile';
 import { useQrBranding } from '../hooks/use-qr-branding';
+import { flagEnabled } from '../utils/feature-flags';
+
+const ARTICLE_URL = (id: string) => `https://inventar.hoodhood.ai/article/${id}`;
 
 export function ArticleLabelScreen(): JSX.Element | null {
   const { t } = useTranslation('label');
@@ -33,6 +37,8 @@ export function ArticleLabelScreen(): JSX.Element | null {
     window.print();
   }
 
+  const useModernQr = flagEnabled('modern_qr_style');
+
   return (
     <ScreenLayout hideNav>
       <div
@@ -55,13 +61,24 @@ export function ArticleLabelScreen(): JSX.Element | null {
             </p>
           ) : null}
           <div className="border-hair rounded-xl border bg-white p-2 print:border-0 print:p-0">
-            <ArticleQR
-              articleId={article.id}
-              size={256}
-              testId="label-qr"
-              branding={branding}
-              brandColor={profile?.brand_primary_color}
-            />
+            {useModernQr ? (
+              <ModernQRCode
+                value={ARTICLE_URL(article.id)}
+                brandColor={profile?.brand_primary_color}
+                logoUrl={branding?.logoDataUrl}
+                centerText={branding?.text}
+                size={256}
+                testId="label-qr"
+              />
+            ) : (
+              <ArticleQR
+                articleId={article.id}
+                size={256}
+                testId="label-qr"
+                branding={branding}
+                brandColor={profile?.brand_primary_color}
+              />
+            )}
           </div>
           <div className="text-center">
             <p

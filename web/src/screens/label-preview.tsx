@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Printer } from 'lucide-react';
 import { ScreenLayout } from '../components/screen-layout';
 import { ArticleQR } from '../components/article-qr';
+import { ModernQRCode } from '../components/ModernQRCode';
 import { useProfile } from '../hooks/use-profile';
 import { useQrBranding } from '../hooks/use-qr-branding';
+import { flagEnabled } from '../utils/feature-flags';
 
 // v0.6 ADR-030 — Settings → "Preview label". Renders a stub label so
 // the merchant can see how their printed labels look with the current
@@ -13,6 +15,7 @@ import { useQrBranding } from '../hooks/use-qr-branding';
 // of the printer.
 
 const PREVIEW_ARTICLE_ID = 'SAMPLE-PREVIEW';
+const PREVIEW_URL = `https://inventar.hoodhood.ai/article/${PREVIEW_ARTICLE_ID}`;
 
 export function LabelPreviewScreen(): JSX.Element | null {
   const { t } = useTranslation('label');
@@ -29,6 +32,8 @@ export function LabelPreviewScreen(): JSX.Element | null {
   }
 
   if (profile === undefined) return null;
+
+  const useModernQr = flagEnabled('modern_qr_style');
 
   return (
     <ScreenLayout hideNav>
@@ -49,13 +54,24 @@ export function LabelPreviewScreen(): JSX.Element | null {
             </p>
           ) : null}
           <div className="border-hair rounded-xl border bg-white p-2 print:border-0 print:p-0">
-            <ArticleQR
-              articleId={PREVIEW_ARTICLE_ID}
-              size={256}
-              testId="label-qr"
-              branding={branding}
-              brandColor={profile?.brand_primary_color}
-            />
+            {useModernQr ? (
+              <ModernQRCode
+                value={PREVIEW_URL}
+                brandColor={profile?.brand_primary_color}
+                logoUrl={branding?.logoDataUrl}
+                centerText={branding?.text}
+                size={256}
+                testId="label-qr"
+              />
+            ) : (
+              <ArticleQR
+                articleId={PREVIEW_ARTICLE_ID}
+                size={256}
+                testId="label-qr"
+                branding={branding}
+                brandColor={profile?.brand_primary_color}
+              />
+            )}
           </div>
           <div className="text-center">
             <p

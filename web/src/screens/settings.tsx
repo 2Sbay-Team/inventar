@@ -67,8 +67,10 @@ import {
   type StoreType,
 } from '../types';
 import { ArticleQR } from '../components/article-qr';
+import { ModernQRCode } from '../components/ModernQRCode';
 import { useLogoDataUrl } from '../hooks/use-logo-data-url';
 import { type QrBrandingOptions } from '../utils/qr-branding';
+import { flagEnabled } from '../utils/feature-flags';
 
 const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 
@@ -285,13 +287,24 @@ function QrBrandingPicker(): JSX.Element | null {
           className="border-hair flex h-[120px] w-[120px] flex-shrink-0 items-center justify-center rounded-xl border bg-white p-2"
           aria-label={t('qr_branding_preview_label')}
         >
-          <ArticleQR
-            articleId={QR_BRANDING_PREVIEW_ARTICLE_ID}
-            size={104}
-            testId="qr-branding-preview-qr"
-            branding={previewBranding}
-            brandColor={profile.brand_primary_color}
-          />
+          {flagEnabled('modern_qr_style') ? (
+            <ModernQRCode
+              value={`https://inventar.hoodhood.ai/article/${QR_BRANDING_PREVIEW_ARTICLE_ID}`}
+              brandColor={profile.brand_primary_color}
+              logoUrl={previewBranding.logoDataUrl}
+              centerText={previewBranding.text}
+              size={104}
+              testId="qr-branding-preview-qr"
+            />
+          ) : (
+            <ArticleQR
+              articleId={QR_BRANDING_PREVIEW_ARTICLE_ID}
+              size={104}
+              testId="qr-branding-preview-qr"
+              branding={previewBranding}
+              brandColor={profile.brand_primary_color}
+            />
+          )}
         </div>
       </div>
     </section>
