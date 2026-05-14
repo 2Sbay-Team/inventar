@@ -9,6 +9,14 @@
 //   - errorCorrectionLevel = 'H'            (30 % damage tolerance)
 //   - brand color → contrast-checked; falls back to #000000 if too light
 //   - centre image = logo URL, or a generated SVG badge for store name
+//
+// Rendering note — qr-code-styling's update() clears the container but
+// does NOT re-append the SVG element afterwards. So calling update() on
+// a mounted instance leaves the container empty. We work around this by
+// always creating a fresh QRCodeStyling instance and calling append() on
+// every render (clearing any previous SVG first). The instance is
+// lightweight to construct and drawQR() resolves as a microtask so there
+// is no visible flash.
 
 import { useEffect, useRef } from 'react';
 import QRCodeStyling from 'qr-code-styling';
@@ -42,16 +50,12 @@ function textToSvgDataUrl(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-  // Narrow viewBox sized to the text so qr-code-styling's imageSize
-  // (0.25 × QR edge) fills the badge without clipping.
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 28">` +
     `<text x="40" y="14" text-anchor="middle" dominant-baseline="central"` +
     ` font-family="ui-sans-serif,system-ui,-apple-system,sans-serif"` +
     ` font-size="14" font-weight="600" fill="#1F2937">${safe}</text>` +
     `</svg>`;
-  // btoa requires a Latin-1 string; encodeURIComponent then unescape handles
-  // any Unicode characters in the store name safely.
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
@@ -64,6 +68,7 @@ export function ModernQRCode({
   testId,
 }: ModernQRCodeProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Keep a ref to the current QRCodeStyling instance so we can clean up.
   const qrRef = useRef<QRCodeStyling | null>(null);
 
   const safeColor = getSafeQrColor(brandColor ?? null);
@@ -71,28 +76,37 @@ export function ModernQRCode({
     logoUrl ?? (centerText ? textToSvgDataUrl(centerText) : undefined);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const opts = {
-      type: 'svg' as const,
+    // Always build a fresh instance — qr-code-styling's update() clears
+    // the container but does not re-append the new SVG, leaving a blank
+    // div. Re-creating is cheap: the QR data calculation is O(n²) in
+    // module count and drawQR resolves as a microtask.
+    container.innerHTML = '';
+    const qr = new QRCodeStyling({
+      type: 'svg',
       width: size,
       height: size,
       data: value,
       image: centerImage,
-      dotsOptions: { type: 'rounded' as const, color: safeColor },
-      cornersSquareOptions: { type: 'extra-rounded' as const, color: safeColor },
-      cornersDotOptions: { type: 'dot' as const, color: safeColor },
+      dotsOptions: { type: 'rounded', color: safeColor },
+      cornersSquareOptions: { type: 'extra-rounded', color: safeColor },
+      cornersDotOptions: { type: 'dot', color: safeColor },
       backgroundOptions: { color: '#FFFFFF' },
       imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 4 },
-      qrOptions: { errorCorrectionLevel: 'H' as const },
-    };
+      qrOptions: { errorCorrectionLevel: 'H' },
+    });
+    qr.append(container);
+    qrRef.current = qr;
 
-    if (!qrRef.current) {
-      qrRef.current = new QRCodeStyling(opts);
-      qrRef.current.append(containerRef.current);
-    } else {
-      qrRef.current.update(opts);
-    }
+    return () => {
+      // Clear the container and drop the reference so the next effect
+      // always starts from a clean slate (important for Strict Mode's
+      // simulated unmount/remount cycle).
+      container.innerHTML = '';
+      qrRef.current = null;
+    };
   }, [value, safeColor, centerImage, size]);
 
   return (

@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, Link as LinkIcon, Share2 } from 'lucide-react';
-import QRCode from 'qrcode';
+import { generateModernQrSvg } from '../utils/qr-svg-renderer';
 import { useLogoDataUrl } from '../hooks/use-logo-data-url';
 import { parseHex } from '../theme/apply-theme';
 import { shareBusinessCard, type ShareResult } from '../utils/share-business-card';
@@ -56,26 +56,16 @@ export function BusinessCard({ profile }: BusinessCardProps): JSX.Element {
   // by id.
   const catalogueUrl = useMemo(() => buildCatalogueUrl(profile), [profile]);
 
-  // Generate the QR SVG asynchronously. The qrcode lib returns a
-  // complete <svg>…</svg> string we can inject via
-  // dangerouslySetInnerHTML; the colours are themed in line with
-  // the rest of the card.
-  const [qrSvg, setQrSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void QRCode.toString(catalogueUrl, {
-      type: 'svg',
-      errorCorrectionLevel: 'M',
-      margin: 0,
-      color: { dark: '#1F2937', light: '#FFFFFF' },
-    }).then((svg) => {
-      if (cancelled) return;
-      setQrSvg(svg);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [catalogueUrl]);
+  const brandHex = parseHex(profile.brand_primary_color)
+    ? profile.brand_primary_color!
+    : DEFAULT_BRAND;
+
+  // Generate the QR SVG synchronously via the modern renderer so the
+  // business card always shows rounded dots + rounded finder patterns.
+  const qrSvg = useMemo(
+    () => generateModernQrSvg(catalogueUrl, { darkColor: brandHex, errorCorrectionLevel: 'M' }),
+    [catalogueUrl, brandHex],
+  );
 
   // Auto-clear the toast after 3 seconds so a second action doesn't
   // see stale copy.
@@ -128,9 +118,6 @@ export function BusinessCard({ profile }: BusinessCardProps): JSX.Element {
     }
   }
 
-  const brandHex = parseHex(profile.brand_primary_color)
-    ? profile.brand_primary_color!
-    : DEFAULT_BRAND;
   const bgHex = parseHex(profile.theme_bg_color) ? profile.theme_bg_color! : DEFAULT_BG;
 
   return (
