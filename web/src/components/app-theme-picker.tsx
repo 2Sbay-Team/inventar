@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock } from 'lucide-react';
 import { parseHex } from '../theme/apply-theme';
 
-// v0.9 ADR-040 — App theme background picker. Light presets only in
-// Phase 4b; the dark presets render as locked cards labelled
-// "Coming soon" so the merchant sees the roadmap without being able
-// to break their UI with a half-supported dark mode.
+// v0.9 ADR-040 — App theme background picker. Light presets only;
+// dark-mode support (Slate, Ink) is not yet implemented across all
+// screens so those presets are omitted rather than shown as locked.
 //
 // Picking a preset writes theme_bg_color through the autosave
 // pipeline. Phase 2's applyTheme then recomputes --color-bg-rgb +
@@ -20,17 +18,14 @@ import { parseHex } from '../theme/apply-theme';
 // stored value matches its hex exactly.
 
 interface ThemePreset {
-  key: 'cream' | 'white' | 'stone' | 'slate' | 'ink';
+  key: 'cream' | 'white' | 'stone';
   hex: string;
-  mode: 'light' | 'dark';
 }
 
 const THEME_PRESETS: readonly ThemePreset[] = [
-  { key: 'cream', hex: '#FFF8F2', mode: 'light' }, // current default
-  { key: 'white', hex: '#FFFFFF', mode: 'light' },
-  { key: 'stone', hex: '#F0EDE8', mode: 'light' },
-  { key: 'slate', hex: '#1E2433', mode: 'dark' },
-  { key: 'ink', hex: '#111111', mode: 'dark' },
+  { key: 'cream', hex: '#FFF8F2' }, // current default
+  { key: 'white', hex: '#FFFFFF' },
+  { key: 'stone', hex: '#F0EDE8' },
 ];
 
 function normaliseHex(hex: string | null | undefined): string | null {
@@ -67,10 +62,9 @@ export function AppThemePicker({
 
   return (
     <div className="space-y-3" data-testid="app-theme-picker">
-      <div className="grid grid-cols-5 gap-2" data-testid="theme-presets">
+      <div className="grid grid-cols-3 gap-2" data-testid="theme-presets">
         {THEME_PRESETS.map((preset) => {
           const isActive = currentHex === normaliseHex(preset.hex);
-          const isDisabled = preset.mode === 'dark';
           return (
             <button
               key={preset.key}
@@ -78,29 +72,18 @@ export function AppThemePicker({
               data-testid={`theme-preset-${preset.key}`}
               aria-label={preset.key}
               aria-pressed={isActive}
-              disabled={isDisabled}
               onClick={() => onChange(preset.hex)}
               className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-1.5 transition ${
                 isActive
                   ? 'border-ink ring-accent/30 ring-2 ring-offset-1'
                   : 'border-transparent hover:border-ink-4'
-              } ${isDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
+              }`}
             >
               <span
-                className="relative block aspect-square w-full rounded-lg border border-ink-4/30"
+                className="block aspect-square w-full rounded-lg border border-ink-4/30"
                 style={{ backgroundColor: preset.hex }}
-              >
-                {isDisabled ? (
-                  <Lock
-                    size={12}
-                    className="absolute inset-0 m-auto text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]"
-                  />
-                ) : null}
-              </span>
+              />
               <span className="text-[11px] font-medium">{t(`theme_preset_${preset.key}`)}</span>
-              {isDisabled ? (
-                <span className="text-ink-3 text-[10px]">{t('theme_coming_soon')}</span>
-              ) : null}
             </button>
           );
         })}
