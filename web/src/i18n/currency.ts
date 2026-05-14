@@ -63,3 +63,33 @@ export function listSupportedCurrencies(): readonly CurrencyCode[] {
   }
   return FALLBACK_CURRENCIES;
 }
+
+// Priority currencies shown at the top of the picker, in order.
+// These represent the most common currencies for Inventar's target
+// markets — North Africa, Gulf, and major international currencies.
+export const PRIORITY_CURRENCIES: readonly CurrencyCode[] = [
+  'TND',
+  'EUR',
+  'USD',
+  'MAD',
+  'DZD',
+  'GBP',
+  'SAR',
+  'AED',
+  'EGP',
+];
+
+// Module-level cache so we only construct Intl.DisplayNames once.
+let _dn: Intl.DisplayNames | null = null;
+
+// Returns the English display name of a currency code.
+// Falls back to the code itself when the runtime doesn't know the
+// currency (rare — Intl covers every ISO 4217 code in modern runtimes).
+export function getCurrencyName(code: CurrencyCode): string {
+  try {
+    if (!_dn) _dn = new Intl.DisplayNames(['en'], { type: 'currency' });
+    return _dn.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}

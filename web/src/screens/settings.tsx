@@ -50,7 +50,7 @@ import { extractDominantColorFromBlob } from '../theme/extract-logo-color-from-b
 import { downloadBackupFile } from '../backup/download';
 import { APP_VERSION } from '../config/app-version';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
-import { listSupportedCurrencies } from '../i18n/currency';
+import { CurrencyPicker } from '../components/currency-picker';
 import { STORE_TYPES, STORE_TYPE_ORDER } from '../config/store-types';
 import { SHOP_SUBTYPE_CONFIG, SHOP_SUBTYPE_ORDER } from '../config/shop-subtypes';
 import { FASHION_SUBTYPE_CONFIG, FASHION_SUBTYPE_ORDER } from '../config/fashion-subtypes';
@@ -1300,7 +1300,6 @@ export function SettingsScreen(): JSX.Element {
   // draft state, no Save button) — matches the expiry-threshold and
   // EAN-strict toggles. The trade-off is one IDB write per chip tap;
   // at 8 chips that's bounded and fine.
-  const currencies = useMemo(() => listSupportedCurrencies(), []);
   const installState = useInstallPrompt();
   const autoBackupSupported = useMemo(() => isAutoBackupSupported(), []);
   const autoBackupFolder = useLive<string | null>(
@@ -1730,22 +1729,12 @@ export function SettingsScreen(): JSX.Element {
             className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
           />
 
-          <label htmlFor="settings-currency" className="text-ink-3 mt-4 mb-1 block text-xs">
-            {t('currency')}
-          </label>
-          <select
-            id="settings-currency"
-            data-testid="settings-currency"
-            value={profile?.currency ?? ''}
-            onChange={(e) => selectCurrency(e.target.value)}
-            className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
-          >
-            {currencies.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
+          <p className="text-ink-3 mt-4 mb-1 text-xs">{t('currency')}</p>
+          <CurrencyPicker
+            value={profile?.currency ?? 'TND'}
+            onChange={selectCurrency}
+            testId="settings-currency"
+          />
 
           {pendingCurrency ? (
             <div
