@@ -256,3 +256,19 @@ export async function listRecentMovementsForArticle(
     .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
     .slice(0, limit);
 }
+
+export async function listAllMovementsForArticle(
+  db: InventarDB,
+  articleId: UUID,
+): Promise<Movement[]> {
+  const variantIds = (await db.variants
+    .where('article_id')
+    .equals(articleId)
+    .primaryKeys()) as UUID[];
+  if (variantIds.length === 0) return [];
+
+  const rows = await db.movements.where('variant_id').anyOf(variantIds).toArray();
+  return rows
+    .filter((m) => m.deleted_at === null)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+}

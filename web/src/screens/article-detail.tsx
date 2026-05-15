@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ScreenLayout } from '../components/screen-layout';
 import { SizeGrid } from '../components/size-grid';
 import { ActivityFeed } from '../components/activity-feed';
@@ -36,11 +36,19 @@ export function ArticleDetailScreen(): JSX.Element {
   const { t: tCommon } = useTranslation('common');
   const { t: tColor } = useTranslation('color');
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const detail = useArticleDetail(id);
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
+
+  const fromQrScan = (location.state as { fromQrScan?: boolean } | null)?.fromQrScan === true;
+  useEffect(() => {
+    if (profile?.scan_qr_opens_sell && fromQrScan && id) {
+      navigate(`/sale?article=${id}&open_picker=1`, { replace: true });
+    }
+  }, [profile?.scan_qr_opens_sell, fromQrScan, id, navigate]);
   // v0.5.2.9 (Phase B): article-level trait overrides resolved via
   // helpers — fall back to the store_type default when the article's
   // override is null. needsSizes / showMinStockEditor land after the
@@ -279,7 +287,7 @@ export function ArticleDetailScreen(): JSX.Element {
 
       <div
         data-testid="hero-photo"
-        className="bg-paper-deep relative mx-4 mt-4 aspect-[16/11] overflow-hidden rounded-2xl"
+        className="bg-paper-deep relative mx-4 mt-4 aspect-[16/8] overflow-hidden rounded-2xl"
       >
         <PhotoThumb
           photoId={heroPhotoId}
@@ -534,10 +542,22 @@ export function ArticleDetailScreen(): JSX.Element {
         </section>
       ) : null}
 
-      <section className="border-hair flex-1 overflow-y-auto border-t px-5 py-4">
-        <h4 className="font-display mb-2 text-[13px] font-medium">{t('activity_title')}</h4>
+      <section className="border-hair border-t px-5 py-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="font-display text-[13px] font-medium">{t('activity_title')}</h4>
+          {detail.recent.length > 3 ? (
+            <button
+              type="button"
+              data-testid="view-all-activity"
+              onClick={() => navigate(`/article/${article.id}/activity`)}
+              className="text-accent text-[12px] font-medium"
+            >
+              {t('view_all')} →
+            </button>
+          ) : null}
+        </div>
         <ActivityFeed
-          movements={detail.recent}
+          movements={detail.recent.slice(0, 3)}
           variantsById={variantsById}
           unitOfMeasure={article.unit_of_measure}
         />

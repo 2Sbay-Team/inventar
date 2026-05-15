@@ -35,6 +35,9 @@ const ArticleDetailScreen = lazy(() =>
 const ArticleLabelScreen = lazy(() =>
   import('./screens/article-label').then((m) => ({ default: m.ArticleLabelScreen })),
 );
+const ArticleActivityScreen = lazy(() =>
+  import('./screens/article-activity').then((m) => ({ default: m.ArticleActivityScreen })),
+);
 const LabelPreviewScreen = lazy(() =>
   import('./screens/label-preview').then((m) => ({ default: m.LabelPreviewScreen })),
 );
@@ -168,6 +171,16 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <ArticleDetailScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    path: '/article/:id/activity',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <ArticleActivityScreen />
         </OnboardingGate>
       </Lazy>
     ),

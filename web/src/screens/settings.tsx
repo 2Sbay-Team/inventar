@@ -80,6 +80,58 @@ function parseProfileVat(value: string): number | null {
   return Math.round(n);
 }
 
+function WorkflowSection({ sections }: { sections: SettingsSectionsApi }): JSX.Element | null {
+  const profile = useProfile();
+  if (!profile) return null;
+  return <WorkflowSectionInner sections={sections} profile={profile} />;
+}
+
+function WorkflowSectionInner({
+  sections,
+  profile,
+}: {
+  sections: SettingsSectionsApi;
+  profile: ShopProfile;
+}): JSX.Element {
+  const { t } = useTranslation('settings');
+  const { setField } = useSubsectionAutosave(profile);
+  const checked = profile.scan_qr_opens_sell ?? false;
+
+  return (
+    <SettingsSection
+      id="workflow"
+      title={t('scan_qr_opens_sell_section_title')}
+      open={sections.isOpen('workflow')}
+      onToggle={() => sections.toggle('workflow')}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-ink text-sm font-medium">{t('scan_qr_opens_sell_label')}</p>
+          <p className="text-ink-3 mt-0.5 text-xs leading-relaxed">
+            {t('scan_qr_opens_sell_hint')}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          data-testid="scan-qr-opens-sell-toggle"
+          onClick={() => setField('scan_qr_opens_sell', !checked)}
+          className={`relative mt-0.5 h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
+            checked ? 'bg-accent' : 'bg-ink-4/40'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              checked ? 'translate-x-5' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+    </SettingsSection>
+  );
+}
+
 // v0.5 ADR-018 (gap-fix opt-in): shop-only EAN strictness toggle.
 // Default off — loose validation (12/13 digits, no checksum) covers
 // the brief's test fixtures and most real Tunisian retail barcodes.
@@ -1729,6 +1781,8 @@ export function SettingsScreen(): JSX.Element {
             theme picker, completion ring, and opening hours all
             land inside this section in later phases. */}
         <ShopIdentitySection sections={sections} />
+
+        <WorkflowSection sections={sections} />
 
         {profile?.store_type === 'shop' ? (
           <SettingsSection

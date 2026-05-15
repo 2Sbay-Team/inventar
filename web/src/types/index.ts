@@ -270,6 +270,11 @@ export interface ShopProfile {
   theme_mode: ThemeMode;
   logo_dominant_color: string | null;
   opening_hours: OpeningHours | null;
+  // v1.0 — Workflow: when true, /article/:id auto-redirects to the
+  // sell flow when opened via in-app QR scan (location.state.fromQrScan).
+  // Default null/false — customers scanning shelf QR codes expect
+  // product info, not a sell screen.
+  scan_qr_opens_sell?: boolean | null;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;

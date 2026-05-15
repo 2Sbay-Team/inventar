@@ -107,6 +107,7 @@ export interface UpsertProfileInput {
   theme_mode?: ThemeMode;
   logo_dominant_color?: string | null;
   opening_hours?: OpeningHours | null;
+  scan_qr_opens_sell?: boolean | null;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -199,6 +200,10 @@ export async function upsertProfile(
           : input.logo_dominant_color,
       opening_hours:
         input.opening_hours === undefined ? (existing?.opening_hours ?? null) : input.opening_hours,
+      scan_qr_opens_sell:
+        input.scan_qr_opens_sell === undefined
+          ? (existing?.scan_qr_opens_sell ?? null)
+          : input.scan_qr_opens_sell,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

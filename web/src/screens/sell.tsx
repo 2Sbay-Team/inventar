@@ -276,6 +276,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   const { t } = useTranslation('sell');
   const { t: tCommon } = useTranslation('common');
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
@@ -304,6 +305,15 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [pickerArticleId, setPickerArticleId] = useState<UUID | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  // Open picker immediately when navigated here from a QR scan redirect.
+  useEffect(() => {
+    const articleId = params.get('article');
+    const openPicker = params.get('open_picker') === '1';
+    if (articleId && openPicker) {
+      setPickerArticleId(articleId as UUID);
+    }
+  }, [params]);
   const [toast, setToast] = useState<string | null>(null);
 
   // Auto-dismiss the success toast after 2 s. Cleared on unmount and on
