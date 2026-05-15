@@ -528,10 +528,44 @@ export interface Photo {
   deleted_at: ISODate | null;
 }
 
+// v1.1 — Customer Master. Optional buyer records used by invoices,
+// unpaid/partial payment follow-up, and repeat-customer sales. Walk-in
+// sales do not need a Customer row; formal invoices and customer debt do.
+export type CustomerType = 'individual' | 'company';
+
+export interface Customer {
+  id: UUID;
+  type: CustomerType;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  fiscal_id: string | null;
+  notes: string | null;
+  search_blob: string;
+  created_at: ISODate;
+  updated_at: ISODate;
+  deleted_at: ISODate | null;
+}
+
 export interface MetaRow {
   key: string;
   value: unknown;
 }
+
+// v1.2 — structured invoice payment state. The stored status captures
+// what was true at issue / last payment time; readers may derive
+// `overdue` dynamically from due_at + balance_due_minor without mutating
+// historical rows.
+export type InvoicePaymentStatus =
+  | 'unpaid'
+  | 'partially_paid'
+  | 'paid'
+  | 'overdue'
+  | 'cancelled'
+  | 'refunded';
 
 // v0.5.2.4 ADR-024 — issued invoice / Facture. Snapshot rows: every
 // numeric and label is frozen at issue time so an invoice stays
@@ -572,6 +606,10 @@ export interface Invoice {
   issued_at: ISODate;
   // Customer block — all optional. A walk-in cash sale invoice may
   // have none of these set; a B2B invoice typically has all three.
+  // customer_id links to Customer Master when one was chosen. The
+  // printed buyer fields below remain snapshots so later edits to the
+  // Customer row never rewrite old invoices.
+  customer_id: UUID | null;
   customer_name: string | null;
   customer_address: string | null;
   customer_fiscal_id: string | null;
@@ -592,6 +630,18 @@ export interface Invoice {
   // behaviour (VAT always shown) is preserved on every existing row.
   vat_enabled?: boolean;
   total_minor: number;
+  // v1.2 — structured payment/debt snapshot. paid_minor is the cash
+  // actually received when the invoice is issued in the current v1
+  // flow; balance_due_minor is the remaining customer debt. Future
+  // payment-ledger rows can append later payments while preserving
+  // these fields as the invoice-level cache.
+  payment_status: InvoicePaymentStatus;
+  paid_minor: number;
+  balance_due_minor: number;
+  // Null for paid invoices. For unpaid/partial invoices the first v1
+  // UI uses a default 30-day due date so overdue dashboards can work
+  // without asking small-shop merchants to fill an extra field.
+  due_at: ISODate | null;
   // TODO(v0.7) — `notes` is plumbed end-to-end (row, PDF renderer in
   // invoice-pdf.ts, locale labels `notes:` in EN/FR/AR) but no UI
   // currently writes it: sell.tsx hardcodes `notes: null` and the

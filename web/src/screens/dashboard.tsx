@@ -14,6 +14,12 @@ import { useLive } from '../hooks/use-live';
 import { useLocale } from '../hooks/use-locale';
 import { db } from '../db/db';
 import { addExpense, listExpenses } from '../repos/expenses';
+import {
+  balanceDueForInvoice,
+  listInvoices,
+  paidMinorForInvoice,
+  paymentStatusForInvoice,
+} from '../repos/invoices';
 import { listMovementsForVariant } from '../repos/movements';
 import { formatCurrency } from '../i18n/format-currency';
 import { formatNumber } from '../i18n/format-number';
@@ -35,6 +41,12 @@ const EXPENSE_CATEGORIES: ReadonlyArray<ExpenseCategory> = [
 
 interface PeriodMetrics {
   revenue: number;
+  invoicesIssued: number;
+  cashReceived: number;
+  outstandingDebt: number;
+  partialInvoices: number;
+  unpaidInvoices: number;
+  overdueInvoices: number;
   netProfit: number;
   pairsSold: number;
   purchases: number;
@@ -45,10 +57,11 @@ interface PeriodMetrics {
 
 async function computeMetrics(period: Period): Promise<PeriodMetrics> {
   const { fromISO, toISO } = periodRange(new Date(), period);
-  const [articles, variants, expenses] = await Promise.all([
+  const [articles, variants, expenses, invoices] = await Promise.all([
     db.articles.toArray(),
     db.variants.toArray(),
     listExpenses(db, { from: fromISO, to: toISO }),
+    listInvoices(db),
   ]);
   const articleById = new Map(articles.map((a) => [a.id, a]));
   let revenue = 0;
@@ -88,13 +101,27 @@ async function computeMetrics(period: Period): Promise<PeriodMetrics> {
     }
   }
   const totalExpenses = expenses.reduce((s, e) => s + e.amount_tnd, 0);
+  const periodInvoices = invoices.filter((invoice) => {
+    return invoice.issued_at >= fromISO && invoice.issued_at < toISO;
+  });
+  const invoicesIssued = periodInvoices.reduce((s, invoice) => s + invoice.total_minor, 0);
+  const cashReceived = periodInvoices.reduce((s, invoice) => s + paidMinorForInvoice(invoice), 0);
+  const openInvoices = invoices.filter((invoice) => balanceDueForInvoice(invoice) > 0);
+  const outstandingDebt = openInvoices.reduce((s, invoice) => s + balanceDueForInvoice(invoice), 0);
+  const statuses = openInvoices.map((invoice) => paymentStatusForInvoice(invoice));
   return {
     revenue,
+    invoicesIssued,
+    cashReceived,
+    outstandingDebt,
+    partialInvoices: statuses.filter((status) => status === 'partially_paid').length,
+    unpaidInvoices: statuses.filter((status) => status === 'unpaid').length,
+    overdueInvoices: statuses.filter((status) => status === 'overdue').length,
     netProfit: grossProfit - totalExpenses,
     pairsSold,
     purchases,
     expenses: totalExpenses,
-    inPocket: revenue - purchases - totalExpenses,
+    inPocket: cashReceived - purchases - totalExpenses,
     grossProfit,
   };
 }
@@ -130,6 +157,12 @@ export function DashboardScreen(): JSX.Element {
 
   const m = metrics ?? {
     revenue: 0,
+    invoicesIssued: 0,
+    cashReceived: 0,
+    outstandingDebt: 0,
+    partialInvoices: 0,
+    unpaidInvoices: 0,
+    overdueInvoices: 0,
     netProfit: 0,
     pairsSold: 0,
     purchases: 0,
@@ -185,8 +218,8 @@ export function DashboardScreen(): JSX.Element {
         <section className="grid grid-cols-3 gap-2">
           <BigNumber
             testId="big-revenue"
-            label={t('big_revenue')}
-            value={formatCurrency(m.revenue, locale, currency)}
+            label={t('big_cash_received')}
+            value={formatCurrency(m.cashReceived, locale, currency)}
           />
           <BigNumber
             testId="big-profit"
@@ -200,11 +233,41 @@ export function DashboardScreen(): JSX.Element {
           />
         </section>
 
+        <section
+          data-testid="invoice-debt-block"
+          className="border-hair rounded-xl border bg-white p-3"
+        >
+          <h3 className="font-display mb-2 text-sm font-medium">{t('invoice_debt_title')}</h3>
+          <Row
+            label={t('invoice_issued')}
+            value={formatCurrency(m.invoicesIssued, locale, currency)}
+            sign="+"
+          />
+          <Row
+            label={t('invoice_cash_received')}
+            value={formatCurrency(m.cashReceived, locale, currency)}
+            sign="+"
+          />
+          <Row
+            label={t('invoice_customer_debt')}
+            value={formatCurrency(m.outstandingDebt, locale, currency)}
+            sign="="
+            bold
+          />
+          <p className="text-ink-3 mt-2 text-xs">
+            {t('invoice_status_counts', {
+              partial: m.partialInvoices,
+              unpaid: m.unpaidInvoices,
+              overdue: m.overdueInvoices,
+            })}
+          </p>
+        </section>
+
         <section data-testid="cash-block" className="border-hair rounded-xl border bg-white p-3">
           <h3 className="font-display mb-2 text-sm font-medium">{t('cash_title')}</h3>
           <Row
-            label={t('cash_revenue')}
-            value={formatCurrency(m.revenue, locale, currency)}
+            label={t('cash_received')}
+            value={formatCurrency(m.cashReceived, locale, currency)}
             sign="+"
           />
           <Row

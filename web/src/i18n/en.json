@@ -578,7 +578,12 @@
     "brand_color_recommended": "Recommended colours",
     "brand_color_more": "More colours",
     "brand_color_low_contrast_warning": "This colour needs dark button text to stay readable.",
-    "brand_color_custom_placeholder": "#FF6B35"
+    "brand_color_custom_placeholder": "#FF6B35",
+    "brand_color_radial": "Colour wheel",
+    "brand_color_radial_hint": "Pick a precise brand tone from the wheel, or use the palette above for fast choices.",
+    "brand_color_radial_center": "Selected",
+    "brand_color_radial_tip_title": "Tip",
+    "brand_color_radial_tip": "Use the palette for quick shop colours. Use the wheel when you want turquoise, navy, gold, rose, or a closer brand tone."
   },
   "list": {
     "title": "Catalogue",

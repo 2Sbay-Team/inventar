@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v17)', () => {
+describe('InventarDB schema (v19)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,14 +15,15 @@ describe('InventarDB schema (v17)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 17', () => {
-    expect(db.verno).toBe(17);
+  it('opens at version 19', () => {
+    expect(db.verno).toBe(19);
   });
 
-  it('has the nine tables from DATA_MODEL §3 (v0.5.2.4 adds invoices)', () => {
+  it('has the ten tables from DATA_MODEL §3 (v1.1 adds customers)', () => {
     const names = db.tables.map((t) => t.name).sort();
     expect(names).toEqual([
       'articles',
+      'customers',
       'expenses',
       'invoices',
       'lots',
@@ -34,11 +35,19 @@ describe('InventarDB schema (v17)', () => {
     ]);
   });
 
-  it('invoices: primKey id + unique number index + issued_at + transaction_id + deleted_at', () => {
+  it('invoices: primKey id + unique number index + payment/debt lookup indexes', () => {
     const t = db.table('invoices');
     expect(t.schema.primKey.name).toBe('id');
     const indexNames = t.schema.indexes.map((i) => i.name).sort();
-    expect(indexNames).toEqual(['deleted_at', 'issued_at', 'number', 'transaction_id']);
+    expect(indexNames).toEqual([
+      'customer_id',
+      'deleted_at',
+      'due_at',
+      'issued_at',
+      'number',
+      'payment_status',
+      'transaction_id',
+    ]);
     const numberIdx = t.schema.indexes.find((i) => i.name === 'number');
     expect(numberIdx?.unique).toBe(true);
   });
@@ -209,6 +218,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
       id: 'inv-1',
       number: 'INV-2026-0001',
       issued_at: NOW,
+      customer_id: null,
       customer_name: 'ACME Co',
       customer_address: '1 rue X\n2000 Sousse',
       customer_fiscal_id: '9876543/Z/Z/000',
@@ -221,6 +231,10 @@ describe('InventarDB CRUD smoke (v6)', () => {
       vat_pct: 19,
       vat_minor: 6_175,
       total_minor: 38_675,
+      payment_status: 'paid',
+      paid_minor: 38_675,
+      balance_due_minor: 0,
+      due_at: null,
       notes: null,
       transaction_id: null,
       created_at: NOW,
@@ -240,6 +254,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
       id: 'inv-1',
       number: 'INV-2026-0001',
       issued_at: NOW,
+      customer_id: null,
       customer_name: null,
       customer_address: null,
       customer_fiscal_id: null,
@@ -249,6 +264,10 @@ describe('InventarDB CRUD smoke (v6)', () => {
       vat_pct: 0,
       vat_minor: 0,
       total_minor: 0,
+      payment_status: 'paid',
+      paid_minor: 0,
+      balance_due_minor: 0,
+      due_at: null,
       notes: null,
       transaction_id: null,
       created_at: NOW,
@@ -259,6 +278,7 @@ describe('InventarDB CRUD smoke (v6)', () => {
         id: 'inv-2',
         number: 'INV-2026-0001', // duplicate
         issued_at: NOW,
+        customer_id: null,
         customer_name: null,
         customer_address: null,
         customer_fiscal_id: null,
@@ -268,6 +288,10 @@ describe('InventarDB CRUD smoke (v6)', () => {
         vat_pct: 0,
         vat_minor: 0,
         total_minor: 0,
+        payment_status: 'paid',
+        paid_minor: 0,
+        balance_due_minor: 0,
+        due_at: null,
         notes: null,
         transaction_id: null,
         created_at: NOW,

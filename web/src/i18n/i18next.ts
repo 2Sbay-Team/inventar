@@ -37,6 +37,7 @@ export const NAMESPACES = [
   'stock_report',
   'label',
   'invoice',
+  'customers',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

@@ -9,7 +9,12 @@ import { db } from '../db/db';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
-import { getInvoice } from '../repos/invoices';
+import {
+  balanceDueForInvoice,
+  getInvoice,
+  paidMinorForInvoice,
+  paymentStatusForInvoice,
+} from '../repos/invoices';
 import { invoicePdfFilename, renderInvoicePdf } from '../repos/invoice-pdf';
 import { getPhoto, photoToBlob } from '../repos/photos';
 import { formatQtyWithUom } from '../config/article-traits';
@@ -108,6 +113,9 @@ export function InvoiceViewScreen(): JSX.Element | null {
   }
 
   const cur = invoice.currency;
+  const paymentStatus = paymentStatusForInvoice(invoice);
+  const paidMinor = paidMinorForInvoice(invoice);
+  const balanceDue = balanceDueForInvoice(invoice);
   return (
     <ScreenLayout hideNav>
       <main data-testid="invoice-screen" className="flex flex-1 flex-col gap-4 p-4 print:p-0">
@@ -290,6 +298,38 @@ export function InvoiceViewScreen(): JSX.Element | null {
             <span data-testid="invoice-total" className="font-mono tabular-nums" dir="ltr">
               {formatCurrency(invoice.total_minor, locale, cur)}
             </span>
+          </div>
+          <div className="border-hair mt-2 space-y-1 border-t pt-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-ink-3">{t('payment_status')}</span>
+              <span data-testid="invoice-payment-status" className="font-semibold text-ink">
+                {t(`payment_status_${paymentStatus}`)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-ink-3">{t('paid')}</span>
+              <span data-testid="invoice-paid" className="font-mono tabular-nums" dir="ltr">
+                {formatCurrency(paidMinor, locale, cur)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-ink-3">{t('balance_due')}</span>
+              <span
+                data-testid="invoice-balance-due"
+                className="font-mono font-semibold tabular-nums"
+                dir="ltr"
+              >
+                {formatCurrency(balanceDue, locale, cur)}
+              </span>
+            </div>
+            {balanceDue > 0 && invoice.due_at ? (
+              <div className="flex items-center justify-between">
+                <span className="text-ink-3">{t('due_date')}</span>
+                <span data-testid="invoice-due-date" className="font-mono tabular-nums" dir="ltr">
+                  {new Date(invoice.due_at).toLocaleDateString(locale)}
+                </span>
+              </div>
+            ) : null}
           </div>
         </section>
       </main>

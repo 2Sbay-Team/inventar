@@ -3,14 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   Boxes,
+  CheckCircle2,
   ChevronRight,
   FileUp,
   Footprints,
+  QrCode,
   Shirt,
   ShoppingBag,
   ShoppingCart,
+  ShieldCheck,
   Sparkles,
   Upload,
+  WifiOff,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,7 +33,13 @@ import {
 import { defaultLocationLabels } from '../db/migrate-v8-to-v9';
 import { db } from '../db/db';
 import { META_KEYS, setMeta } from '../repos/meta';
-import { DEFAULT_CURRENCY, DEFAULT_STORE_TYPE, getProfile, upsertProfile } from '../repos/profile';
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_SIZE_STANDARD,
+  DEFAULT_STORE_TYPE,
+  getProfile,
+  upsertProfile,
+} from '../repos/profile';
 import { storePhoto } from '../repos/photos';
 import { extractDominantColorFromBlob } from '../theme/extract-logo-color-from-blob';
 import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/import';
@@ -42,6 +52,7 @@ import {
   type FashionSubtype,
   type Locale,
   type ShopSubtype,
+  type SizeStandard,
   type StoreType,
 } from '../types';
 
@@ -78,6 +89,47 @@ const LANGUAGE_OPTIONS: ReadonlyArray<LanguageOption> = [
   { code: 'en', label: 'English', badge: 'EN' },
 ];
 
+const SIZE_STANDARD_OPTIONS: readonly SizeStandard[] = ['EU', 'US', 'UK', 'JP'];
+
+const STEP_ORDER = [
+  'language',
+  'intent',
+  'name',
+  'categories',
+  'locations',
+  'preferences',
+  'backup_card',
+] as const;
+
+type OnboardingStepForProgress = (typeof STEP_ORDER)[number];
+
+function progressStepFor(step: string): OnboardingStepForProgress {
+  if (step === 'shop_subtypes' || step === 'fashion_subtypes') return 'categories';
+  if ((STEP_ORDER as readonly string[]).includes(step)) return step as OnboardingStepForProgress;
+  return 'language';
+}
+
+function subtypeIcon(kind: 'shop' | 'fashion', subtype: string): string {
+  if (kind === 'fashion') {
+    if (subtype.includes('shoes_kids')) return '👶';
+    if (subtype.includes('shoes')) return '👟';
+    if (subtype.includes('clothing_men')) return '👔';
+    if (subtype.includes('clothing_women')) return '👗';
+    if (subtype.includes('clothing_kids')) return '🧒';
+    if (subtype.includes('accessories')) return '🧣';
+    if (subtype.includes('bags')) return '👜';
+    if (subtype.includes('jewelry') || subtype.includes('jewellery')) return '💍';
+    return '✨';
+  }
+
+  if (subtype.includes('food') || subtype.includes('beverage')) return '🥫';
+  if (subtype.includes('household')) return '🧴';
+  if (subtype.includes('personal')) return '🧼';
+  if (subtype.includes('tobacco') || subtype.includes('lottery')) return '🎟️';
+  if (subtype.includes('electronics')) return '🔌';
+  return '📦';
+}
+
 // SPEC §2.1 onboarding: language → shop name → "got it" backup card → land
 // on the empty Search screen. Single screen with stepwise reveal. No network.
 export function OnboardingScreen(): JSX.Element {
@@ -92,10 +144,12 @@ export function OnboardingScreen(): JSX.Element {
     | 'shop_subtypes'
     | 'fashion_subtypes'
     | 'locations'
+    | 'preferences'
     | 'backup_card'
   >('language');
   const [shopName, setShopName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_CURRENCY);
+  const [sizeStandard, setSizeStandard] = useState<SizeStandard>(DEFAULT_SIZE_STANDARD);
   const [storeType, setStoreType] = useState<StoreType>(DEFAULT_STORE_TYPE);
   // v0.5 ADR-017: only consulted when storeType === 'shop'. Onboarding's
   // shop_subtypes step requires ≥1 selection before Continue enables.
@@ -301,6 +355,10 @@ export function OnboardingScreen(): JSX.Element {
   }
 
   function confirmLocations(): void {
+    setStep('preferences');
+  }
+
+  function confirmPreferences(): void {
     setStep('backup_card');
   }
 
@@ -364,6 +422,7 @@ export function OnboardingScreen(): JSX.Element {
       name: shopName.trim(),
       locale,
       currency,
+      size_standard: sizeStandard,
       store_type: storeType,
       // Empty array for non-shop verticals; shop merchants always have
       // ≥1 because the previous step required it.
@@ -386,16 +445,17 @@ export function OnboardingScreen(): JSX.Element {
   }
 
   return (
-    <div className="bg-paper flex min-h-screen flex-col">
+    <div className="bg-paper flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,rgba(255,107,53,0.12),transparent_34%),linear-gradient(135deg,#FFF8F2,#F8F3EC)]">
       <main
         data-testid="onboarding"
-        className="mx-auto flex w-full flex-1 flex-col items-stretch justify-center px-6 py-12 min-[600px]:max-w-[540px] min-[768px]:max-w-[640px] min-[1024px]:max-w-[768px] min-[1280px]:max-w-[880px]"
+        className="mx-auto flex w-full flex-1 flex-col items-stretch justify-center px-6 py-8 min-[600px]:max-w-[540px] min-[768px]:max-w-[640px] min-[1024px]:max-w-[768px] min-[1280px]:max-w-[880px]"
       >
+        <OnboardingProgress step={progressStepFor(step)} t={t} />
         {step === 'language' ? (
           <section data-testid="step-language" className="space-y-6">
             <div className="flex flex-col items-center text-center">
-              <div className="bg-accent-soft text-accent mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
-                <Boxes aria-hidden className="h-7 w-7" strokeWidth={2} />
+              <div className="bg-accent-soft text-accent mb-4 flex h-16 w-16 items-center justify-center rounded-3xl shadow-[0_10px_28px_rgba(255,107,53,0.18)]">
+                <Boxes aria-hidden className="h-8 w-8" strokeWidth={2} />
               </div>
               <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
                 {t('onboarding:welcome_title')}
@@ -404,6 +464,18 @@ export function OnboardingScreen(): JSX.Element {
                 {t('onboarding:welcome_subtitle')}
               </p>
             </div>
+
+            <AppPreviewCard t={t} />
+
+            <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-3">
+              <ValueBadge icon="offline" label={t('onboarding:value_offline')} />
+              <ValueBadge icon="privacy" label={t('onboarding:value_private')} />
+              <ValueBadge icon="qr" label={t('onboarding:value_qr')} />
+            </div>
+
+            <p className="text-ink-3 text-center text-xs font-medium">
+              {t('onboarding:social_proof_safe')}
+            </p>
 
             <div className="space-y-3">
               <p className="text-ink-3 text-center text-xs uppercase tracking-widest">
@@ -449,9 +521,9 @@ export function OnboardingScreen(): JSX.Element {
                 type="button"
                 data-testid="back-to-language"
                 onClick={() => setStep('language')}
-                className="text-ink-3 hover:text-accent mb-2 text-xs font-medium transition-colors"
+                className="border-hair text-ink-2 hover:border-accent hover:text-accent mb-4 inline-flex rounded-full border bg-white px-3 py-1.5 text-xs font-semibold transition-colors"
               >
-                {t('onboarding:change_language')}
+                ← {t('onboarding:change_language')}
               </button>
               <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
                 {t('onboarding:intent_title')}
@@ -815,17 +887,100 @@ export function OnboardingScreen(): JSX.Element {
           </section>
         ) : null}
 
+        {step === 'preferences' ? (
+          <section data-testid="step-preferences" className="space-y-6">
+            <div className="text-center">
+              <button
+                type="button"
+                data-testid="back-to-locations"
+                onClick={() => setStep('locations')}
+                className="text-ink-3 hover:text-accent mb-2 text-xs font-medium transition-colors"
+              >
+                ← {t('common:back')}
+              </button>
+              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
+                {t('onboarding:preferences_title')}
+              </h1>
+              <p className="text-ink-2 mt-3 text-[15px] leading-relaxed">
+                {t('onboarding:preferences_subtitle')}
+              </p>
+            </div>
+
+            <div className="border-hair rounded-2xl border bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+              <fieldset className="space-y-3">
+                <legend className="text-ink text-sm font-semibold">
+                  {t('onboarding:size_standard_title')}
+                </legend>
+                <p className="text-ink-3 text-xs leading-relaxed">
+                  {t('onboarding:size_standard_hint')}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {SIZE_STANDARD_OPTIONS.map((std) => {
+                    const active = sizeStandard === std;
+                    return (
+                      <button
+                        key={std}
+                        type="button"
+                        data-testid={`onb-size-standard-${std}`}
+                        aria-pressed={active}
+                        onClick={() => setSizeStandard(std)}
+                        className={`rounded-xl border px-3 py-3 text-start transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                          active
+                            ? 'border-accent bg-accent-soft/40 text-accent-ink'
+                            : 'border-hair bg-white text-ink hover:border-accent/40'
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">
+                          {t(`settings:size_standard_${std}`)}
+                        </span>
+                        <span className="text-ink-3 mt-0.5 block text-[11px]">
+                          {t(`onboarding:size_standard_example_${std}`)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            </div>
+
+            <div className="border-hair rounded-2xl border bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+              <div className="flex items-start gap-3">
+                <span className="bg-accent-soft text-accent flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl">
+                  <QrCode aria-hidden className="h-5 w-5" strokeWidth={2} />
+                </span>
+                <div>
+                  <h2 className="text-ink text-sm font-semibold">
+                    {t('onboarding:qr_education_title')}
+                  </h2>
+                  <ul className="text-ink-3 mt-2 space-y-1 text-xs leading-relaxed">
+                    <li>✓ {t('onboarding:qr_education_labels')}</li>
+                    <li>✓ {t('onboarding:qr_education_scan')}</li>
+                    <li>✓ {t('onboarding:qr_education_share')}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              data-testid="continue"
+              onClick={confirmPreferences}
+              className="bg-accent w-full rounded-xl py-3 font-medium text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            >
+              {t('common:continue')}
+            </button>
+          </section>
+        ) : null}
+
         {step === 'backup_card' ? (
           <section data-testid="step-backup-card" className="space-y-5 text-center">
             <div className="bg-accent-soft text-accent mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
               <Boxes aria-hidden className="h-7 w-7" strokeWidth={2} />
             </div>
             <h2 className="font-display text-ink text-2xl font-semibold tracking-tight">
-              {t('onboarding:backup_card_title')}
+              {t('onboarding:ready_title')}
             </h2>
-            <p className="text-ink-2 text-[15px] leading-relaxed">
-              {t('onboarding:backup_card_body')}
-            </p>
+            <p className="text-ink-2 text-[15px] leading-relaxed">{t('onboarding:ready_body')}</p>
             <button
               type="button"
               data-testid="got-it"
@@ -852,6 +1007,89 @@ export function OnboardingScreen(): JSX.Element {
   );
 }
 
+interface OnboardingProgressProps {
+  step: OnboardingStepForProgress;
+  t: (k: string, options?: Record<string, unknown>) => string;
+}
+
+function OnboardingProgress({ step, t }: OnboardingProgressProps): JSX.Element {
+  const current = STEP_ORDER.indexOf(step) + 1;
+  const total = STEP_ORDER.length;
+  return (
+    <div className="mb-6 space-y-2" aria-label={t('onboarding:progress_label')}>
+      <div className="flex items-center justify-between text-[11px] font-medium text-ink-3">
+        <span>{t(`onboarding:step_${step}`)}</span>
+        <span>{t('onboarding:step_count', { current, total })}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/80">
+        <div
+          className="h-full rounded-full bg-accent transition-all duration-300"
+          style={{ width: `${(current / total) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface ValueBadgeProps {
+  icon: 'offline' | 'privacy' | 'qr';
+  label: string;
+}
+
+function ValueBadge({ icon, label }: ValueBadgeProps): JSX.Element {
+  const Icon = icon === 'offline' ? WifiOff : icon === 'privacy' ? ShieldCheck : QrCode;
+  return (
+    <div className="border-hair flex items-center gap-2 rounded-2xl border bg-white/85 px-3 py-2 text-xs font-medium text-ink-2 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
+      <Icon aria-hidden className="h-4 w-4 flex-shrink-0 text-accent" strokeWidth={2} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function AppPreviewCard({
+  t,
+}: {
+  t: (k: string, options?: Record<string, unknown>) => string;
+}): JSX.Element {
+  return (
+    <div className="border-hair animate-onb-in rounded-[1.75rem] border bg-white p-4 shadow-[0_18px_42px_rgba(38,25,12,0.08)]">
+      <div className="rounded-[1.4rem] bg-paper p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">Inventar</p>
+            <p className="text-sm font-bold text-ink">{t('onboarding:preview_title')}</p>
+          </div>
+          <span className="rounded-full bg-ok-soft px-2 py-1 text-[10px] font-semibold text-ok">
+            {t('onboarding:preview_offline')}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-white p-3 shadow-sm">
+            <p className="text-[10px] text-ink-3">{t('onboarding:preview_products')}</p>
+            <p className="mt-1 text-lg font-bold text-ink">128</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3 shadow-sm">
+            <p className="text-[10px] text-ink-3">{t('onboarding:preview_sales')}</p>
+            <p className="mt-1 text-lg font-bold text-accent">24</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3 shadow-sm">
+            <p className="text-[10px] text-ink-3">{t('onboarding:preview_low_stock')}</p>
+            <p className="mt-1 text-lg font-bold text-warn">7</p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between rounded-2xl bg-white px-3 py-2 text-xs text-ink-2 shadow-sm">
+          <span className="inline-flex items-center gap-1">
+            <QrCode className="h-3.5 w-3.5 text-accent" /> {t('onboarding:preview_qr')}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5 text-ok" /> {t('onboarding:preview_backup')}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // v0.5 ADR-017 / v0.5.2 ADR-018: subtype picker shared between the
 // shop and fashion onboarding steps. Uses different config maps + i18n
 // namespaces depending on `kind`. The custom-subtype affordance lives
@@ -866,7 +1104,7 @@ interface SubtypesStepProps {
   onRemoveCustom: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
-  t: (k: string) => string;
+  t: (k: string, options?: Record<string, unknown>) => string;
 }
 
 const CUSTOM_SUBTYPE_MAX = 30;
@@ -942,13 +1180,18 @@ function SubtypesStep(props: SubtypesStepProps): JSX.Element {
                   : 'border-hair bg-white hover:border-accent/40 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.05)]'
               }`}
             >
-              <span
-                aria-hidden
-                className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 ${
-                  active ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
-                }`}
-              >
-                {active ? '✓' : ''}
+              <span className="flex flex-shrink-0 items-center gap-2">
+                <span
+                  aria-hidden
+                  className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-md border-2 ${
+                    active ? 'border-accent bg-accent text-white' : 'border-hair bg-white'
+                  }`}
+                >
+                  {active ? '✓' : ''}
+                </span>
+                <span aria-hidden className="text-xl leading-none">
+                  {subtypeIcon(kind, st)}
+                </span>
               </span>
               <span className="flex flex-1 flex-col">
                 <span className="text-ink text-sm font-semibold leading-tight">

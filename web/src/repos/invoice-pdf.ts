@@ -10,6 +10,7 @@ import fontkit from '@pdf-lib/fontkit';
 import * as ArabicReshaperLib from 'arabic-reshaper';
 import amiriUrl from '@fontsource/amiri/files/amiri-arabic-400-normal.woff2?url';
 import { type Invoice, type InvoiceLine, type Locale, type ShopProfile } from '../types';
+import { balanceDueForInvoice, paidMinorForInvoice, paymentStatusForInvoice } from './invoices';
 
 // v0.5.2.5+ ADR-024 — render an Invoice into a real PDF byte stream so
 // the merchant can attach it to WhatsApp / email / Drive via the OS
@@ -145,6 +146,16 @@ interface PdfLabels {
   subtotal: string;
   vat: string;
   total: string;
+  payment_status: string;
+  paid: string;
+  balance_due: string;
+  due_date: string;
+  status_unpaid: string;
+  status_partially_paid: string;
+  status_paid: string;
+  status_overdue: string;
+  status_cancelled: string;
+  status_refunded: string;
   notes: string;
 }
 
@@ -164,6 +175,16 @@ const LABELS: Record<Locale, PdfLabels> = {
     subtotal: 'Subtotal',
     vat: 'VAT',
     total: 'TOTAL',
+    payment_status: 'Payment status',
+    paid: 'Paid',
+    balance_due: 'Balance due',
+    due_date: 'Due date',
+    status_unpaid: 'Unpaid',
+    status_partially_paid: 'Partially paid',
+    status_paid: 'Paid',
+    status_overdue: 'Overdue',
+    status_cancelled: 'Cancelled',
+    status_refunded: 'Refunded',
     notes: 'Notes:',
   },
   fr: {
@@ -181,6 +202,16 @@ const LABELS: Record<Locale, PdfLabels> = {
     subtotal: 'Sous-total',
     vat: 'TVA',
     total: 'TOTAL TTC',
+    payment_status: 'Statut du paiement',
+    paid: 'Payé',
+    balance_due: 'Solde dû',
+    due_date: 'Échéance',
+    status_unpaid: 'Non payé',
+    status_partially_paid: 'Partiellement payé',
+    status_paid: 'Payé',
+    status_overdue: 'En retard',
+    status_cancelled: 'Annulé',
+    status_refunded: 'Remboursé',
     notes: 'Notes :',
   },
   ar: {
@@ -198,6 +229,16 @@ const LABELS: Record<Locale, PdfLabels> = {
     subtotal: 'المجموع الفرعي',
     vat: 'رسم القيمة المضافة',
     total: 'المجموع الكلي',
+    payment_status: 'حالة الدفع',
+    paid: 'المدفوع',
+    balance_due: 'المبلغ المتبقي',
+    due_date: 'تاريخ الاستحقاق',
+    status_unpaid: 'غير مدفوع',
+    status_partially_paid: 'مدفوع جزئياً',
+    status_paid: 'مدفوع',
+    status_overdue: 'متأخر',
+    status_cancelled: 'ملغى',
+    status_refunded: 'مسترجع',
     notes: 'ملاحظات:',
   },
 };
@@ -583,6 +624,43 @@ export async function renderInvoicePdf({
     bold: true,
     size: 12,
   });
+
+  const paymentStatus = paymentStatusForInvoice(invoice);
+  const paidMinor = paidMinorForInvoice(invoice);
+  const balanceDue = balanceDueForInvoice(invoice);
+  const statusLabel = labels[`status_${paymentStatus}` as keyof PdfLabels] ?? paymentStatus;
+  newLine(ctx, 16);
+  drawText(ctx, labels.payment_status, { x: COL_PRICE_R, rightAlign: true, size: 9 });
+  drawText(ctx, String(statusLabel), { x: COL_TOTAL_R, rightAlign: true, size: 9 });
+  newLine(ctx, 11);
+  drawText(ctx, labels.paid, { x: COL_PRICE_R, rightAlign: true, size: 9 });
+  drawText(ctx, formatMoney(paidMinor, invoice.currency), {
+    x: COL_TOTAL_R,
+    rightAlign: true,
+    size: 9,
+  });
+  newLine(ctx, 11);
+  drawText(ctx, labels.balance_due, {
+    x: COL_PRICE_R,
+    rightAlign: true,
+    bold: balanceDue > 0,
+    size: 9,
+  });
+  drawText(ctx, formatMoney(balanceDue, invoice.currency), {
+    x: COL_TOTAL_R,
+    rightAlign: true,
+    bold: balanceDue > 0,
+    size: 9,
+  });
+  if (balanceDue > 0 && invoice.due_at) {
+    newLine(ctx, 11);
+    drawText(ctx, labels.due_date, { x: COL_PRICE_R, rightAlign: true, size: 9 });
+    drawText(ctx, new Date(invoice.due_at).toLocaleDateString(locale), {
+      x: COL_TOTAL_R,
+      rightAlign: true,
+      size: 9,
+    });
+  }
 
   if (invoice.notes) {
     newLine(ctx, 24);

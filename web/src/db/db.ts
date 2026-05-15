@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
   Article,
+  Customer,
   Expense,
   Invoice,
   Lot,
@@ -31,6 +32,7 @@ export const DB_NAME = 'inventar';
 export class InventarDB extends Dexie {
   profile!: Table<ShopProfile, string>;
   articles!: Table<Article, string>;
+  customers!: Table<Customer, string>;
   variants!: Table<Variant, string>;
   movements!: Table<Movement, string>;
   expenses!: Table<Expense, string>;
@@ -675,6 +677,69 @@ export class InventarDB extends Dexie {
             }) => {
               if (!('tax_category' in a)) a.tax_category = null;
               if (!('tax_custom_rate' in a)) a.tax_custom_rate = null;
+            },
+          );
+      });
+
+    // v1.1 — Customer Master table. Separate from invoices because a
+    // merchant can sell to walk-in customers without storing personal data,
+    // but repeat customers, unpaid invoices, and formal Factures need a
+    // durable buyer record. search_blob keeps mobile search fast.
+    this.version(18).stores({
+      profile: 'id',
+      articles:
+        'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+      customers: 'id, name, phone, updated_at, deleted_at, search_blob',
+      variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+      movements:
+        'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+      expenses: 'id, category, at, deleted_at',
+      photos: 'id, deleted_at',
+      meta: 'key',
+      lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+      invoices: 'id, &number, issued_at, transaction_id, deleted_at',
+    });
+
+    // v19 — structured invoice payment/debt fields. Existing invoices
+    // predate payment tracking, so we treat them as paid in full. That
+    // is the least surprising backfill: older UI created invoices only
+    // after a sale session and stored payment state as a human note, not
+    // as reliable data.
+    this.version(19)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        customers: 'id, name, phone, updated_at, deleted_at, search_blob',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices:
+          'id, &number, issued_at, transaction_id, customer_id, payment_status, due_at, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('invoices')
+          .toCollection()
+          .modify(
+            (i: {
+              total_minor?: number;
+              customer_id?: string | null;
+              payment_status?: string;
+              paid_minor?: number;
+              balance_due_minor?: number;
+              due_at?: string | null;
+            }) => {
+              const total = Math.max(0, Math.round(i.total_minor ?? 0));
+              if (!('customer_id' in i)) i.customer_id = null;
+              if (!('payment_status' in i)) i.payment_status = 'paid';
+              if (!('paid_minor' in i)) i.paid_minor = total;
+              if (!('balance_due_minor' in i)) i.balance_due_minor = 0;
+              if (!('due_at' in i)) i.due_at = null;
             },
           );
       });

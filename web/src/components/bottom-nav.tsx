@@ -5,6 +5,7 @@ import {
   Banknote,
   Package,
   Settings as SettingsIcon,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -48,7 +49,7 @@ import {
 interface NavItem {
   to: string;
   testId: string;
-  i18nKey: 'products' | 'sale' | 'reports' | 'settings';
+  i18nKey: 'products' | 'sale' | 'customers' | 'reports' | 'settings';
   Icon: LucideIcon;
 }
 
@@ -61,6 +62,7 @@ interface NavItem {
 const ITEMS: readonly NavItem[] = [
   { to: '/products', testId: 'nav-products', i18nKey: 'products', Icon: Package },
   { to: '/sale', testId: 'nav-sale', i18nKey: 'sale', Icon: Banknote },
+  { to: '/customers', testId: 'nav-customers', i18nKey: 'customers', Icon: Users },
   { to: '/reports', testId: 'nav-reports', i18nKey: 'reports', Icon: BarChart3 },
   { to: '/settings', testId: 'nav-settings', i18nKey: 'settings', Icon: SettingsIcon },
 ];
@@ -98,6 +100,7 @@ export function BottomNav(): JSX.Element {
             to={to}
             end
             data-testid={testId}
+            aria-current={forceActive ? 'page' : undefined}
             className={({ isActive }) => {
               const active = isActive || forceActive;
               return [
@@ -114,11 +117,11 @@ export function BottomNav(): JSX.Element {
                     aria-hidden
                     data-state={active ? 'active' : 'inactive'}
                     data-testid={`${testId}-indicator`}
-                    className="flex items-center justify-center rounded-2xl px-5 py-1 transition-all duration-200 data-[state=active]:bg-accent/[0.12] data-[state=active]:scale-[1.05] data-[state=inactive]:bg-transparent"
+                    className="flex items-center justify-center rounded-2xl px-3 py-1 transition-all duration-200 data-[state=active]:bg-accent/[0.12] data-[state=active]:scale-[1.05] data-[state=inactive]:bg-transparent active:scale-[0.92] motion-reduce:transition-none"
                   >
                     <Icon
                       aria-hidden
-                      className="h-[18px] w-[18px] transition-[stroke-width] duration-200"
+                      className="h-[17px] w-[17px] transition-[stroke-width] duration-200"
                       strokeWidth={active ? 2.5 : 1.5}
                     />
                   </span>

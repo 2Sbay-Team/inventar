@@ -578,7 +578,12 @@
     "brand_color_recommended": "ألوان مقترحة",
     "brand_color_more": "ألوان أكثر",
     "brand_color_low_contrast_warning": "هذا اللون يحتاج نصاً داكناً ليبقى واضحاً.",
-    "brand_color_custom_placeholder": "#FF6B35"
+    "brand_color_custom_placeholder": "#FF6B35",
+    "brand_color_radial": "عجلة الألوان",
+    "brand_color_radial_hint": "اختر لوناً أدق لهوية المتجر، أو استخدم لوحة الألوان في الأعلى للاختيار السريع.",
+    "brand_color_radial_center": "المختار",
+    "brand_color_radial_tip_title": "نصيحة",
+    "brand_color_radial_tip": "استخدم اللوحة للاختيار السريع. استخدم العجلة عندما تريد تركواز، أزرق داكن، ذهبي، وردي، أو لوناً أقرب لهوية متجرك."
   },
   "list": {
     "title": "الكتالوج",

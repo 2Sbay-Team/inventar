@@ -578,7 +578,12 @@
     "brand_color_recommended": "Couleurs recommandées",
     "brand_color_more": "Plus de couleurs",
     "brand_color_low_contrast_warning": "Cette couleur utilise un texte foncé pour rester lisible.",
-    "brand_color_custom_placeholder": "#FF6B35"
+    "brand_color_custom_placeholder": "#FF6B35",
+    "brand_color_radial": "Roue de couleurs",
+    "brand_color_radial_hint": "Choisissez une teinte plus précise, ou utilisez la palette au-dessus pour aller vite.",
+    "brand_color_radial_center": "Choisi",
+    "brand_color_radial_tip_title": "Conseil",
+    "brand_color_radial_tip": "Utilisez la palette pour les couleurs rapides. Utilisez la roue pour un turquoise, bleu nuit, doré, rose ou une teinte plus proche de votre marque."
   },
   "list": {
     "title": "Catalogue",

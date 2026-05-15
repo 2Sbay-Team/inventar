@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSizeSuggestions } from './size-suggestions';
+import { formatSizeChip, getSizeSuggestions, getSizeSuggestionsCapped } from './size-suggestions';
 
 // Helper to spread a fashion-shaped base so each test stays focused on
 // the axes it cares about.
@@ -295,5 +295,102 @@ describe('getSizeSuggestions — size_standard switches shoe chips', () => {
     expect(eu).not.toEqual(us);
     expect(eu).toContain('42');
     expect(us).toContain('9');
+  });
+});
+
+describe('getSizeSuggestions — smart mixed fashion profiles', () => {
+  const allFashion = [
+    'shoes',
+    'shoes_kids',
+    'clothing_men',
+    'clothing_women',
+    'clothing_kids',
+    'accessories',
+    'bags',
+    'jewelry',
+  ];
+
+  it('mixed profile + handbag category → bag sizes, not clothing sizes', () => {
+    expect(fashion({ fashionSubtypes: allFashion, unit: 'piece', category: 'handbags' })).toEqual([
+      'Small',
+      'Medium',
+      'Large',
+    ]);
+  });
+
+  it('mixed profile + rings category → ring sizes, not clothing sizes', () => {
+    const chips = fashion({ fashionSubtypes: allFashion, unit: 'piece', category: 'rings' });
+    expect(chips).toContain('17');
+    expect(chips).not.toContain('XS');
+  });
+
+  it('mixed profile + kids category + pair unit → kids shoe sizes only', () => {
+    const chips = fashion({ fashionSubtypes: allFashion, unit: 'pair', category: 'kids' });
+    expect(chips).toContain('20');
+    expect(chips).toContain('35');
+    expect(chips).not.toContain('46');
+  });
+
+  it('mixed profile + women dress name → women clothing sizes', () => {
+    const chips = fashion({
+      fashionSubtypes: allFashion,
+      unit: 'piece',
+      category: '',
+      articleName: 'Women summer dress',
+    });
+    expect(chips).toContain('XS');
+    expect(chips).toContain('38');
+    expect(chips).not.toContain('20');
+  });
+
+  it('mixed profile + trousers category → men pant waist chips', () => {
+    const chips = fashion({ fashionSubtypes: allFashion, unit: 'piece', category: 'trousers' });
+    expect(chips).toContain('32');
+    expect(chips).toContain('44');
+    expect(chips).not.toContain('3M');
+  });
+});
+
+describe('getSizeSuggestions — mobile chip cap polish', () => {
+  const mixedClothing = ['clothing_men', 'clothing_women', 'clothing_kids'];
+
+  it('caps broad mixed clothing suggestions to a compact generic set', () => {
+    expect(
+      fashion({
+        fashionSubtypes: mixedClothing,
+        unit: 'piece',
+        category: '',
+        articleName: '',
+      }),
+    ).toEqual(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+  });
+
+  it('does not treat garbage bag as a fashion handbag', () => {
+    expect(
+      fashion({
+        fashionSubtypes: ['clothing_men', 'clothing_women', 'bags'],
+        unit: 'piece',
+        category: '',
+        articleName: 'garbage bag',
+      }),
+    ).toEqual([]);
+  });
+
+  it('explicit capped API mirrors the normal UI-safe suggestions', () => {
+    const input = {
+      storeType: 'fashion',
+      fashionSubtypes: ['clothing_men', 'clothing_women', 'clothing_kids'],
+      unit: 'piece',
+      category: '',
+      sizeStandard: 'EU',
+      articleName: '',
+    } as const;
+    expect(getSizeSuggestionsCapped(input)).toEqual(getSizeSuggestions(input));
+  });
+
+  it('translates one-size display without changing stored chips', () => {
+    expect(formatSizeChip('One size', 'fr')).toBe('Taille unique');
+    expect(formatSizeChip('One size', 'ar')).toBe('مقاس واحد');
+    expect(formatSizeChip('2-pack', 'ar')).toBe('2-pack');
   });
 });

@@ -5,20 +5,13 @@
 // field still accepts free text, so a merchant who carries a size not
 // in the list can always type it in.
 //
-// Input axes:
-//   • fashion sub-types from ShopProfile (drives clothing letter vs
-//     shoe numeric, kids' age sizes, etc.)
-//   • unit of measure picked on step 1 (drives meter / pack / dozen
-//     suggestions that have no fashion analogue)
-//   • category picked on step 1 (narrows accessories → belts vs hats,
-//     food vs beverages, etc.)
-//   • size standard from ShopProfile (EU/US/UK/JP — flips shoe size
-//     numbering and women's clothing numeric sizes)
-//   • article name (free-text contextual signals like "bottle", "1L",
-//     "powder" — used only when no stronger signal applies)
-//
-// Falls back to an empty array when no context matches; the UI shows
-// the free-text input only in that case.
+// This file intentionally keeps the intelligence deterministic. It does
+// not guess with an LLM. It reads the merchant's configured vertical
+// (fashion/shop), chosen fashion sub-types, article unit, category,
+// size-standard and article name, then chooses the safest suggestion
+// pool. The rule is simple: category/name signals beat profile-wide
+// defaults. This prevents a merchant who sells clothes + bags + shoes
+// from seeing shirt sizes while adding a handbag.
 
 import { type FashionSubtype, type SizeStandard, type Uom } from '../types';
 
@@ -31,6 +24,19 @@ export interface SizeSuggestionInput {
   articleName: string;
 }
 
+export type FashionSizeContext =
+  | 'adult_shoes'
+  | 'kids_shoes'
+  | 'mixed_shoes'
+  | 'men_clothing'
+  | 'women_clothing'
+  | 'kids_clothing'
+  | 'bags'
+  | 'belts'
+  | 'hats_one_size'
+  | 'rings'
+  | 'none';
+
 const SHOE_SIZES_BY_STANDARD: Record<SizeStandard, readonly string[]> = {
   EU: ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'],
   US: ['6', '7', '8', '9', '10', '11', '12', '13'],
@@ -39,7 +45,7 @@ const SHOE_SIZES_BY_STANDARD: Record<SizeStandard, readonly string[]> = {
 };
 
 // Kids' shoes — EU has a defined range; other standards approximate
-// (kids' sizing maps near-1:1 across systems in practice).
+// practical retail chip pools. The user can always type any size.
 const KIDS_SHOE_SIZES_BY_STANDARD: Record<SizeStandard, readonly string[]> = {
   EU: [
     '20',
@@ -135,96 +141,298 @@ const PACK_COUNTS: readonly string[] = [
 ];
 
 const METER_LENGTHS: readonly string[] = ['0.5m', '1m', '2m', '3m', '5m', '10m'];
-
 const DOZEN_COUNTS: readonly string[] = ['1 dozen', '2 dozen', '3 dozen'];
 
-const SHIRT_CATEGORIES = new Set(['shirts', 'trousers', 'jackets', 'formal']);
-const TOPS_CATEGORIES = new Set(['tops', 'bottoms', 'dresses', 'outerwear']);
-const HAT_SCARF_CATEGORIES = new Set(['hats', 'scarves', 'gloves']);
-const BELT_CATEGORIES = new Set(['belts']);
-const RING_CATEGORIES = new Set(['rings', 'necklaces', 'earrings', 'bracelets']);
+const MAX_SIZE_SUGGESTIONS = 18;
+const GENERIC_CLOTHING_FALLBACK: readonly string[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+const MEN_CLOTHING_CATEGORIES = new Set([
+  'men',
+  'shirts',
+  'shirt',
+  'trousers',
+  'pants',
+  'jackets',
+  'formal',
+]);
+const WOMEN_CLOTHING_CATEGORIES = new Set([
+  'women',
+  'tops',
+  'top',
+  'bottoms',
+  'dresses',
+  'dress',
+  'outerwear',
+]);
+const KIDS_CATEGORIES = new Set(['kids', 'kid', 'children', 'child', 'baby', 'school']);
+const TROUSER_CATEGORIES = new Set(['trousers', 'pants', 'bottoms']);
+const HAT_SCARF_CATEGORIES = new Set(['hats', 'hat', 'scarves', 'scarf', 'gloves', 'glove']);
+const BELT_CATEGORIES = new Set(['belts', 'belt']);
+const RING_CATEGORIES = new Set([
+  'rings',
+  'ring',
+  'necklaces',
+  'necklace',
+  'earrings',
+  'earring',
+  'bracelets',
+  'bracelet',
+]);
+const BAG_CATEGORIES = new Set([
+  'bags',
+  'bag',
+  'handbags',
+  'handbag',
+  'backpacks',
+  'backpack',
+  'wallets',
+  'wallet',
+]);
 
 const BEVERAGE_NAME_HINTS = /\b(ml|cl|bottle|can|drink|juice|soda|water)\b/i;
 const FOOD_WEIGHT_NAME_HINTS = /\b(g|gr|kg|powder|sugar|flour|rice|salt|coffee|tea)\b/i;
+
+const KIDS_NAME_HINTS = /\b(kid|kids|child|children|baby|junior|toddler|school|boy|girl|infant)\b/i;
+const WOMEN_NAME_HINTS = /\b(women|woman|lady|ladies|female|dress|skirt|blouse)\b/i;
+const MEN_NAME_HINTS = /\b(men|man|male|gent|shirt|trouser|pants|jacket|formal)\b/i;
+const BAG_NAME_HINTS = /\b(bag|handbag|backpack|wallet|purse|tote)\b/i;
+const NON_FASHION_BAG_NAME_HINTS = /\b(garbage|trash|bin|rubbish|waste)\s+bags?\b/i;
+const BELT_NAME_HINTS = /\b(belt)\b/i;
+const HAT_NAME_HINTS = /\b(hat|cap|scarf|glove|beanie)\b/i;
+const RING_NAME_HINTS = /\b(ring|necklace|earring|bracelet)\b/i;
+
+function normaliseToken(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
 
 function hasAnySubtype(subs: readonly string[], targets: readonly string[]): boolean {
   return subs.some((s) => targets.includes(s));
 }
 
+function dedupe(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (!seen.has(value)) {
+      seen.add(value);
+      out.push(value);
+    }
+  }
+  return out;
+}
+
+function selectedPieceContexts(subtypes: readonly FashionSubtype[]): FashionSizeContext[] {
+  const out: FashionSizeContext[] = [];
+  if (hasAnySubtype(subtypes, ['clothing_kids'])) out.push('kids_clothing');
+  if (hasAnySubtype(subtypes, ['clothing_men'])) out.push('men_clothing');
+  if (hasAnySubtype(subtypes, ['clothing_women'])) out.push('women_clothing');
+  if (hasAnySubtype(subtypes, ['bags'])) out.push('bags');
+  return out;
+}
+
+function suggestionsForContext(
+  context: FashionSizeContext,
+  standard: SizeStandard,
+): readonly string[] {
+  switch (context) {
+    case 'adult_shoes':
+      return SHOE_SIZES_BY_STANDARD[standard];
+    case 'kids_shoes':
+      return KIDS_SHOE_SIZES_BY_STANDARD[standard];
+    case 'mixed_shoes':
+      return dedupe([
+        ...KIDS_SHOE_SIZES_BY_STANDARD[standard],
+        ...SHOE_SIZES_BY_STANDARD[standard],
+      ]);
+    case 'men_clothing':
+      return MEN_LETTER_SIZES;
+    case 'women_clothing':
+      return [...WOMEN_LETTER_SIZES, ...WOMEN_NUMERIC_SIZES_BY_STANDARD[standard]];
+    case 'kids_clothing':
+      return KIDS_AGE_SIZES;
+    case 'bags':
+      return BAG_SIZES;
+    case 'belts':
+      return BELT_SIZES;
+    case 'hats_one_size':
+      return ['One size'];
+    case 'rings':
+      return RING_SIZES_BY_STANDARD[standard];
+    case 'none':
+      return [];
+  }
+}
+
+// Public mainly for tests/QC. Add Article still only needs getSizeSuggestions.
+export function inferFashionSizeContext(input: SizeSuggestionInput): FashionSizeContext {
+  const { fashionSubtypes, unit, category, articleName } = input;
+  const cat = normaliseToken(category);
+  const name = articleName.trim();
+  const hasAdultShoes = hasAnySubtype(fashionSubtypes, ['shoes']);
+  const hasKidsShoes = hasAnySubtype(fashionSubtypes, ['shoes_kids']);
+  const hasMen = hasAnySubtype(fashionSubtypes, ['clothing_men']);
+  const hasWomen = hasAnySubtype(fashionSubtypes, ['clothing_women']);
+  const hasKids = hasAnySubtype(fashionSubtypes, ['clothing_kids']);
+  const hasAccessories = hasAnySubtype(fashionSubtypes, ['accessories']);
+  const hasBags = hasAnySubtype(fashionSubtypes, ['bags']);
+  const hasJewelry = hasAnySubtype(fashionSubtypes, ['jewelry']);
+
+  if (unit === 'pair') {
+    if (!hasAdultShoes && !hasKidsShoes) return 'none';
+    const looksKids = KIDS_CATEGORIES.has(cat) || KIDS_NAME_HINTS.test(name);
+    if (looksKids && hasKidsShoes) return 'kids_shoes';
+    if (
+      (MEN_CLOTHING_CATEGORIES.has(cat) ||
+        WOMEN_CLOTHING_CATEGORIES.has(cat) ||
+        MEN_NAME_HINTS.test(name) ||
+        WOMEN_NAME_HINTS.test(name)) &&
+      hasAdultShoes
+    ) {
+      return 'adult_shoes';
+    }
+    if (hasAdultShoes && hasKidsShoes) return 'mixed_shoes';
+    if (hasKidsShoes) return 'kids_shoes';
+    return 'adult_shoes';
+  }
+
+  if (unit !== 'piece') return 'none';
+
+  // Category/name signals beat profile-wide order. This is the important
+  // multi-subtype case: a fashion shop may sell shoes, clothes and bags,
+  // but adding a handbag should not show shirt sizes.
+  if ((BAG_CATEGORIES.has(cat) || BAG_NAME_HINTS.test(name)) && hasBags) return 'bags';
+  if ((RING_CATEGORIES.has(cat) || RING_NAME_HINTS.test(name)) && hasJewelry) return 'rings';
+  if ((BELT_CATEGORIES.has(cat) || BELT_NAME_HINTS.test(name)) && hasAccessories) return 'belts';
+  if ((HAT_SCARF_CATEGORIES.has(cat) || HAT_NAME_HINTS.test(name)) && hasAccessories) {
+    return 'hats_one_size';
+  }
+  if ((KIDS_CATEGORIES.has(cat) || KIDS_NAME_HINTS.test(name)) && hasKids) return 'kids_clothing';
+  if ((MEN_CLOTHING_CATEGORIES.has(cat) || MEN_NAME_HINTS.test(name)) && hasMen)
+    return 'men_clothing';
+  if ((WOMEN_CLOTHING_CATEGORIES.has(cat) || WOMEN_NAME_HINTS.test(name)) && hasWomen) {
+    return 'women_clothing';
+  }
+
+  const pieceContexts = selectedPieceContexts(fashionSubtypes);
+  if (pieceContexts.length === 1) return pieceContexts[0];
+
+  // When the merchant sells several clothing families and gives no clear
+  // category/name yet, surface a useful combined clothing pool. Bags stay
+  // out of this broad fallback unless they are the only sizeable subtype,
+  // because S/M/L bags would muddy apparel entry for mixed stores.
+  const clothingContexts = pieceContexts.filter((ctx) =>
+    ['kids_clothing', 'men_clothing', 'women_clothing'].includes(ctx),
+  );
+  if (clothingContexts.length > 0) return 'none';
+
+  return 'none';
+}
+
 // Returns the chip suggestions for the current Add Article context.
 // Order matters: UoM-specific rules (pack / meter / dozen) come first,
-// then fashion sub-type narrowing, then category-only fallbacks, then
-// free-text-on-name signals, then empty.
-export function getSizeSuggestions(input: SizeSuggestionInput): readonly string[] {
-  const { storeType, fashionSubtypes, unit, category, sizeStandard, articleName } = input;
-  const cat = category.trim().toLowerCase();
+// then deterministic fashion context, then category/name rules for shop.
+function getRawSizeSuggestions(input: SizeSuggestionInput): readonly string[] {
+  const { storeType, unit, category, sizeStandard, articleName } = input;
+  const cat = normaliseToken(category);
   const name = articleName.trim();
 
   if (unit === 'pack') return PACK_COUNTS;
   if (unit === 'meter') return METER_LENGTHS;
   if (unit === 'dozen') return DOZEN_COUNTS;
 
-  const fashion = storeType === 'fashion';
+  if (storeType === 'fashion') {
+    const context = inferFashionSizeContext(input);
 
-  if (fashion && unit === 'pair') {
-    const hasAdult = hasAnySubtype(fashionSubtypes, ['shoes']);
-    const hasKids = hasAnySubtype(fashionSubtypes, ['shoes_kids']);
-    // When the merchant stocks BOTH adult and kids' shoes, we can't
-    // tell from the profile alone which range applies to the current
-    // article — surface both ranges (kids first, adult after) and let
-    // them tap. Picking kids-only or adult-only at the profile level
-    // narrows to that range. Otherwise: empty fall-through.
-    if (hasAdult && hasKids) {
-      return [
-        ...KIDS_SHOE_SIZES_BY_STANDARD[sizeStandard],
-        ...SHOE_SIZES_BY_STANDARD[sizeStandard],
-      ];
+    // Men's trousers are a special case: still men's clothing, but numeric
+    // waist chips are more useful than S/M/L.
+    if (context === 'men_clothing' && TROUSER_CATEGORIES.has(cat)) return MEN_PANT_SIZES;
+
+    if (NON_FASHION_BAG_NAME_HINTS.test(name)) return [];
+
+    // If mixed clothing without category/name returns 'none', provide a
+    // deduped union of selected clothing chips so Add Article still feels
+    // helpful while preserving free-text entry for everything else.
+    if (context === 'none' && unit === 'piece') {
+      const selected = selectedPieceContexts(input.fashionSubtypes).filter((ctx) =>
+        ['kids_clothing', 'men_clothing', 'women_clothing'].includes(ctx),
+      );
+      if (selected.length > 1) {
+        return dedupe(selected.flatMap((ctx) => suggestionsForContext(ctx, sizeStandard)));
+      }
     }
-    if (hasKids) return KIDS_SHOE_SIZES_BY_STANDARD[sizeStandard];
-    if (hasAdult) return SHOE_SIZES_BY_STANDARD[sizeStandard];
+
+    return suggestionsForContext(context, sizeStandard);
   }
 
   if (unit === 'piece') {
-    if (fashion) {
-      if (hasAnySubtype(fashionSubtypes, ['clothing_kids'])) return KIDS_AGE_SIZES;
-
-      if (hasAnySubtype(fashionSubtypes, ['clothing_men'])) {
-        if (cat === 'trousers' || cat === 'bottoms') return MEN_PANT_SIZES;
-        return MEN_LETTER_SIZES;
-      }
-
-      if (hasAnySubtype(fashionSubtypes, ['clothing_women'])) {
-        return [...WOMEN_LETTER_SIZES, ...WOMEN_NUMERIC_SIZES_BY_STANDARD[sizeStandard]];
-      }
-
-      if (hasAnySubtype(fashionSubtypes, ['accessories'])) {
-        if (BELT_CATEGORIES.has(cat)) return BELT_SIZES;
-        if (HAT_SCARF_CATEGORIES.has(cat)) return ['One size'];
-      }
-
-      if (hasAnySubtype(fashionSubtypes, ['jewelry'])) {
-        if (RING_CATEGORIES.has(cat) || cat === 'rings') {
-          return RING_SIZES_BY_STANDARD[sizeStandard];
-        }
-      }
-
-      if (hasAnySubtype(fashionSubtypes, ['bags'])) return BAG_SIZES;
-    }
-
-    // Sub-type independent rules — fire when no fashion narrowing above
-    // applied. Category-first, then article-name signals.
     if (cat === 'beverages' || cat === 'beverage' || cat === 'drinks') return BEVERAGE_VOLUMES;
     if (cat === 'food' || cat === 'food_beverages') return FOOD_WEIGHTS;
     if (cat === 'powder') return FOOD_WEIGHTS;
 
     if (BEVERAGE_NAME_HINTS.test(name)) return BEVERAGE_VOLUMES;
     if (FOOD_WEIGHT_NAME_HINTS.test(name)) return FOOD_WEIGHTS;
-
-    // Untouched categories from the legacy code path still get rough
-    // letter / pant fallbacks via SHIRT_CATEGORIES / TOPS_CATEGORIES.
-    if (SHIRT_CATEGORIES.has(cat)) return MEN_LETTER_SIZES;
-    if (TOPS_CATEGORIES.has(cat)) return WOMEN_LETTER_SIZES;
   }
 
   return [];
+}
+
+// Public API used by Add Article. Large mixed-fashion profiles can produce a
+// noisy union of chips (men + women + kids clothing). Cap the visible chip rail
+// so mobile stays readable; free-text size entry remains available for every
+// product.
+export function getSizeSuggestions(input: SizeSuggestionInput): readonly string[] {
+  const suggestions = getRawSizeSuggestions(input);
+
+  if (suggestions.length <= MAX_SIZE_SUGGESTIONS) {
+    return suggestions;
+  }
+
+  const context = input.storeType === 'fashion' ? inferFashionSizeContext(input) : 'none';
+  const isBroadClothingContext =
+    input.storeType === 'fashion' &&
+    input.unit === 'piece' &&
+    (context === 'none' ||
+      context === 'men_clothing' ||
+      context === 'women_clothing' ||
+      context === 'kids_clothing');
+
+  if (isBroadClothingContext) {
+    return GENERIC_CLOTHING_FALLBACK;
+  }
+
+  return suggestions;
+}
+
+// Backwards-compatible explicit API for callers that want the capped chip rail
+// name. getSizeSuggestions() is already capped; this alias documents the UI
+// contract without changing existing imports.
+export function getSizeSuggestionsCapped(input: SizeSuggestionInput): readonly string[] {
+  return getSizeSuggestions(input);
+}
+
+export function formatSizeChip(chip: string, locale: string): string {
+  const language = locale.split('-')[0]?.toLowerCase() ?? 'en';
+  if (chip === 'One size') {
+    const translations: Record<string, string> = {
+      ar: 'مقاس واحد',
+      fr: 'Taille unique',
+      en: 'One size',
+    };
+    return translations[language] ?? chip;
+  }
+
+  // Keep quantities and measurement-like chips stable. These are product data
+  // hints, not UI labels, and merchants recognise them as-is.
+  if (
+    chip.includes('-pack') ||
+    chip.includes('dozen') ||
+    /^\d+(?:\.\d+)?(?:ml|l|g|kg|m)$/i.test(chip)
+  ) {
+    return chip;
+  }
+
+  return chip;
 }

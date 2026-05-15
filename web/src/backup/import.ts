@@ -8,7 +8,7 @@ import {
 } from '../db/migrate-v6-to-v7';
 import { migrateRowsV8ToV9 } from '../db/migrate-v8-to-v9';
 import { setMeta, META_KEYS } from '../repos/meta';
-import type { Article, Invoice, Lot, Movement, Photo, ShopProfile } from '../types';
+import type { Article, Customer, Invoice, Lot, Movement, Photo, ShopProfile } from '../types';
 import { FORMAT_V1, type BackupV1, type PhotoExport } from './format-v1';
 import { FORMAT_V2, type BackupV2, type PhotoExportV2 } from './format-v2';
 import { FORMAT_V3, type BackupV3, type ExportRowsV3, type PhotoExportV3 } from './format-v3';
@@ -70,6 +70,7 @@ function emptySummary(): ImportSummary {
     movements: 0,
     expenses: 0,
     photos: 0,
+    customers: 0,
     lots: 0,
     invoices: 0,
   });
@@ -189,6 +190,7 @@ function transformV1ToApplied(backup: BackupV1): AppliedRows {
     variants: v6.variants,
     movements: v8Movements,
     expenses: backup.rows.expenses,
+    customers: [],
     photos: backup.rows.photos,
     // v0.5.2.5: v1 backups predate both lots and invoices.
     lots: [],
@@ -273,11 +275,27 @@ function backfillV05Defaults(rows: AppliedRows): AppliedRows {
         }) as Movement,
     ),
     expenses: rows.expenses,
+    customers: ((rows as unknown as { customers?: Customer[] }).customers ?? []) as Customer[],
     photos: rows.photos,
     // v0.5.2.5: v2 backups predate lots + invoices. v3 backups carry
     // them; this defensive backfill is a no-op when the input is v3.
     lots: ((rows as unknown as { lots?: Lot[] }).lots ?? []) as Lot[],
-    invoices: ((rows as unknown as { invoices?: Invoice[] }).invoices ?? []) as Invoice[],
+    invoices: (((rows as unknown as { invoices?: Invoice[] }).invoices ?? []) as Invoice[]).map(
+      (invoice) => {
+        const total = Math.max(0, Math.round(invoice.total_minor ?? 0));
+        const paid = Math.max(0, Math.round(invoice.paid_minor ?? total));
+        const cappedPaid = Math.min(total, paid);
+        const balance = Math.max(0, Math.round(invoice.balance_due_minor ?? total - cappedPaid));
+        return {
+          ...invoice,
+          customer_id: invoice.customer_id ?? null,
+          payment_status: invoice.payment_status ?? (balance > 0 ? 'unpaid' : 'paid'),
+          paid_minor: cappedPaid,
+          balance_due_minor: balance,
+          due_at: invoice.due_at ?? null,
+        } as Invoice;
+      },
+    ),
   };
 }
 
@@ -302,6 +320,7 @@ async function applyRows(
       db.variants,
       db.movements,
       db.expenses,
+      db.customers,
       db.photos,
       db.meta,
       db.lots,
@@ -315,6 +334,7 @@ async function applyRows(
           db.variants.clear(),
           db.movements.clear(),
           db.expenses.clear(),
+          db.customers.clear(),
           db.photos.clear(),
           db.lots.clear(),
           db.invoices.clear(),
@@ -324,6 +344,7 @@ async function applyRows(
         await db.variants.bulkPut(rows.variants);
         await db.movements.bulkPut(rows.movements);
         await db.expenses.bulkPut(rows.expenses);
+        await db.customers.bulkPut(rows.customers);
         await db.photos.bulkPut(photos);
         await db.lots.bulkPut(rows.lots);
         await db.invoices.bulkPut(rows.invoices);
@@ -332,6 +353,7 @@ async function applyRows(
         summary.inserted.variants = rows.variants.length;
         summary.inserted.movements = rows.movements.length;
         summary.inserted.expenses = rows.expenses.length;
+        summary.inserted.customers = rows.customers.length;
         summary.inserted.photos = photos.length;
         summary.inserted.lots = rows.lots.length;
         summary.inserted.invoices = rows.invoices.length;
@@ -340,6 +362,7 @@ async function applyRows(
         await mergeWithLWW(db.articles, rows.articles, summary, 'articles');
         await mergeWithLWW(db.variants, rows.variants, summary, 'variants');
         await mergeWithLWW(db.expenses, rows.expenses, summary, 'expenses');
+        await mergeWithLWW(db.customers, rows.customers, summary, 'customers');
         await mergeAppend(db.movements, rows.movements, summary, 'movements');
         await mergeAppend(db.photos, photos, summary, 'photos');
         // Lots: append-only by id (UUID prevents duplicates). Invoices:

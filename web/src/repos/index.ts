@@ -14,3 +14,4 @@ export * from './expenses';
 export * from './meta';
 export * from './recent-searches';
 export * from './lots';
+export * from './customers';

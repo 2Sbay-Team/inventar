@@ -6,17 +6,8 @@ import { useTranslation } from 'react-i18next';
 // locations step and Settings → Stock locations. Stays under 100 lines
 // because the spec is small: 3 predefined options + one custom slot.
 //
-// Behaviour:
-//   • When `value` matches one of `options`, render the native <select>
-//     with that option selected.
-//   • When `value` is empty OR not in `options`, render in custom mode
-//     with the text input pre-filled from `value`. This gracefully
-//     handles legacy migrated profiles whose stored label (e.g. "Shelf"
-//     for shop+en) isn't in the new option list — the merchant sees
-//     their existing value, can keep it or replace it.
-//   • Picking the special "+ Type your own" option swaps to custom mode
-//     with an empty input focused. Caller is notified via onChange when
-//     the input blurs or Enter is pressed.
+// Mobile polish: custom mode now has an explicit placeholder + text colour.
+// Previously the input could look blank after choosing "Type your own".
 
 const CUSTOM_SENTINEL = '__custom__';
 const MAX_LENGTH = 30;
@@ -47,9 +38,6 @@ export function SelectWithCustom({
 }: SelectWithCustomProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const resolvedDir = dir ?? (i18n.dir(i18n.language) === 'rtl' ? 'rtl' : 'ltr');
-  // The "+ Type your own" label is the only string here that the
-  // merchant sees but doesn't store. Everything else (the options) is
-  // both the visible label AND the stored value.
   const customLabel = t('common:select_custom');
 
   const valueIsPredefined = options.includes(value);
@@ -57,9 +45,6 @@ export function SelectWithCustom({
   const [draft, setDraft] = useState<string>(valueIsPredefined ? '' : value);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Re-sync if the value prop changes from outside (e.g. settings load
-  // resolves async after first paint). The component is controlled, so
-  // staying in lockstep with the parent's source of truth matters.
   useEffect(() => {
     if (options.includes(value)) {
       setCustomMode(false);
@@ -75,7 +60,6 @@ export function SelectWithCustom({
     if (next === CUSTOM_SENTINEL) {
       setCustomMode(true);
       setDraft('');
-      // Defer the focus so the input has time to mount.
       requestAnimationFrame(() => inputRef.current?.focus());
       return;
     }
@@ -85,8 +69,6 @@ export function SelectWithCustom({
   function commitCustom(): void {
     const trimmed = draft.trim();
     if (trimmed.length === 0) {
-      // Empty custom value reverts to the first predefined option so
-      // the field can't end up blank on the way out of the picker.
       onChange(options[0] ?? '');
       setCustomMode(false);
       return;
@@ -96,14 +78,14 @@ export function SelectWithCustom({
 
   if (customMode) {
     return (
-      <div>
+      <div className="w-full">
         <input
           ref={inputRef}
           id={id}
           type="text"
           dir={resolvedDir}
           data-testid={`${testId}-custom-input`}
-          aria-label={ariaLabel}
+          aria-label={ariaLabel ?? customLabel}
           value={draft}
           placeholder={customLabel}
           onChange={(e) => setDraft(e.target.value)}
@@ -117,7 +99,7 @@ export function SelectWithCustom({
           maxLength={MAX_LENGTH}
           className="border-hair text-ink placeholder:text-ink-3 w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         />
-        <p className="text-ink-3 mt-1 text-[11px]">{customLabel}</p>
+        {draft.trim() === '' ? <p className="text-ink-3 mt-1 text-[11px]">{customLabel}</p> : null}
       </div>
     );
   }
@@ -130,7 +112,7 @@ export function SelectWithCustom({
       aria-label={ariaLabel}
       value={value}
       onChange={handleSelectChange}
-      className="border-hair w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="border-hair text-ink w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
     >
       {options.map((opt) => (
         <option key={opt} value={opt}>

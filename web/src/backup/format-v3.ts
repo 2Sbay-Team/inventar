@@ -1,5 +1,6 @@
 import type {
   Article,
+  Customer,
   Expense,
   Invoice,
   Lot,
@@ -39,6 +40,7 @@ export interface ExportRowsV3 {
   variants: Variant[];
   movements: Movement[];
   expenses: Expense[];
+  customers: Customer[];
   photos: PhotoExportV3[];
   lots: Lot[];
   invoices: Invoice[];
@@ -64,6 +66,7 @@ export const ROW_TABLES_V3: readonly (keyof ExportRowsV3)[] = [
   'variants',
   'movements',
   'expenses',
+  'customers',
   'photos',
   'lots',
   'invoices',

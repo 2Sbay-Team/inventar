@@ -1,5 +1,12 @@
 import { type InventarDB } from '../db/db';
-import { type Invoice, type InvoiceLine, type CurrencyCode, type UUID } from '../types';
+import {
+  type Invoice,
+  type InvoiceLine,
+  type InvoicePaymentStatus,
+  type CurrencyCode,
+  type ISODate,
+  type UUID,
+} from '../types';
 import { newUUID } from '../utils/uuid';
 import { nowISO } from '../utils/now';
 import { META_KEYS } from './meta';
@@ -14,10 +21,12 @@ import { META_KEYS } from './meta';
 // where two parallel issuances could collide on the same number.
 //
 // Snapshot semantics: every numeric and label on Invoice is frozen at
-// issue time (ADR-024). The caller computes subtotal_minor / vat_minor
-// / total_minor from the cart it has on hand, we don't recompute on
-// read. Article renames and price changes after the fact never mutate
-// already-issued invoices.
+// issue time (ADR-024). Article renames and price changes after the fact
+// never mutate already-issued invoices.
+//
+// v1.2 adds structured payment/debt fields. Dashboard cash now reads
+// `paid_minor`; customer debt reads `balance_due_minor`. Older imported
+// rows are treated as paid in full by the schema/import backfills.
 
 type CounterMap = Record<string, number>;
 
@@ -47,11 +56,14 @@ function formatNumber(year: string, n: number): string {
   return `INV-${year}-${String(n).padStart(4, '0')}`;
 }
 
+export type CreateInvoicePaymentMode = 'paid' | 'partial' | 'unpaid';
+
 export interface CreateInvoiceInput {
   // The Sell session's transaction_id when the invoice is generated
   // alongside a sale. Null for manually-issued invoices (no movement
   // record on the books).
   transaction_id: UUID | null;
+  customer_id?: UUID | null;
   customer_name: string | null;
   customer_address: string | null;
   customer_fiscal_id: string | null;
@@ -66,6 +78,12 @@ export interface CreateInvoiceInput {
   // and downstream renderers (PDF + screen) skip the VAT line.
   // Defaults to true for back-compat with callers that don't pass it.
   vat_enabled?: boolean;
+  // v1.2 — initial payment state at issue time. For `partial`, pass the
+  // amount actually received in paid_minor. The repository normalises
+  // edge cases: partial 0 becomes unpaid; partial >= total becomes paid.
+  payment_mode?: CreateInvoicePaymentMode;
+  paid_minor?: number;
+  due_at?: ISODate | null;
   notes: string | null;
 }
 
@@ -86,17 +104,74 @@ export function computeInvoiceTotals(
   return { subtotal_minor: subtotal, vat_minor: vat, total_minor: subtotal + vat };
 }
 
+export function computeInvoicePayment(input: {
+  total_minor: number;
+  mode: CreateInvoicePaymentMode;
+  paid_minor?: number | null;
+}): { payment_status: InvoicePaymentStatus; paid_minor: number; balance_due_minor: number } {
+  const total = Math.max(0, Math.round(input.total_minor));
+  if (total === 0 || input.mode === 'paid') {
+    return { payment_status: 'paid', paid_minor: total, balance_due_minor: 0 };
+  }
+  if (input.mode === 'unpaid') {
+    return { payment_status: 'unpaid', paid_minor: 0, balance_due_minor: total };
+  }
+  const rawPaid = Number.isFinite(input.paid_minor ?? NaN) ? Math.round(input.paid_minor ?? 0) : 0;
+  const paid = Math.min(total, Math.max(0, rawPaid));
+  const balance = Math.max(0, total - paid);
+  if (paid <= 0) return { payment_status: 'unpaid', paid_minor: 0, balance_due_minor: total };
+  if (balance <= 0) return { payment_status: 'paid', paid_minor: total, balance_due_minor: 0 };
+  return { payment_status: 'partially_paid', paid_minor: paid, balance_due_minor: balance };
+}
+
+export function paidMinorForInvoice(invoice: Invoice): number {
+  if (typeof invoice.paid_minor === 'number') return Math.max(0, Math.round(invoice.paid_minor));
+  // Defensive for imported/backfilled rows that predate v1.2.
+  return Math.max(0, Math.round(invoice.total_minor));
+}
+
+export function balanceDueForInvoice(invoice: Invoice): number {
+  if (typeof invoice.balance_due_minor === 'number') {
+    return Math.max(0, Math.round(invoice.balance_due_minor));
+  }
+  return Math.max(0, Math.round(invoice.total_minor) - paidMinorForInvoice(invoice));
+}
+
+export function paymentStatusForInvoice(
+  invoice: Invoice,
+  now: Date = new Date(),
+): InvoicePaymentStatus {
+  const balance = balanceDueForInvoice(invoice);
+  if (balance <= 0) return 'paid';
+  if (invoice.due_at) {
+    const due = new Date(invoice.due_at);
+    if (!Number.isNaN(due.getTime()) && due.getTime() < now.getTime()) return 'overdue';
+  }
+  if (paidMinorForInvoice(invoice) > 0) return 'partially_paid';
+  return 'unpaid';
+}
+
+export function invoiceIsOpen(invoice: Invoice): boolean {
+  return balanceDueForInvoice(invoice) > 0 && invoice.deleted_at === null;
+}
+
 export async function createInvoice(db: InventarDB, input: CreateInvoiceInput): Promise<Invoice> {
   const ts = nowISO();
   const year = ts.slice(0, 4);
   const vatEnabled = input.vat_enabled ?? true;
   const totals = computeInvoiceTotals(input.lines, input.vat_pct, vatEnabled);
+  const payment = computeInvoicePayment({
+    total_minor: totals.total_minor,
+    mode: input.payment_mode ?? 'paid',
+    paid_minor: input.paid_minor,
+  });
   return db.transaction('rw', [db.invoices, db.meta], async () => {
     const seq = await allocateInvoiceNumber(db, year);
     const invoice: Invoice = {
       id: newUUID(),
       number: formatNumber(year, seq),
       issued_at: ts,
+      customer_id: input.customer_id ?? null,
       customer_name: input.customer_name,
       customer_address: input.customer_address,
       customer_fiscal_id: input.customer_fiscal_id,
@@ -107,6 +182,10 @@ export async function createInvoice(db: InventarDB, input: CreateInvoiceInput): 
       vat_minor: totals.vat_minor,
       vat_enabled: vatEnabled,
       total_minor: totals.total_minor,
+      payment_status: payment.payment_status,
+      paid_minor: payment.paid_minor,
+      balance_due_minor: payment.balance_due_minor,
+      due_at: payment.balance_due_minor > 0 ? (input.due_at ?? null) : null,
       notes: input.notes,
       transaction_id: input.transaction_id,
       created_at: ts,

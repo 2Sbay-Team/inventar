@@ -23,6 +23,9 @@ const DashboardScreen = lazy(() =>
 const SettingsScreen = lazy(() =>
   import('./screens/settings').then((m) => ({ default: m.SettingsScreen })),
 );
+const CustomersScreen = lazy(() =>
+  import('./screens/customers').then((m) => ({ default: m.CustomersScreen })),
+);
 const ArchiveBinScreen = lazy(() =>
   import('./screens/archive-bin').then((m) => ({ default: m.ArchiveBinScreen })),
 );
@@ -203,6 +206,16 @@ export const routes: RouteObject[] = [
       <Lazy>
         <OnboardingGate>
           <InvoicesListScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    path: '/customers',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <CustomersScreen />
         </OnboardingGate>
       </Lazy>
     ),

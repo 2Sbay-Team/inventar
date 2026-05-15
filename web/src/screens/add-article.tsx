@@ -8,7 +8,7 @@ import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
-import { getSizeSuggestions } from '../config/size-suggestions';
+import { getSizeSuggestionsCapped } from '../config/size-suggestions';
 import {
   defaultUomForProfile,
   inputPriceToInternal,
@@ -253,7 +253,7 @@ export function AddArticleScreen(): JSX.Element {
   // into per-article sizes, or custom category with no signals).
   const sizeHintsForArticle = useMemo<readonly string[]>(() => {
     if (!hasSizes) return [];
-    return getSizeSuggestions({
+    return getSizeSuggestionsCapped({
       storeType,
       fashionSubtypes: profile?.fashion_subtypes ?? [],
       unit: basics.unitOfMeasure,

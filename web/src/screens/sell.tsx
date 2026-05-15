@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
@@ -12,6 +12,7 @@ import {
   Plus,
   Search as SearchIcon,
   ShoppingCart,
+  Users,
   X,
 } from 'lucide-react';
 
@@ -25,11 +26,21 @@ import { useLive } from '../hooks/use-live';
 import { useLocale } from '../hooks/use-locale';
 import { useProfile } from '../hooks/use-profile';
 import { formatCurrency } from '../i18n/format-currency';
+import { parseCurrency } from '../i18n/parse-currency';
 import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
+import { listCustomers } from '../repos/customers';
+import { createInvoice, listInvoices } from '../repos/invoices';
 import { pickFifoLot } from '../repos/lots';
 import { recordMovement } from '../repos/movements';
 import { quantityFor, sizeGridFor, type SizeGridCell } from '../repos/quantity';
-import { type Article, type Locale, type UUID, type Variant } from '../types';
+import {
+  type Article,
+  type Customer,
+  type InvoiceLine,
+  type Locale,
+  type UUID,
+  type Variant,
+} from '../types';
 import { classifyScan } from '../utils/scan-classify';
 import { newUUID } from '../utils/uuid';
 
@@ -69,12 +80,25 @@ interface SessionSale {
   internal_code: string;
   color: string | null;
   size: string | null;
+  unit_of_measure: Article['unit_of_measure'];
   qty: number;
   // qty × unit_price_tnd at sale time, in minor units (millimes).
   total: number;
 }
 
 type SubTab = 'sell' | 'documents';
+type SaleDocumentMode = 'receipt' | 'invoice';
+type SalePaymentMode = 'paid' | 'partial' | 'unpaid';
+
+function defaultInvoiceDueDateISO(now: Date = new Date()): string {
+  const due = new Date(now);
+  due.setDate(due.getDate() + 30);
+  return due.toISOString();
+}
+
+function countCanCreateInvoice(count: number, partialPaymentInvalid: boolean): boolean {
+  return count > 0 && !partialPaymentInvalid;
+}
 
 function parseTab(value: string | null): SubTab {
   return value === 'documents' ? 'documents' : 'sell';
@@ -141,6 +165,10 @@ function SubTabs(props: { active: SubTab; onSwitch: (t: SubTab) => void }): JSX.
 function DocumentsTab(props: { active: SubTab; onSwitch: (t: SubTab) => void }): JSX.Element {
   const { t } = useTranslation('sell');
   const navigate = useNavigate();
+  const { locale } = useLocale();
+  const currency = useCurrency();
+  const invoices = useLive(() => listInvoices(db), [], []);
+
   return (
     <>
       <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
@@ -154,20 +182,78 @@ function DocumentsTab(props: { active: SubTab; onSwitch: (t: SubTab) => void }):
           <X aria-hidden className="h-6 w-6" strokeWidth={2.25} />
         </button>
         <h3 className="font-display inline-flex items-center justify-center gap-1.5 justify-self-center text-sm font-semibold tracking-tight">
-          <ShoppingCart aria-hidden className="text-accent h-4 w-4" strokeWidth={2.25} />
-          {t('title')}
+          <FileText aria-hidden className="text-accent h-4 w-4" strokeWidth={2.25} />
+          {t('documents_title')}
         </h3>
         <span />
       </header>
       <SubTabs active={props.active} onSwitch={props.onSwitch} />
       <main
         data-testid="documents-screen"
-        className="flex flex-1 flex-col items-center justify-center px-8 text-center"
+        className="flex flex-1 flex-col overflow-y-auto px-4 py-4"
       >
-        <FileText aria-hidden className="text-ink-4 h-14 w-14" strokeWidth={1.25} />
-        <h2 className="font-display text-ink mt-4 text-lg font-semibold">{t('documents_title')}</h2>
-        <p className="text-ink-3 mt-1 text-sm">{t('documents_coming_soon')}</p>
-        <p className="text-ink-2 mt-4 max-w-xs text-xs leading-relaxed">{t('documents_pitch')}</p>
+        <section className="rounded-2xl border border-accent/20 bg-accent-soft/30 p-4">
+          <h2 className="font-display text-sm font-semibold text-ink">
+            {t('documents_real_title')}
+          </h2>
+          <p className="text-ink-2 mt-1 text-xs leading-relaxed">{t('documents_real_body')}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to="/sale"
+              className="bg-accent inline-flex rounded-xl px-3 py-2 text-xs font-semibold text-white"
+            >
+              {t('documents_new_sale')}
+            </Link>
+            <Link
+              to="/customers"
+              className="border-hair inline-flex rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-ink"
+            >
+              {t('documents_manage_customers')}
+            </Link>
+          </div>
+        </section>
+
+        <section className="mt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-display text-sm font-semibold text-ink">{t('documents_recent')}</h2>
+            <Link to="/invoices" className="text-accent text-xs font-semibold">
+              {t('documents_view_all')}
+            </Link>
+          </div>
+          {invoices.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-ink-4/70 bg-white p-6 text-center">
+              <FileText aria-hidden className="text-ink-4 mx-auto h-10 w-10" strokeWidth={1.5} />
+              <h3 className="font-display mt-3 text-sm font-semibold text-ink">
+                {t('documents_empty_title')}
+              </h3>
+              <p className="text-ink-3 mt-1 text-xs leading-relaxed">{t('documents_empty_body')}</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {invoices.slice(0, 10).map((invoice) => (
+                <li key={invoice.id}>
+                  <Link
+                    to={`/invoice/${invoice.id}`}
+                    className="border-hair flex items-center justify-between gap-3 rounded-2xl border bg-white p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-display truncate text-sm font-semibold text-ink">
+                        {invoice.number}
+                      </p>
+                      <p className="text-ink-3 mt-0.5 truncate text-xs">
+                        {invoice.customer_name || t('customer_walk_in')} ·{' '}
+                        {new Date(invoice.issued_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="font-mono text-xs font-semibold text-ink" dir="ltr">
+                      {formatCurrency(invoice.total_minor, locale, invoice.currency || currency)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
     </>
   );
@@ -187,6 +273,17 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
+
+  const customers = useLive(() => listCustomers(db), [], []);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('walk-in');
+  const [documentMode, setDocumentMode] = useState<SaleDocumentMode>('receipt');
+  const [paymentMode, setPaymentMode] = useState<SalePaymentMode>('paid');
+  const [partialPaidText, setPartialPaidText] = useState('');
+
+  const selectedCustomer = useMemo<Customer | null>(() => {
+    if (selectedCustomerId === 'walk-in') return null;
+    return customers.find((customer) => customer.id === selectedCustomerId) ?? null;
+  }, [customers, selectedCustomerId]);
 
   // Session state — committed per Confirm. Movements share this
   // transaction_id so reports can group them as one session row.
@@ -357,6 +454,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
       internal_code: article.internal_code,
       color: variant.color,
       size: variant.size,
+      unit_of_measure: article.unit_of_measure,
       qty,
       total: qty * article.sale_price_tnd,
     };
@@ -366,6 +464,53 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
       .filter((p): p is string => typeof p === 'string' && p.length > 0)
       .join(' ');
     setToast(t('toast_sold', { label, total: formatCurrency(sale.total, locale, currency) }));
+  }
+
+  async function createSessionInvoice(): Promise<void> {
+    if (sessionSales.length === 0) return;
+    const paidMinor =
+      paymentMode === 'partial' ? parseCurrency(partialPaidText, locale, currency) : null;
+    if (
+      paymentMode === 'partial' &&
+      (paidMinor === null || paidMinor <= 0 || paidMinor >= sessionRevenue)
+    ) {
+      setToast(t('partial_paid_invalid'));
+      return;
+    }
+    const lines: InvoiceLine[] = sessionSales.map((sale) => ({
+      description: [sale.article_name, sale.color, sale.size]
+        .filter((part): part is string => typeof part === 'string' && part.length > 0)
+        .join(' · '),
+      reference: sale.internal_code,
+      qty: sale.qty,
+      unit_price_minor: Math.round(sale.total / Math.max(1, sale.qty)),
+      unit_of_measure: sale.unit_of_measure,
+    }));
+    const customerAddress = selectedCustomer
+      ? [selectedCustomer.address, selectedCustomer.city, selectedCustomer.country]
+          .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+          .join(', ') || null
+      : null;
+    const paymentNote = t(`payment_note_${paymentMode}`, {
+      total: formatCurrency(sessionRevenue, locale, currency),
+      customer: selectedCustomer?.name ?? t('customer_walk_in'),
+    });
+    const invoice = await createInvoice(db, {
+      transaction_id: sessionIdRef.current,
+      customer_id: selectedCustomer?.id ?? null,
+      customer_name: selectedCustomer?.name ?? null,
+      customer_address: customerAddress,
+      customer_fiscal_id: selectedCustomer?.fiscal_id ?? null,
+      lines,
+      currency,
+      vat_pct: profile?.default_vat_pct ?? 0,
+      vat_enabled: (profile?.default_vat_pct ?? 0) > 0,
+      payment_mode: paymentMode,
+      paid_minor: paymentMode === 'partial' ? (paidMinor ?? 0) : undefined,
+      due_at: paymentMode === 'paid' ? null : defaultInvoiceDueDateISO(),
+      notes: paymentNote,
+    });
+    navigate(`/invoice/${invoice.id}`);
   }
 
   // ─── camera handler ────────────────────────────────────────────────
@@ -404,6 +549,12 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
 
   const sessionCount = sessionSales.length;
   const sessionRevenue = sessionSales.reduce((s, x) => s + x.total, 0);
+  const partialPaidMinor =
+    paymentMode === 'partial' ? parseCurrency(partialPaidText, locale, currency) : null;
+  const partialPaymentInvalid =
+    paymentMode === 'partial' &&
+    sessionRevenue > 0 &&
+    (partialPaidMinor === null || partialPaidMinor <= 0 || partialPaidMinor >= sessionRevenue);
   const cameraFirst = profile?.store_type === 'shop';
 
   // ─── render ────────────────────────────────────────────────────────
@@ -452,6 +603,20 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
 
       <main data-testid="sell-screen" className="flex flex-1 flex-col overflow-y-auto">
         {cameraFirst ? <ShopCameraStrip onDetected={onScanDetected} /> : null}
+
+        <SaleCustomerPanel
+          customers={customers}
+          selectedCustomerId={selectedCustomerId}
+          onSelectCustomer={setSelectedCustomerId}
+          documentMode={documentMode}
+          onDocumentMode={setDocumentMode}
+          paymentMode={paymentMode}
+          onPaymentMode={setPaymentMode}
+          partialPaidText={partialPaidText}
+          onPartialPaidText={setPartialPaidText}
+          partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
+          t={t}
+        />
 
         <SearchScanBar
           value={search}
@@ -566,10 +731,150 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           onBack={() => navigate('/products', { replace: true })}
           onReports={() => navigate('/reports', { replace: true })}
           onResume={() => setSummaryOpen(false)}
+          onCreateInvoice={() => void createSessionInvoice()}
+          canCreateInvoice={countCanCreateInvoice(sessionCount, partialPaymentInvalid)}
+          paymentWarning={partialPaymentInvalid ? t('partial_paid_invalid') : null}
+          documentMode={documentMode}
+          paymentMode={paymentMode}
+          customer={selectedCustomer}
           t={t}
         />
       ) : null}
     </>
+  );
+}
+
+function SaleCustomerPanel(props: {
+  customers: readonly Customer[];
+  selectedCustomerId: string;
+  onSelectCustomer: (id: string) => void;
+  documentMode: SaleDocumentMode;
+  onDocumentMode: (mode: SaleDocumentMode) => void;
+  paymentMode: SalePaymentMode;
+  onPaymentMode: (mode: SalePaymentMode) => void;
+  partialPaidText: string;
+  onPartialPaidText: (value: string) => void;
+  partialTotalLabel: string;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+}): JSX.Element {
+  const {
+    customers,
+    selectedCustomerId,
+    onSelectCustomer,
+    documentMode,
+    onDocumentMode,
+    paymentMode,
+    onPaymentMode,
+    partialPaidText,
+    onPartialPaidText,
+    partialTotalLabel,
+    t,
+  } = props;
+  const needsCustomer = documentMode === 'invoice' || paymentMode !== 'paid';
+  return (
+    <section
+      data-testid="sale-customer-panel"
+      className="mx-4 mt-3 rounded-2xl border border-hair bg-white p-3"
+    >
+      <div className="flex items-start gap-3">
+        <Users
+          aria-hidden
+          className="mt-0.5 h-5 w-5 flex-shrink-0 text-accent"
+          strokeWidth={2.25}
+        />
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-display text-sm font-semibold text-ink">
+                {t('customer_section_title')}
+              </h2>
+              <Link to="/customers" className="text-accent text-xs font-semibold">
+                {t('customer_manage')}
+              </Link>
+            </div>
+            <p className="text-ink-3 mt-1 text-xs leading-relaxed">{t('customer_section_hint')}</p>
+          </div>
+
+          <select
+            data-testid="sale-customer-select"
+            value={selectedCustomerId}
+            onChange={(event) => onSelectCustomer(event.target.value)}
+            className="border-hair text-ink w-full rounded-xl border bg-white px-3 py-2.5 text-sm"
+          >
+            <option value="walk-in">{t('customer_walk_in')}</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.name}
+              </option>
+            ))}
+          </select>
+
+          <div className="grid grid-cols-2 gap-2">
+            {(['receipt', 'invoice'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                data-testid={`sale-document-${mode}`}
+                onClick={() => onDocumentMode(mode)}
+                aria-pressed={documentMode === mode}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                  documentMode === mode
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-hair bg-white text-ink-2'
+                }`}
+              >
+                {t(`document_${mode}`)}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {(['paid', 'partial', 'unpaid'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                data-testid={`sale-payment-${mode}`}
+                onClick={() => onPaymentMode(mode)}
+                aria-pressed={paymentMode === mode}
+                className={`rounded-xl border px-2 py-2 text-[11px] font-semibold ${
+                  paymentMode === mode
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-hair bg-white text-ink-2'
+                }`}
+              >
+                {t(`payment_${mode}`)}
+              </button>
+            ))}
+          </div>
+
+          {paymentMode === 'partial' ? (
+            <div>
+              <label className="text-ink-3 mb-1 block text-[11px] font-medium uppercase tracking-wide">
+                {t('partial_paid_label')}
+              </label>
+              <input
+                data-testid="sale-partial-paid"
+                type="text"
+                inputMode="decimal"
+                value={partialPaidText}
+                onChange={(event) => onPartialPaidText(event.target.value)}
+                placeholder={t('partial_paid_placeholder')}
+                className="border-hair text-ink w-full rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm"
+              />
+              <p className="text-ink-3 mt-1 text-xs">
+                {t('partial_paid_hint', { total: partialTotalLabel })}
+              </p>
+            </div>
+          ) : null}
+
+          {needsCustomer && selectedCustomerId === 'walk-in' ? (
+            <p className="rounded-xl border border-bad/20 bg-bad/10 px-3 py-2 text-xs text-bad">
+              {t('customer_required_hint')}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1062,9 +1367,31 @@ function SessionSummary(props: {
   onBack: () => void;
   onReports: () => void;
   onResume: () => void;
+  onCreateInvoice: () => void;
+  canCreateInvoice: boolean;
+  paymentWarning: string | null;
+  documentMode: SaleDocumentMode;
+  paymentMode: SalePaymentMode;
+  customer: Customer | null;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
-  const { open, count, total, locale, currency, onBack, onReports, onResume, t } = props;
+  const {
+    open,
+    count,
+    total,
+    locale,
+    currency,
+    onBack,
+    onReports,
+    onResume,
+    onCreateInvoice,
+    canCreateInvoice,
+    paymentWarning,
+    documentMode,
+    paymentMode,
+    customer,
+    t,
+  } = props;
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onResume()}>
       <Dialog.Portal>
@@ -1106,6 +1433,36 @@ function SessionSummary(props: {
               </p>
             </div>
           </div>
+
+          <div className="border-hair mt-4 rounded-2xl border bg-white p-3">
+            <p className="text-ink-3 text-[11px] uppercase tracking-wide">
+              {t('summary_document_label')}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink">
+              {t(`document_${documentMode}`)} · {t(`payment_${paymentMode}`)}
+            </p>
+            <p className="text-ink-3 mt-1 text-xs">
+              {customer ? customer.name : t('customer_walk_in')}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            data-testid="sell-summary-create-invoice"
+            onClick={onCreateInvoice}
+            disabled={!canCreateInvoice}
+            className="bg-ink mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            <FileText aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+            {documentMode === 'invoice'
+              ? t('summary_create_invoice')
+              : t('summary_create_receipt_invoice')}
+          </button>
+          {paymentWarning ? (
+            <p className="text-bad mt-2 text-center text-xs" role="alert">
+              {paymentWarning}
+            </p>
+          ) : null}
 
           <button
             type="button"

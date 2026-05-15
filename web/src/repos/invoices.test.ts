@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DB_NAME, InventarDB } from '../db/db';
-import { computeInvoiceTotals, createInvoice, getInvoice, listInvoices } from './invoices';
+import {
+  balanceDueForInvoice,
+  computeInvoicePayment,
+  computeInvoiceTotals,
+  createInvoice,
+  getInvoice,
+  listInvoices,
+  paidMinorForInvoice,
+  paymentStatusForInvoice,
+} from './invoices';
 import { getMeta, META_KEYS } from './meta';
 
 // vi.useFakeTimers() interferes with Dexie's microtask scheduling so we
@@ -93,6 +102,40 @@ describe('invoices repo (ADR-024)', () => {
     });
   });
 
+  describe('computeInvoicePayment', () => {
+    it('marks paid invoices as fully paid', () => {
+      expect(computeInvoicePayment({ total_minor: 10_000, mode: 'paid' })).toEqual({
+        payment_status: 'paid',
+        paid_minor: 10_000,
+        balance_due_minor: 0,
+      });
+    });
+
+    it('marks unpaid invoices as full customer debt', () => {
+      expect(computeInvoicePayment({ total_minor: 10_000, mode: 'unpaid' })).toEqual({
+        payment_status: 'unpaid',
+        paid_minor: 0,
+        balance_due_minor: 10_000,
+      });
+    });
+
+    it('normalises partial payments and caps impossible values', () => {
+      expect(
+        computeInvoicePayment({ total_minor: 10_000, mode: 'partial', paid_minor: 4_000 }),
+      ).toEqual({
+        payment_status: 'partially_paid',
+        paid_minor: 4_000,
+        balance_due_minor: 6_000,
+      });
+      expect(
+        computeInvoicePayment({ total_minor: 10_000, mode: 'partial', paid_minor: 99_000 }),
+      ).toEqual({ payment_status: 'paid', paid_minor: 10_000, balance_due_minor: 0 });
+      expect(
+        computeInvoicePayment({ total_minor: 10_000, mode: 'partial', paid_minor: 0 }),
+      ).toEqual({ payment_status: 'unpaid', paid_minor: 0, balance_due_minor: 10_000 });
+    });
+  });
+
   describe('createInvoice', () => {
     it('first invoice of the year gets INV-{YYYY}-0001', async () => {
       const inv = await createInvoice(db, {
@@ -109,6 +152,51 @@ describe('invoices repo (ADR-024)', () => {
       expect(inv.subtotal_minor).toBe(1_000);
       expect(inv.vat_minor).toBe(190);
       expect(inv.total_minor).toBe(1_190);
+      expect(inv.payment_status).toBe('paid');
+      expect(inv.paid_minor).toBe(1_190);
+      expect(inv.balance_due_minor).toBe(0);
+    });
+
+    it('stores structured partial customer debt', async () => {
+      const inv = await createInvoice(db, {
+        transaction_id: 'tx-partial',
+        customer_id: 'customer-1',
+        customer_name: 'ACME Co',
+        customer_address: null,
+        customer_fiscal_id: null,
+        lines: [{ description: 'Item', reference: null, qty: 1, unit_price_minor: 10_000 }],
+        currency: 'TND',
+        vat_pct: 0,
+        payment_mode: 'partial',
+        paid_minor: 4_000,
+        due_at: '2026-06-09T10:00:00.000Z',
+        notes: null,
+      });
+      expect(inv.customer_id).toBe('customer-1');
+      expect(paidMinorForInvoice(inv)).toBe(4_000);
+      expect(balanceDueForInvoice(inv)).toBe(6_000);
+      expect(paymentStatusForInvoice(inv, new Date('2026-05-20T00:00:00.000Z'))).toBe(
+        'partially_paid',
+      );
+      expect(paymentStatusForInvoice(inv, new Date('2026-06-10T00:00:00.000Z'))).toBe('overdue');
+    });
+
+    it('stores unpaid invoices as full customer debt', async () => {
+      const inv = await createInvoice(db, {
+        transaction_id: 'tx-unpaid',
+        customer_name: 'ACME Co',
+        customer_address: null,
+        customer_fiscal_id: null,
+        lines: [{ description: 'Item', reference: null, qty: 2, unit_price_minor: 5_000 }],
+        currency: 'TND',
+        vat_pct: 0,
+        payment_mode: 'unpaid',
+        due_at: '2026-06-09T10:00:00.000Z',
+        notes: null,
+      });
+      expect(inv.payment_status).toBe('unpaid');
+      expect(inv.paid_minor).toBe(0);
+      expect(inv.balance_due_minor).toBe(10_000);
     });
 
     it('subsequent invoices increment within the same year', async () => {

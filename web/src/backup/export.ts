@@ -26,13 +26,14 @@ export async function buildBackup(
 ): Promise<BackupV3> {
   // We don't strip soft-deleted rows: a backup is a faithful snapshot of
   // the device. Restore is round-trip lossless (TESTING.md §2.6).
-  const [profile, articles, variants, movements, expenses, photoRows, lots, invoices] =
+  const [profile, articles, variants, movements, expenses, customers, photoRows, lots, invoices] =
     await Promise.all([
       db.profile.toArray(),
       db.articles.toArray(),
       db.variants.toArray(),
       db.movements.toArray(),
       db.expenses.toArray(),
+      db.customers.toArray(),
       db.photos.toArray(),
       db.lots.toArray(),
       db.invoices.toArray(),
@@ -56,6 +57,7 @@ export async function buildBackup(
     variants,
     movements,
     expenses,
+    customers,
     photos,
     lots,
     invoices,
