@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, ScanLine, Trash2 } from 'lucide-react';
 import { useSafeBack } from '../hooks/use-safe-back';
 import { BarcodeScanner } from '../components/barcode-scanner';
@@ -168,6 +168,8 @@ export function AddArticleScreen(): JSX.Element {
   const { t: tCategory } = useTranslation('category');
   const navigate = useNavigate();
   const goBack = useSafeBack('/products');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shouldAutoScan = searchParams.get('scan') === '1';
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
@@ -244,6 +246,16 @@ export function AddArticleScreen(): JSX.Element {
       setBasics((b) => ({ ...b, category: categories[0] }));
     }
   }, [categories, basics.category]);
+
+  useEffect(() => {
+    if (shouldAutoScan) {
+      // Remove ?scan=1 so back-navigation + forward doesn't reopen the scanner.
+      const next = new URLSearchParams(searchParams);
+      next.delete('scan');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // v0.5.6 — colour matrix is suppressed for any measured UoM (weight,
   // volume, length): a roll of fabric has no "blue vs red" axis worth
   // tracking per metre. Size is more nuanced — a weight/volume UoM
@@ -300,7 +312,7 @@ export function AddArticleScreen(): JSX.Element {
   // sat below the fold of a long form. See the saveError banner near
   // the top of Step 2 and the scrollToFirstError() call below.
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(shouldAutoScan);
 
   const skuPrefix = storeCfg.sku_prefix;
   const previewedCode = useLive<string>(
