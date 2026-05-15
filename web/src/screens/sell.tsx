@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { BarcodeScanner } from '../components/barcode-scanner';
+import { InvoicePreviewPanel } from '../components/invoice-preview-panel';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
@@ -120,7 +121,7 @@ export function SellScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideNav hideFooter>
+    <ScreenLayout hideNav hideFooter wide>
       {tab === 'documents' ? (
         <DocumentsTab onSwitch={selectTab} active={tab} />
       ) : (
@@ -641,81 +642,101 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
 
       <SubTabs active={active} onSwitch={onSwitch} />
 
-      <main data-testid="sell-screen" className="flex flex-1 flex-col overflow-y-auto">
-        {cameraFirst ? <ShopCameraStrip onDetected={onScanDetected} /> : null}
+      <div className="flex min-h-0 flex-1">
+        <main data-testid="sell-screen" className="flex flex-1 flex-col overflow-y-auto">
+          {cameraFirst ? <ShopCameraStrip onDetected={onScanDetected} /> : null}
 
-        <SaleCustomerPanel
-          customers={customers}
-          selectedCustomerId={selectedCustomerId}
-          onSelectCustomer={setSelectedCustomerId}
-          documentMode={documentMode}
-          onDocumentMode={setDocumentMode}
-          paymentMode={paymentMode}
-          onPaymentMode={setPaymentMode}
-          partialPaidText={partialPaidText}
-          onPartialPaidText={setPartialPaidText}
-          partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
-          hasBillableTotal={hasBillableTotal}
-          t={t}
-        />
-
-        <SearchScanBar
-          value={search}
-          onChange={setSearch}
-          onOpenCamera={() => setScannerOpen(true)}
-          showCameraIcon={!cameraFirst}
-          t={t}
-        />
-
-        {categories.length > 1 ? (
-          <CategoryChips categories={categories} active={category} onSelect={setCategory} t={t} />
-        ) : null}
-
-        {scanError ? (
-          <p
-            data-testid="sell-scan-error"
-            role="alert"
-            className="text-bad bg-bad/10 border-bad/30 mx-4 mt-2 rounded-xl border px-3 py-2 text-center text-xs"
-          >
-            {scanError}
-          </p>
-        ) : null}
-
-        {topSold.length > 0 ? (
-          <QuickSellStrip
-            articles={topSold}
-            stock={articleStock}
-            onPick={(a) => setPickerArticleId(a.id)}
+          <SaleCustomerPanel
+            customers={customers}
+            selectedCustomerId={selectedCustomerId}
+            onSelectCustomer={setSelectedCustomerId}
+            documentMode={documentMode}
+            onDocumentMode={setDocumentMode}
+            paymentMode={paymentMode}
+            onPaymentMode={setPaymentMode}
+            partialPaidText={partialPaidText}
+            onPartialPaidText={setPartialPaidText}
+            partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
+            hasBillableTotal={hasBillableTotal}
             t={t}
           />
-        ) : null}
 
-        <section className="mt-3 px-4 pb-4">
-          <p className="text-ink-3 mb-2 text-[11px] font-medium uppercase tracking-wide">
-            {t('all_products_heading')}
-          </p>
-          {filteredArticles.length === 0 ? (
-            <p data-testid="sell-list-empty" className="text-ink-3 mt-6 text-center text-xs">
-              {search.trim() === ''
-                ? t('list_no_products')
-                : t('list_no_match', { query: search.trim() })}
+          <SearchScanBar
+            value={search}
+            onChange={setSearch}
+            onOpenCamera={() => setScannerOpen(true)}
+            showCameraIcon={!cameraFirst}
+            t={t}
+          />
+
+          {categories.length > 1 ? (
+            <CategoryChips categories={categories} active={category} onSelect={setCategory} t={t} />
+          ) : null}
+
+          {scanError ? (
+            <p
+              data-testid="sell-scan-error"
+              role="alert"
+              className="text-bad bg-bad/10 border-bad/30 mx-4 mt-2 rounded-xl border px-3 py-2 text-center text-xs"
+            >
+              {scanError}
             </p>
-          ) : (
-            <ul data-testid="sell-products-list" className="space-y-1.5">
-              {filteredArticles.map((a) => (
-                <ProductRow
-                  key={a.id}
-                  article={a}
-                  stock={articleStock[a.id] ?? 0}
-                  currency={currency}
-                  locale={locale}
-                  onTap={() => setPickerArticleId(a.id)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      </main>
+          ) : null}
+
+          {topSold.length > 0 ? (
+            <QuickSellStrip
+              articles={topSold}
+              stock={articleStock}
+              onPick={(a) => setPickerArticleId(a.id)}
+              t={t}
+            />
+          ) : null}
+
+          <section className="mt-3 px-4 pb-4">
+            <p className="text-ink-3 mb-2 text-[11px] font-medium uppercase tracking-wide">
+              {t('all_products_heading')}
+            </p>
+            {filteredArticles.length === 0 ? (
+              <p data-testid="sell-list-empty" className="text-ink-3 mt-6 text-center text-xs">
+                {search.trim() === ''
+                  ? t('list_no_products')
+                  : t('list_no_match', { query: search.trim() })}
+              </p>
+            ) : (
+              <ul data-testid="sell-products-list" className="space-y-1.5">
+                {filteredArticles.map((a) => (
+                  <ProductRow
+                    key={a.id}
+                    article={a}
+                    stock={articleStock[a.id] ?? 0}
+                    currency={currency}
+                    locale={locale}
+                    onTap={() => setPickerArticleId(a.id)}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </main>
+
+        <aside
+          data-testid="invoice-preview-panel"
+          className="border-hair hidden lg:flex lg:w-[380px] lg:flex-shrink-0 lg:flex-col border-l bg-white"
+        >
+          <InvoicePreviewPanel
+            sessionSales={sessionSales}
+            documentMode={documentMode}
+            paymentMode={paymentMode}
+            customer={selectedCustomer}
+            partialPaidMinor={partialPaidMinor}
+            sessionRevenue={sessionRevenue}
+            profile={profile ?? null}
+            currency={currency}
+            locale={locale}
+            t={t}
+          />
+        </aside>
+      </div>
 
       {toast ? (
         <output

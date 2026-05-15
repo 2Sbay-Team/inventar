@@ -757,7 +757,10 @@
     "invoice_create_failed": "Impossible de créer la facture. Réessayez.",
     "sale_record_failed": "Impossible d'enregistrer la vente. Réessayez.",
     "partial_empty_cart_hint": "Ajoutez d'abord des produits — le champ du montant partiel apparaîtra une fois le panier rempli.",
-    "unpaid_empty_cart_hint": "Ajoutez d'abord des produits — vous pourrez créer la facture impayée une fois le panier rempli."
+    "unpaid_empty_cart_hint": "Ajoutez d'abord des produits — vous pourrez créer la facture impayée une fois le panier rempli.",
+    "preview_title": "Aperçu de la facture",
+    "preview_empty": "Ajoutez des produits pour voir à quoi ressemblera la facture",
+    "preview_walkin": "Client de passage"
   },
   "receive": {
     "title": "Réception stock",
