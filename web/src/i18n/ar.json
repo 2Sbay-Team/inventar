@@ -760,7 +760,17 @@
     "unpaid_empty_cart_hint": "أضف المنتجات أولاً — يمكنك إنشاء الفاتورة غير المدفوعة بعد ملء السلة.",
     "preview_title": "معاينة الفاتورة",
     "preview_empty": "أضف منتجات لترى كيف ستبدو الفاتورة",
-    "preview_walkin": "زبون عابر"
+    "preview_walkin": "زبون عابر",
+    "summary_preview_button": "معاينة وإنشاء",
+    "preview_warnings_title": "قبل إصدار هذه الفاتورة:",
+    "warn_no_legal_name": "الاسم القانوني للمتجر مفقود",
+    "warn_no_address": "عنوان المتجر مفقود",
+    "warn_no_fiscal_id": "المعرّف الجبائي مفقود",
+    "warn_no_vat": "نسبة الضريبة غير محددة",
+    "warn_no_customer": "اختر زبوناً للفواتير الرسمية",
+    "preview_fix_settings": "تصحيح في الإعدادات",
+    "preview_confirm": "تأكيد وإنشاء",
+    "preview_disclaimer": "لم تُحفَظ بعد. هذه مسودة."
   },
   "receive": {
     "title": "استلام البضاعة",

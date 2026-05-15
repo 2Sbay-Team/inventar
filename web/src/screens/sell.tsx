@@ -18,6 +18,7 @@ import {
 
 import { BarcodeScanner } from '../components/barcode-scanner';
 import { InvoicePreviewPanel } from '../components/invoice-preview-panel';
+import { InvoicePreviewModal } from '../components/invoice-preview-modal';
 import { PhotoThumb } from '../components/photo-thumb';
 import { ScreenLayout } from '../components/screen-layout';
 import { db } from '../db/db';
@@ -39,6 +40,7 @@ import {
   type Customer,
   type InvoiceLine,
   type Locale,
+  type ShopProfile,
   type UUID,
   type Variant,
 } from '../types';
@@ -810,6 +812,13 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           onPartialPaidText={setPartialPaidText}
           partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
           customer={selectedCustomer}
+          sessionSales={sessionSales}
+          profile={profile}
+          partialPaidMinor={partialPaidMinor}
+          onNavigateSettings={() => {
+            setSummaryOpen(false);
+            navigate('/settings');
+          }}
           t={t}
         />
       ) : null}
@@ -1463,6 +1472,16 @@ function SessionSummary(props: {
   onPartialPaidText: (value: string) => void;
   partialTotalLabel: string;
   customer: Customer | null;
+  sessionSales: readonly {
+    article_name: string;
+    color: string | null;
+    size: string | null;
+    qty: number;
+    total: number;
+  }[];
+  profile: ShopProfile | null | undefined;
+  partialPaidMinor: number | null;
+  onNavigateSettings: () => void;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
   const {
@@ -1486,8 +1505,13 @@ function SessionSummary(props: {
     onPartialPaidText,
     partialTotalLabel,
     customer,
+    sessionSales,
+    profile,
+    partialPaidMinor,
+    onNavigateSettings,
     t,
   } = props;
+  const [previewOpen, setPreviewOpen] = useState(false);
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onResume()}>
       <Dialog.Portal>
@@ -1617,15 +1641,36 @@ function SessionSummary(props: {
           <button
             type="button"
             data-testid="sell-summary-create-invoice"
-            onClick={onCreateInvoice}
+            onClick={() => setPreviewOpen(true)}
             disabled={!canCreateInvoice || invoiceInFlight}
             className="bg-ink mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
           >
             <FileText aria-hidden className="h-4 w-4" strokeWidth={2.25} />
-            {documentMode === 'invoice'
-              ? t('summary_create_invoice')
-              : t('summary_create_receipt_invoice')}
+            {t('summary_preview_button')}
           </button>
+
+          <InvoicePreviewModal
+            open={previewOpen}
+            onClose={() => setPreviewOpen(false)}
+            onConfirm={() => {
+              setPreviewOpen(false);
+              onCreateInvoice();
+            }}
+            onNavigateSettings={() => {
+              setPreviewOpen(false);
+              onNavigateSettings();
+            }}
+            sessionSales={sessionSales}
+            documentMode={documentMode}
+            paymentMode={paymentMode}
+            customer={customer}
+            partialPaidMinor={partialPaidMinor}
+            sessionRevenue={total}
+            profile={profile}
+            currency={currency}
+            locale={locale}
+            t={t}
+          />
           {paymentWarning ? (
             <p className="text-bad mt-2 text-center text-xs" role="alert">
               {paymentWarning}

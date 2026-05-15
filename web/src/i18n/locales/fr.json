@@ -760,7 +760,17 @@
     "unpaid_empty_cart_hint": "Ajoutez d'abord des produits — vous pourrez créer la facture impayée une fois le panier rempli.",
     "preview_title": "Aperçu de la facture",
     "preview_empty": "Ajoutez des produits pour voir à quoi ressemblera la facture",
-    "preview_walkin": "Client de passage"
+    "preview_walkin": "Client de passage",
+    "summary_preview_button": "Aperçu & Créer",
+    "preview_warnings_title": "Avant d'émettre cette facture :",
+    "warn_no_legal_name": "Nom légal du commerce manquant",
+    "warn_no_address": "Adresse du commerce manquante",
+    "warn_no_fiscal_id": "Matricule fiscal manquant",
+    "warn_no_vat": "Taux de TVA non configuré",
+    "warn_no_customer": "Choisissez un client pour les factures formelles",
+    "preview_fix_settings": "Corriger dans Réglages",
+    "preview_confirm": "Confirmer & Créer",
+    "preview_disclaimer": "Non enregistrée. Il s'agit d'un brouillon."
   },
   "receive": {
     "title": "Réception stock",

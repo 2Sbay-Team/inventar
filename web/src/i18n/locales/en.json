@@ -760,7 +760,17 @@
     "unpaid_empty_cart_hint": "Add products first — you'll be able to create the unpaid invoice when items are in the cart.",
     "preview_title": "Invoice preview",
     "preview_empty": "Add products to see how the invoice will look",
-    "preview_walkin": "Walk-in customer"
+    "preview_walkin": "Walk-in customer",
+    "summary_preview_button": "Preview & Create",
+    "preview_warnings_title": "Before issuing this invoice:",
+    "warn_no_legal_name": "Shop legal name is missing",
+    "warn_no_address": "Shop address is missing",
+    "warn_no_fiscal_id": "Fiscal ID / Matricule is missing",
+    "warn_no_vat": "VAT rate is not configured",
+    "warn_no_customer": "Choose a customer for formal invoices",
+    "preview_fix_settings": "Fix in Settings",
+    "preview_confirm": "Confirm & Create",
+    "preview_disclaimer": "Not yet saved. This is a draft."
   },
   "receive": {
     "title": "Receive stock",
