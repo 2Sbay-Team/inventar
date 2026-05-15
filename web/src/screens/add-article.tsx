@@ -8,6 +8,7 @@ import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
+import { categoriesForFashionSubtypes } from '../config/fashion-subtypes';
 import { getSizeSuggestionsCapped } from '../config/size-suggestions';
 import {
   defaultUomForProfile,
@@ -178,8 +179,17 @@ export function AddArticleScreen(): JSX.Element {
     if (storeType === 'shop' && profile?.shop_subtypes && profile.shop_subtypes.length > 0) {
       return categoriesForSubtypes(profile.shop_subtypes);
     }
+    if (
+      storeType === 'fashion' &&
+      profile?.fashion_subtypes &&
+      profile.fashion_subtypes.length > 0
+    ) {
+      const filtered = categoriesForFashionSubtypes(profile.fashion_subtypes);
+      // Safety net: fall back to full union if filter produces nothing.
+      return filtered.length > 0 ? filtered : storeCfg.categories;
+    }
     return storeCfg.categories;
-  }, [storeCfg, storeType, profile?.shop_subtypes]);
+  }, [storeCfg, storeType, profile?.shop_subtypes, profile?.fashion_subtypes]);
   // v0.5.1: per-article opt-in for shop. The shop vertical defaults
   // to sizeless + colourless (the right call for groceries / kiosk
   // stock), but real shops also sell items like towels, notebooks or
@@ -196,7 +206,7 @@ export function AddArticleScreen(): JSX.Element {
   const [basics, setBasics] = useState<Basics>(() => ({
     brand: '',
     name: '',
-    category: storeCfg.categories[0] ?? '',
+    category: '',
     costInput: '',
     saleInput: '',
     notes: '',
@@ -226,6 +236,12 @@ export function AddArticleScreen(): JSX.Element {
       b.unitOfMeasure === 'piece' && next !== 'piece' ? { ...b, unitOfMeasure: next } : b,
     );
   }, [profile]);
+
+  useEffect(() => {
+    if (!basics.category && categories.length > 0) {
+      setBasics((b) => ({ ...b, category: categories[0] }));
+    }
+  }, [categories, basics.category]);
   // v0.5.6 — colour matrix is suppressed for any measured UoM (weight,
   // volume, length): a roll of fabric has no "blue vs red" axis worth
   // tracking per metre. Size is more nuanced — a weight/volume UoM
