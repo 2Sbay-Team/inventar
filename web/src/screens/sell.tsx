@@ -901,6 +901,15 @@ function SaleCustomerPanel(props: {
             ))}
           </div>
 
+          {(paymentMode === 'partial' || paymentMode === 'unpaid') && !hasBillableTotal ? (
+            <p
+              data-testid="payment-mode-empty-hint"
+              className="text-ink-3 mt-2 text-[11px] leading-relaxed"
+            >
+              {t(paymentMode === 'partial' ? 'partial_empty_cart_hint' : 'unpaid_empty_cart_hint')}
+            </p>
+          ) : null}
+
           {paymentMode === 'partial' && hasBillableTotal ? (
             <div>
               <label className="text-ink-3 mb-1 block text-[11px] font-medium uppercase tracking-wide">
@@ -1547,6 +1556,17 @@ function SessionSummary(props: {
                 </button>
               ))}
             </div>
+
+            {(paymentMode === 'partial' || paymentMode === 'unpaid') && total === 0 ? (
+              <p
+                data-testid="payment-mode-empty-hint"
+                className="text-ink-3 mt-2 text-[11px] leading-relaxed"
+              >
+                {t(
+                  paymentMode === 'partial' ? 'partial_empty_cart_hint' : 'unpaid_empty_cart_hint',
+                )}
+              </p>
+            ) : null}
 
             {paymentMode === 'partial' && total > 0 ? (
               <div>
