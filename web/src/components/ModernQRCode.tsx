@@ -38,6 +38,9 @@ export interface ModernQRCodeProps {
   size?: number;
   // data-testid for the outer container div.
   testId?: string;
+  // When true, forces pure black (#000000) regardless of brandColor.
+  // Used by the print flow so physical labels use black ink only.
+  forceBlack?: boolean;
 }
 
 // Encode a short text label as an SVG data URL so it can be passed to
@@ -66,12 +69,13 @@ export function ModernQRCode({
   centerText,
   size = 200,
   testId,
+  forceBlack = false,
 }: ModernQRCodeProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   // Keep a ref to the current QRCodeStyling instance so we can clean up.
   const qrRef = useRef<QRCodeStyling | null>(null);
 
-  const safeColor = getSafeQrColor(brandColor ?? null);
+  const dark = forceBlack ? '#000000' : getSafeQrColor(brandColor ?? null);
   const centerImage: string | undefined =
     logoUrl ?? (centerText ? textToSvgDataUrl(centerText) : undefined);
 
@@ -90,9 +94,9 @@ export function ModernQRCode({
       height: size,
       data: value,
       image: centerImage,
-      dotsOptions: { type: 'rounded', color: safeColor },
-      cornersSquareOptions: { type: 'extra-rounded', color: safeColor },
-      cornersDotOptions: { type: 'dot', color: safeColor },
+      dotsOptions: { type: 'rounded', color: dark },
+      cornersSquareOptions: { type: 'extra-rounded', color: dark },
+      cornersDotOptions: { type: 'dot', color: dark },
       backgroundOptions: { color: '#FFFFFF' },
       imageOptions: { hideBackgroundDots: true, imageSize: 0.25, margin: 4 },
       qrOptions: { errorCorrectionLevel: 'H' },
@@ -107,7 +111,7 @@ export function ModernQRCode({
       container.innerHTML = '';
       qrRef.current = null;
     };
-  }, [value, safeColor, centerImage, size]);
+  }, [value, dark, centerImage, size]);
 
   return (
     <div

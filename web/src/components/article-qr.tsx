@@ -3,6 +3,11 @@ import QRCode from 'qrcode';
 import { injectQrCenterBranding, type QrBrandingOptions } from '../utils/qr-branding';
 import { getSafeQrColor } from '../utils/contrast';
 
+// Exported for testing — encapsulates the forceBlack/brand-color decision.
+export function getQrDarkColor(brandColor: string | null | undefined, forceBlack: boolean): string {
+  return forceBlack ? '#000000' : getSafeQrColor(brandColor);
+}
+
 interface ArticleQRProps {
   articleId: string;
   // Size of the rendered SVG image in CSS px. The QR is generated as
@@ -17,6 +22,9 @@ interface ArticleQRProps {
   // Optional brand colour for the QR dark modules. Pale colours are
   // automatically rejected by getSafeQrColor() so labels stay scannable.
   brandColor?: string | null;
+  // When true, forces pure black (#000000) regardless of brandColor.
+  // Used by the print flow so physical labels use black ink only.
+  forceBlack?: boolean;
   // Optional tap feedback/action for future scanner-style cards. This is
   // implemented with CSS only; no motion dependency is required.
   onScan?: () => void;
@@ -33,6 +41,7 @@ export function ArticleQR({
   testId,
   branding,
   brandColor,
+  forceBlack = false,
   onScan,
   interactive = false,
 }: ArticleQRProps): JSX.Element {
@@ -51,7 +60,7 @@ export function ArticleQR({
       // branding. The safe colour utility keeps contrast high for scanners.
       errorCorrectionLevel: 'H',
       margin: 1,
-      color: { dark: getSafeQrColor(brandColor), light: '#FFFFFF' },
+      color: { dark: getQrDarkColor(brandColor, forceBlack), light: '#FFFFFF' },
     }).then((svgString) => {
       if (cancelled) return;
       setRawSvg(svgString);
@@ -59,7 +68,7 @@ export function ArticleQR({
     return () => {
       cancelled = true;
     };
-  }, [articleId, brandColor]);
+  }, [articleId, brandColor, forceBlack]);
 
   // Apply branding on top of the raw QR SVG. Cheap (regex + string
   // concat) so re-running on every render is fine when the parent

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Printer, Check } from 'lucide-react';
@@ -23,6 +24,8 @@ export function ArticleLabelScreen(): JSX.Element | null {
   // no logo is available, so this screen doesn't need to retry.
   const branding = useQrBranding();
 
+  const [isPrintMode, setIsPrintMode] = useState(false);
+
   if (detail === undefined || profile === undefined) return null;
   const { article } = detail;
   if (!article) {
@@ -33,8 +36,12 @@ export function ArticleLabelScreen(): JSX.Element | null {
     );
   }
 
-  function handlePrint(): void {
+  async function handlePrint(): Promise<void> {
+    setIsPrintMode(true);
+    // Let React flush the forceBlack re-render before the print dialog opens.
+    await new Promise<void>((r) => setTimeout(r, 50));
     window.print();
+    setIsPrintMode(false);
   }
 
   const useModernQr = flagEnabled('modern_qr_style');
@@ -69,6 +76,7 @@ export function ArticleLabelScreen(): JSX.Element | null {
                 centerText={branding?.text}
                 size={256}
                 testId="label-qr"
+                forceBlack={isPrintMode}
               />
             ) : (
               <ArticleQR
@@ -77,6 +85,7 @@ export function ArticleLabelScreen(): JSX.Element | null {
                 testId="label-qr"
                 branding={branding}
                 brandColor={profile?.brand_primary_color}
+                forceBlack={isPrintMode}
               />
             )}
           </div>
@@ -103,7 +112,7 @@ export function ArticleLabelScreen(): JSX.Element | null {
           <button
             type="button"
             data-testid="label-print"
-            onClick={handlePrint}
+            onClick={() => void handlePrint()}
             className="bg-accent inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white"
           >
             <Printer aria-hidden className="h-4 w-4" strokeWidth={2} />

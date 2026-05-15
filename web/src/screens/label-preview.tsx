@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Check, Printer } from 'lucide-react';
@@ -26,9 +27,13 @@ export function LabelPreviewScreen(): JSX.Element | null {
   // the auto-fallback behaviour when the merchant picked 'logo' but
   // their logo has since been removed.
   const branding = useQrBranding();
+  const [isPrintMode, setIsPrintMode] = useState(false);
 
-  function handlePrint(): void {
+  async function handlePrint(): Promise<void> {
+    setIsPrintMode(true);
+    await new Promise<void>((r) => setTimeout(r, 50));
     window.print();
+    setIsPrintMode(false);
   }
 
   if (profile === undefined) return null;
@@ -62,6 +67,7 @@ export function LabelPreviewScreen(): JSX.Element | null {
                 centerText={branding?.text}
                 size={256}
                 testId="label-qr"
+                forceBlack={isPrintMode}
               />
             ) : (
               <ArticleQR
@@ -70,6 +76,7 @@ export function LabelPreviewScreen(): JSX.Element | null {
                 testId="label-qr"
                 branding={branding}
                 brandColor={profile?.brand_primary_color}
+                forceBlack={isPrintMode}
               />
             )}
           </div>
@@ -95,7 +102,7 @@ export function LabelPreviewScreen(): JSX.Element | null {
           <button
             type="button"
             data-testid="label-print"
-            onClick={handlePrint}
+            onClick={() => void handlePrint()}
             className="bg-accent inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white"
           >
             <Printer aria-hidden className="h-4 w-4" strokeWidth={2} />
