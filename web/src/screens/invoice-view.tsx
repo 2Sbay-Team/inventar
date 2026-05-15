@@ -127,7 +127,16 @@ export function InvoiceViewScreen(): JSX.Element | null {
               {invoice.number}
             </p>
             <p className="text-ink-3 mt-0.5 text-xs">
-              {new Date(invoice.issued_at).toLocaleString(locale)}
+              {new Date(invoice.issued_at).toLocaleDateString(locale, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+              })}{' '}
+              ·{' '}
+              {new Date(invoice.issued_at).toLocaleTimeString(locale, {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">

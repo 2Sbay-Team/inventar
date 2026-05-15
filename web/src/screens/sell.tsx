@@ -522,10 +522,6 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
             .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
             .join(', ') || null
         : null;
-      const paymentNote = t(`payment_note_${paymentMode}`, {
-        total: formatCurrency(sessionRevenue, locale, currency),
-        customer: selectedCustomer?.name ?? t('customer_walk_in'),
-      });
       const invoice = await createInvoice(db, {
         transaction_id: sessionIdRef.current,
         customer_id: selectedCustomer?.id ?? null,
@@ -539,7 +535,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         payment_mode: paymentMode,
         paid_minor: paymentMode === 'partial' ? (paidMinor ?? 0) : undefined,
         due_at: paymentMode === 'paid' ? null : defaultInvoiceDueDateISO(),
-        notes: paymentNote,
+        notes: null,
       });
       navigate(`/invoice/${invoice.id}`);
     } catch (err) {
