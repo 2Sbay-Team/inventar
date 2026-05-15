@@ -8,12 +8,7 @@ import { ActivityFeed } from '../components/activity-feed';
 import { QuickAdjustSheet, type QuickAdjustTarget } from '../components/quick-adjust-sheet';
 import { MoreMenuSheet } from '../components/more-menu-sheet';
 import { PhotoThumb } from '../components/photo-thumb';
-import * as Dialog from '@radix-ui/react-dialog';
-import { Camera, Minus, Plus, QrCode, X } from 'lucide-react';
-import { ArticleQR } from '../components/article-qr';
-import { ModernQRCode } from '../components/ModernQRCode';
-import { useQrBranding } from '../hooks/use-qr-branding';
-import { flagEnabled } from '../utils/feature-flags';
+import { Camera, Minus, Plus, QrCode } from 'lucide-react';
 import {
   articleHasExpiry,
   articleHasSizes,
@@ -77,8 +72,6 @@ export function ArticleDetailScreen(): JSX.Element {
   const [adjustTarget, setAdjustTarget] = useState<QuickAdjustTarget | null>(null);
   const [adjustReason, setAdjustReason] = useState<MovementType>('sale');
   const [moreOpen, setMoreOpen] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const qrBranding = useQrBranding();
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   // v0.5.2.8 — industry-standard photo-per-colour pattern (Shopify /
@@ -274,7 +267,7 @@ export function ArticleDetailScreen(): JSX.Element {
         <button
           type="button"
           data-testid="detail-qr"
-          onClick={() => setQrOpen(true)}
+          onClick={() => navigate(`/article/${article.id}/sheet`)}
           className="text-ink-3 hover:text-accent ms-1 inline-flex items-center"
           aria-label={t('show_qr')}
         >
@@ -624,66 +617,6 @@ export function ArticleDetailScreen(): JSX.Element {
         onArchived={() => navigate('/', { replace: true })}
         onDeleted={() => navigate('/', { replace: true })}
       />
-
-      <Dialog.Root open={qrOpen} onOpenChange={setQrOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-          <Dialog.Content
-            data-testid="article-qr-dialog"
-            className="bg-paper fixed inset-x-0 bottom-0 max-h-[90dvh] overflow-y-auto rounded-t-3xl p-5 shadow-xl"
-          >
-            <div className="flex items-center justify-between">
-              <Dialog.Title className="font-display inline-flex items-center gap-2 text-base font-semibold">
-                <QrCode aria-hidden className="h-5 w-5" strokeWidth={2} />
-                {t('show_qr')}
-              </Dialog.Title>
-              <Dialog.Close
-                type="button"
-                className="text-ink-3 hover:text-ink rounded-full p-1"
-                aria-label={tCommon('close')}
-              >
-                <X aria-hidden className="h-5 w-5" strokeWidth={2} />
-              </Dialog.Close>
-            </div>
-            <div className="mt-4 flex flex-col items-center gap-3">
-              <div className="border-hair rounded-2xl border bg-white p-4">
-                {flagEnabled('modern_qr_style') ? (
-                  <ModernQRCode
-                    value={`https://inventar.hoodhood.ai/article/${article.id}`}
-                    brandColor={profile?.brand_primary_color}
-                    logoUrl={qrBranding?.logoDataUrl}
-                    centerText={qrBranding?.text}
-                    size={224}
-                    testId="article-qr"
-                  />
-                ) : (
-                  <ArticleQR
-                    articleId={article.id}
-                    size={224}
-                    branding={qrBranding}
-                    brandColor={profile?.brand_primary_color}
-                  />
-                )}
-              </div>
-              <div className="text-center">
-                <p className="text-ink text-sm font-medium">{article.name}</p>
-                <p className="text-ink-3 font-mono text-xs">{article.internal_code}</p>
-              </div>
-              <p className="text-ink-3 max-w-xs text-center text-xs leading-relaxed">
-                {t('qr_hint')}
-              </p>
-              <button
-                type="button"
-                data-testid="qr-dialog-print"
-                onClick={() => navigate(`/article/${article.id}/label`)}
-                className="bg-accent mt-2 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white"
-              >
-                {t('print_label')}
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </ScreenLayout>
   );
 }
