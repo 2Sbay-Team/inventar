@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useSafeBack } from '../hooks/use-safe-back';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, Plus, Search, Trash2, Users } from 'lucide-react';
 
@@ -52,7 +53,7 @@ function draftFromCustomer(c: Customer): CustomerDraft {
 export function CustomersScreen(): JSX.Element {
   const { t } = useTranslation('customers');
   const { t: tCommon } = useTranslation('common');
-  const navigate = useNavigate();
+  const goBack = useSafeBack();
   const customers = useLive(() => listCustomers(db), [], []);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<CustomerDraft | null>(null);
@@ -86,7 +87,7 @@ export function CustomersScreen(): JSX.Element {
         <button
           type="button"
           aria-label={tCommon('back')}
-          onClick={() => navigate(-1)}
+          onClick={() => goBack()}
           className="text-ink-3 -ml-2 inline-flex h-9 w-9 items-center justify-center rounded-full"
         >
           <ChevronLeft aria-hidden className="h-6 w-6 rtl:rotate-180" strokeWidth={2.25} />

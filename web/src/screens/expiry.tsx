@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useSafeBack } from '../hooks/use-safe-back';
 import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowLeft, EyeOff, Tag, TriangleAlert, Undo2, X, XOctagon } from 'lucide-react';
 
@@ -109,7 +110,7 @@ export function ExpiryScreen({ embedded = false }: { embedded?: boolean } = {}):
   const { t: tCommon } = useTranslation('common');
   const { locale } = useLocale();
   const currency = useCurrency();
-  const navigate = useNavigate();
+  const goBack = useSafeBack();
   const [filter, setFilter] = useState<FilterKey>('week');
   const [now] = useState<Date>(() => new Date());
   const [busyVariantId, setBusyVariantId] = useState<UUID | null>(null);
@@ -341,12 +342,12 @@ export function ExpiryScreen({ embedded = false }: { embedded?: boolean } = {}):
   if (embedded) return Body;
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
         <button
           type="button"
           data-testid="expiry-back"
-          onClick={() => navigate(-1)}
+          onClick={() => goBack()}
           className="text-ink-3 inline-flex items-center gap-1 justify-self-start text-xs font-medium"
         >
           <ArrowLeft aria-hidden className="h-4 w-4 rtl:rotate-180" strokeWidth={2.25} />

@@ -41,7 +41,7 @@ export function LabelPreviewScreen(): JSX.Element | null {
   const useModernQr = flagEnabled('modern_qr_style');
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <div
         data-testid="label-preview-screen"
         className="flex flex-1 flex-col items-center justify-between gap-6 p-6 print:p-0"

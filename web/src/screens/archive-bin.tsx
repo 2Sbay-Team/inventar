@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+
+import { useSafeBack } from '../hooks/use-safe-back';
 import { ScreenLayout } from '../components/screen-layout';
 import { useLive } from '../hooks/use-live';
 import { db } from '../db/db';
@@ -13,7 +14,7 @@ async function listArchived(): Promise<Article[]> {
 export function ArchiveBinScreen(): JSX.Element {
   const { t } = useTranslation('archive');
   const { t: tCommon } = useTranslation('common');
-  const navigate = useNavigate();
+  const goBack = useSafeBack();
   const archived = useLive<Article[]>(listArchived, [], []);
 
   return (
@@ -22,7 +23,7 @@ export function ArchiveBinScreen(): JSX.Element {
         <button
           type="button"
           data-testid="archive-back"
-          onClick={() => navigate(-1)}
+          onClick={() => goBack()}
           className="text-ink"
         >
           ←

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+
+import { useSafeBack } from '../hooks/use-safe-back';
 import {
   ArrowLeft,
   Bell,
@@ -63,7 +64,7 @@ const SECTIONS: ReadonlyArray<Section> = [
 export function HelpScreen(): JSX.Element {
   const { t } = useTranslation('help');
   const { t: tCommon } = useTranslation('common');
-  const navigate = useNavigate();
+  const goBack = useSafeBack();
 
   return (
     <ScreenLayout hideNav>
@@ -71,7 +72,7 @@ export function HelpScreen(): JSX.Element {
         <button
           type="button"
           data-testid="help-back"
-          onClick={() => navigate(-1)}
+          onClick={() => goBack()}
           className="text-ink-2 hover:text-ink p-1"
           aria-label={tCommon('back')}
         >

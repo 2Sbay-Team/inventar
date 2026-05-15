@@ -10,13 +10,22 @@ interface ScreenLayoutProps {
   // Set to true on Article detail / Add Article — those screens use their
   // own action bar at the bottom and should not show the bottom nav.
   hideNav?: boolean;
+  // Set to true on task/print screens to suppress the AppFooter brand chrome.
+  // Critical for print screens (article-label, invoice-view, label-sheet)
+  // where the footer would appear on physical labels given to customers.
+  hideFooter?: boolean;
   // Wider desktop shell for dense screens like Settings. Default stays the
   // original mobile-first max-width so product/sale/report screens are not
   // changed by this polish pass.
   wide?: boolean;
 }
 
-export function ScreenLayout({ children, hideNav, wide = false }: ScreenLayoutProps): JSX.Element {
+export function ScreenLayout({
+  children,
+  hideNav,
+  hideFooter,
+  wide = false,
+}: ScreenLayoutProps): JSX.Element {
   const desktopMaxWidth = wide ? 'min-[1280px]:max-w-[1120px]' : 'min-[1280px]:max-w-[880px]';
 
   return (
@@ -32,7 +41,7 @@ export function ScreenLayout({ children, hideNav, wide = false }: ScreenLayoutPr
         >
           {children}
         </div>
-        <AppFooter />
+        {hideFooter ? null : <AppFooter />}
         {hideNav ? null : <BottomNav />}
         <Fab />
       </div>

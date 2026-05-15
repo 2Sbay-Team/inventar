@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, ScanLine, Trash2 } from 'lucide-react';
+import { useSafeBack } from '../hooks/use-safe-back';
 import { BarcodeScanner } from '../components/barcode-scanner';
 import { PhotoPicker } from '../components/photo-picker';
 import { ScreenLayout } from '../components/screen-layout';
@@ -166,6 +167,7 @@ export function AddArticleScreen(): JSX.Element {
   const { t: tColor } = useTranslation('color');
   const { t: tCategory } = useTranslation('category');
   const navigate = useNavigate();
+  const goBack = useSafeBack('/products');
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
@@ -596,12 +598,12 @@ export function AddArticleScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <header className="border-hair grid grid-cols-3 items-center border-b px-4 py-3">
         <button
           type="button"
           data-testid={step === 1 ? 'add-cancel' : 'add-back'}
-          onClick={() => (step === 1 ? navigate(-1) : setStep(1))}
+          onClick={() => (step === 1 ? goBack() : setStep(1))}
           className="text-ink-3 justify-self-start text-xs"
         >
           {step === 1 ? tCommon('cancel') : tCommon('back')}

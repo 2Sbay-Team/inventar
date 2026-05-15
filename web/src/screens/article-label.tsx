@@ -30,7 +30,7 @@ export function ArticleLabelScreen(): JSX.Element | null {
   const { article } = detail;
   if (!article) {
     return (
-      <ScreenLayout hideNav>
+      <ScreenLayout hideNav hideFooter>
         <div className="text-ink-3 p-6 text-center text-sm">{t('not_found')}</div>
       </ScreenLayout>
     );
@@ -47,7 +47,7 @@ export function ArticleLabelScreen(): JSX.Element | null {
   const useModernQr = flagEnabled('modern_qr_style');
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <div
         data-testid="label-screen"
         className="flex flex-1 flex-col items-center justify-between gap-6 p-6 print:p-0"

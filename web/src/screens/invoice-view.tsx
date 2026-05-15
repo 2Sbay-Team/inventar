@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useSafeBack } from '../hooks/use-safe-back';
 import { Printer, Share2 } from 'lucide-react';
 
 import { PhotoThumb } from '../components/photo-thumb';
@@ -27,7 +28,7 @@ import { type Invoice, type ShopProfile } from '../types';
 // language-specific labels) and adds the Print button.
 export function InvoiceViewScreen(): JSX.Element | null {
   const { t } = useTranslation('invoice');
-  const navigate = useNavigate();
+  const goBack = useSafeBack();
   const { id } = useParams<{ id: string }>();
   const { locale } = useLocale();
   const profile = useProfile();
@@ -106,7 +107,7 @@ export function InvoiceViewScreen(): JSX.Element | null {
   if (invoice === undefined || profile === undefined) return null;
   if (!invoice) {
     return (
-      <ScreenLayout hideNav>
+      <ScreenLayout hideNav hideFooter>
         <div className="text-ink-3 p-6 text-center text-sm">{t('not_found')}</div>
       </ScreenLayout>
     );
@@ -117,7 +118,7 @@ export function InvoiceViewScreen(): JSX.Element | null {
   const paidMinor = paidMinorForInvoice(invoice);
   const balanceDue = balanceDueForInvoice(invoice);
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <main data-testid="invoice-screen" className="flex flex-1 flex-col gap-4 p-4 print:p-0">
         <header className="flex items-start justify-between print:hidden">
           <div>
@@ -153,7 +154,7 @@ export function InvoiceViewScreen(): JSX.Element | null {
               <button
                 type="button"
                 data-testid="invoice-back"
-                // v0.6.6 — navigate(-1) returns to whichever screen
+                // v0.6.6 — goBack() returns to whichever screen
                 // brought the merchant here: /invoices when they tapped
                 // a row in the past-invoices list, /search (or wherever
                 // /sell was navigated from) when they just committed a
@@ -162,7 +163,7 @@ export function InvoiceViewScreen(): JSX.Element | null {
                 // back lands one further up the stack. Previous code
                 // always slammed home to '/', which dumped merchants
                 // coming from /invoices on Search instead of the list.
-                onClick={() => navigate(-1)}
+                onClick={() => goBack()}
                 className="border-hair text-ink rounded-xl border px-3 py-1.5 text-xs"
               >
                 {t('done')}

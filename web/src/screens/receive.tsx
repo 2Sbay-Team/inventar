@@ -138,12 +138,12 @@ export function ReceiveScreen(): JSX.Element {
 
   // ─── render ─────────────────────────────────────────────────────────
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <header className="border-hair grid grid-cols-3 items-center border-b bg-white px-4 py-3">
         <button
           type="button"
           data-testid="receive-done"
-          onClick={() => navigate('/', { replace: true })}
+          onClick={() => navigate('/reports', { replace: true })}
           className="text-ink-3 justify-self-start text-xs font-medium"
         >
           {t('done')}

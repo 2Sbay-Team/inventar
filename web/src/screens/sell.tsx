@@ -120,7 +120,7 @@ export function SellScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       {tab === 'documents' ? (
         <DocumentsTab onSwitch={selectTab} active={tab} />
       ) : (
@@ -182,7 +182,7 @@ function DocumentsTab(props: { active: SubTab; onSwitch: (t: SubTab) => void }):
           type="button"
           data-testid="sell-close"
           aria-label={t('close')}
-          onClick={() => navigate('/', { replace: true })}
+          onClick={() => navigate('/reports', { replace: true })}
           className="text-ink-3 -ml-2 inline-flex h-9 w-9 items-center justify-center justify-self-start rounded-full"
         >
           <X aria-hidden className="h-6 w-6" strokeWidth={2.25} />
@@ -570,7 +570,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   // ─── X / End session ───────────────────────────────────────────────
   function handleClose(): void {
     if (sessionSales.length === 0) {
-      navigate('/', { replace: true });
+      navigate('/reports', { replace: true });
       return;
     }
     setEndConfirm(true);
@@ -752,7 +752,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           onKeep={() => setEndConfirm(false)}
           onEnd={() => {
             setEndConfirm(false);
-            navigate('/', { replace: true });
+            navigate('/reports', { replace: true });
           }}
           t={t}
         />

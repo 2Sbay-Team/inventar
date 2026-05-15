@@ -55,12 +55,12 @@ export function AlertsScreen(): JSX.Element {
   const showExpiringTab = profile?.store_type === 'shop';
 
   return (
-    <ScreenLayout>
+    <ScreenLayout hideFooter>
       <header className="border-hair flex items-center gap-2 border-b bg-white px-3 py-2">
         <button
           type="button"
           data-testid="alerts-back"
-          onClick={() => navigate('/', { replace: true })}
+          onClick={() => navigate('/reports', { replace: true })}
           aria-label={t('back')}
           className="text-ink-3 inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-paper-deep"
         >

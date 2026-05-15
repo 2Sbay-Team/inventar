@@ -144,7 +144,7 @@ export function LabelSheetScreen(): JSX.Element | null {
   if (data === undefined || profile === undefined) return null;
   if (!data) {
     return (
-      <ScreenLayout hideNav>
+      <ScreenLayout hideNav hideFooter>
         <div className="text-ink-3 p-6 text-center text-sm">{t('not_found')}</div>
       </ScreenLayout>
     );
@@ -155,7 +155,7 @@ export function LabelSheetScreen(): JSX.Element | null {
     layout === 'sheet_3x4' ? 'grid-cols-3' : layout === 'sheet_2x5' ? 'grid-cols-2' : 'grid-cols-4';
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       {/* Controls — hidden when printing */}
       <header className="border-hair flex items-center gap-3 border-b bg-white px-4 py-3 print:hidden">
         <button

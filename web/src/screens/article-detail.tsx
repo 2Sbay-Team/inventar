@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useSafeBack } from '../hooks/use-safe-back';
 import { ScreenLayout } from '../components/screen-layout';
 import { SizeGrid } from '../components/size-grid';
 import { ActivityFeed } from '../components/activity-feed';
@@ -36,6 +37,7 @@ export function ArticleDetailScreen(): JSX.Element {
   const { t: tCommon } = useTranslation('common');
   const { t: tColor } = useTranslation('color');
   const navigate = useNavigate();
+  const goBack = useSafeBack();
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const detail = useArticleDetail(id);
@@ -148,13 +150,13 @@ export function ArticleDetailScreen(): JSX.Element {
 
   if (detail === undefined)
     return (
-      <ScreenLayout hideNav>
+      <ScreenLayout hideNav hideFooter>
         <main className="flex-1" />
       </ScreenLayout>
     );
   if (!detail.article) {
     return (
-      <ScreenLayout hideNav>
+      <ScreenLayout hideNav hideFooter>
         <main data-testid="article-not-found" className="flex flex-1 items-center justify-center">
           <p className="text-ink-3 text-sm">{tCommon('dash')}</p>
         </main>
@@ -233,7 +235,7 @@ export function ArticleDetailScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideNav>
+    <ScreenLayout hideNav hideFooter>
       <header
         data-testid="detail-bar"
         className="border-hair flex flex-shrink-0 items-center justify-between border-b px-4 py-3"
@@ -241,7 +243,7 @@ export function ArticleDetailScreen(): JSX.Element {
         <button
           type="button"
           data-testid="detail-back"
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="text-ink"
           aria-label={tCommon('back')}
         >
