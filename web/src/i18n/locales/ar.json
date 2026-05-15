@@ -753,7 +753,9 @@
     "partial_paid_label": "المبلغ المدفوع الآن",
     "partial_paid_placeholder": "أدخل المبلغ المدفوع",
     "partial_paid_hint": "يجب أن يكون أكبر من 0 وأقل من {{total}}.",
-    "partial_paid_invalid": "أدخل مبلغاً جزئياً أكبر من 0 وأقل من المجموع."
+    "partial_paid_invalid": "أدخل مبلغاً جزئياً أكبر من 0 وأقل من المجموع.",
+    "invoice_create_failed": "تعذَّر إنشاء الفاتورة. حاول مرة أخرى.",
+    "sale_record_failed": "تعذَّر تسجيل البيع. حاول مرة أخرى."
   },
   "receive": {
     "title": "استلام البضاعة",

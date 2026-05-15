@@ -753,7 +753,9 @@
     "partial_paid_label": "Amount paid now",
     "partial_paid_placeholder": "Enter paid amount",
     "partial_paid_hint": "Must be more than 0 and less than {{total}}.",
-    "partial_paid_invalid": "Enter a partial amount greater than 0 and less than the total."
+    "partial_paid_invalid": "Enter a partial amount greater than 0 and less than the total.",
+    "invoice_create_failed": "Couldn't create invoice. Please try again.",
+    "sale_record_failed": "Couldn't record the sale. Please try again."
   },
   "receive": {
     "title": "Receive stock",

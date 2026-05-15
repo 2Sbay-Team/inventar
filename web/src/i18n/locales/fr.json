@@ -753,7 +753,9 @@
     "partial_paid_label": "Montant payé maintenant",
     "partial_paid_placeholder": "Saisir le montant payé",
     "partial_paid_hint": "Doit être supérieur à 0 et inférieur à {{total}}.",
-    "partial_paid_invalid": "Saisissez un montant partiel supérieur à 0 et inférieur au total."
+    "partial_paid_invalid": "Saisissez un montant partiel supérieur à 0 et inférieur au total.",
+    "invoice_create_failed": "Impossible de créer la facture. Réessayez.",
+    "sale_record_failed": "Impossible d'enregistrer la vente. Réessayez."
   },
   "receive": {
     "title": "Réception stock",

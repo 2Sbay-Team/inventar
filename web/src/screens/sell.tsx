@@ -453,34 +453,39 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   }): Promise<void> {
     const { article, variant, qty } = input;
     if (qty <= 0) return;
-    const lot = await pickFifoLot(db, variant.id);
-    const mv = await recordMovement(db, {
-      variant_id: variant.id,
-      delta: -qty,
-      type: 'sale',
-      location: 'floor',
-      transaction_id: sessionIdRef.current,
-      lot_id: lot?.id ?? null,
-      unit_price_tnd: article.sale_price_tnd,
-    });
-    const sale: SessionSale = {
-      movement_id: mv.id,
-      article_id: article.id,
-      variant_id: variant.id,
-      article_name: article.name,
-      internal_code: article.internal_code,
-      color: variant.color,
-      size: variant.size,
-      unit_of_measure: article.unit_of_measure,
-      qty,
-      total: qty * article.sale_price_tnd,
-    };
-    setSessionSales((s) => [...s, sale]);
-    setPickerArticleId(null);
-    const label = [article.name, variant.color, variant.size]
-      .filter((p): p is string => typeof p === 'string' && p.length > 0)
-      .join(' ');
-    setToast(t('toast_sold', { label, total: formatCurrency(sale.total, locale, currency) }));
+    try {
+      const lot = await pickFifoLot(db, variant.id);
+      const mv = await recordMovement(db, {
+        variant_id: variant.id,
+        delta: -qty,
+        type: 'sale',
+        location: 'floor',
+        transaction_id: sessionIdRef.current,
+        lot_id: lot?.id ?? null,
+        unit_price_tnd: article.sale_price_tnd,
+      });
+      const sale: SessionSale = {
+        movement_id: mv.id,
+        article_id: article.id,
+        variant_id: variant.id,
+        article_name: article.name,
+        internal_code: article.internal_code,
+        color: variant.color,
+        size: variant.size,
+        unit_of_measure: article.unit_of_measure,
+        qty,
+        total: qty * article.sale_price_tnd,
+      };
+      setSessionSales((s) => [...s, sale]);
+      setPickerArticleId(null);
+      const label = [article.name, variant.color, variant.size]
+        .filter((p): p is string => typeof p === 'string' && p.length > 0)
+        .join(' ');
+      setToast(t('toast_sold', { label, total: formatCurrency(sale.total, locale, currency) }));
+    } catch (err) {
+      console.error('confirmSale failed', err);
+      setToast(t('sale_record_failed'));
+    }
   }
 
   async function createSessionInvoice(): Promise<void> {
@@ -537,6 +542,9 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         notes: paymentNote,
       });
       navigate(`/invoice/${invoice.id}`);
+    } catch (err) {
+      console.error('createSessionInvoice failed', err);
+      setToast(t('invoice_create_failed'));
     } finally {
       setInvoicing(false);
     }
