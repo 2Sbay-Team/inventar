@@ -890,8 +890,7 @@ function SaleCustomerPanel(props: {
                 data-testid={`sale-payment-${mode}`}
                 onClick={() => onPaymentMode(mode)}
                 aria-pressed={paymentMode === mode}
-                disabled={mode !== 'paid' && !hasBillableTotal}
-                className={`rounded-xl border px-2 py-2 text-[11px] font-semibold disabled:opacity-40 ${
+                className={`rounded-xl border px-2 py-2 text-[11px] font-semibold ${
                   paymentMode === mode
                     ? 'border-accent bg-accent text-white'
                     : 'border-hair bg-white text-ink-2'
@@ -1538,8 +1537,7 @@ function SessionSummary(props: {
                   data-testid={`sell-summary-payment-${mode}`}
                   onClick={() => onPaymentMode(mode)}
                   aria-pressed={paymentMode === mode}
-                  disabled={mode !== 'paid' && total === 0}
-                  className={`rounded-xl border px-2 py-2 text-[11px] font-semibold disabled:opacity-40 ${
+                  className={`rounded-xl border px-2 py-2 text-[11px] font-semibold ${
                     paymentMode === mode
                       ? 'border-accent bg-accent text-white'
                       : 'border-hair bg-white text-ink-2'
