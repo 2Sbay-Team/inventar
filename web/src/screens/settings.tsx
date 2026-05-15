@@ -72,6 +72,14 @@ import { type QrBrandingOptions } from '../utils/qr-branding';
 
 const EXPIRY_THRESHOLD_OPTIONS: readonly number[] = [3, 7, 14, 30];
 
+function parseProfileVat(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0 || n > 50) return null;
+  return Math.round(n);
+}
+
 // v0.5 ADR-018 (gap-fix opt-in): shop-only EAN strictness toggle.
 // Default off — loose validation (12/13 digits, no checksum) covers
 // the brief's test fixtures and most real Tunisian retail barcodes.
@@ -460,7 +468,6 @@ function ShopIdentitySection({ sections }: { sections: SettingsSectionsApi }): J
         <LocationSubsection profile={profile} />
         <HoursSubsection profile={profile} />
         <SocialSubsection profile={profile} />
-        <BusinessSubsection profile={profile} />
         <BusinessCardSubsection profile={profile} completionPercentage={completion.percentage} />
       </div>
     </SettingsSection>
@@ -611,6 +618,9 @@ function AppThemeSubsection({ profile }: { profile: ShopProfile }): JSX.Element 
 function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element {
   const { t } = useTranslation('settings');
   const { setField, status } = useSubsectionAutosave(profile);
+  const [vatDraft, setVatDraft] = useState<string | null>(null);
+  const vatValue =
+    vatDraft ?? (profile.default_vat_pct == null ? '' : String(profile.default_vat_pct));
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -636,6 +646,9 @@ function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element 
         multiline
         onCommit={(value) => setField('description', value)}
       />
+      {/* Seller identity used by invoices. Sale/Facture reads these fields
+          when generating customer invoices, so the merchant fills them once
+          here instead of maintaining a duplicate Invoicing section. */}
       <IdentityTextField
         testId="identity-legal-name"
         label={t('identity_legal_name')}
@@ -645,6 +658,39 @@ function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element 
         maxLength={120}
         onCommit={(value) => setField('legal_name', value)}
       />
+      <IdentityTextField
+        testId="identity-fiscal-id"
+        label={t('identity_fiscal_id')}
+        placeholder={t('identity_fiscal_id_placeholder')}
+        hint={t('identity_fiscal_id_hint')}
+        initial={profile.fiscal_id}
+        maxLength={60}
+        onCommit={(value) => setField('fiscal_id', value)}
+      />
+      <div className="space-y-1">
+        <label htmlFor="identity-default-vat" className="text-ink-2 block text-xs font-medium">
+          {t('identity_default_vat')}
+        </label>
+        <input
+          id="identity-default-vat"
+          data-testid="identity-default-vat"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={50}
+          step={1}
+          value={vatValue}
+          placeholder="19"
+          onChange={(e) => setVatDraft(e.target.value)}
+          onBlur={(e) => {
+            setField('default_vat_pct', parseProfileVat(e.target.value));
+            setVatDraft(null);
+          }}
+          className="border-hair focus-visible:ring-accent/40 w-32 rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
+          dir="ltr"
+        />
+        <p className="text-ink-3 text-xs">{t('identity_default_vat_hint')}</p>
+      </div>
     </div>
   );
 }
@@ -659,13 +705,6 @@ function ContactSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
         <h4 className="font-display text-sm font-medium">{t('identity_section_contact')}</h4>
         <AutosaveBadge status={status} />
       </div>
-      <IdentityTextField
-        testId="identity-phone"
-        label={t('identity_phone')}
-        placeholder={t('identity_phone_placeholder')}
-        initial={profile.phone}
-        onCommit={(value) => setField('phone', value)}
-      />
       <IdentityTextField
         testId="identity-whatsapp"
         label={t('identity_whatsapp')}
@@ -917,65 +956,18 @@ function IdentityEmailField(props: {
   );
 }
 
-function BusinessSubsection({ profile }: { profile: ShopProfile }): JSX.Element {
-  const { t } = useTranslation('settings');
-  const { setField, status } = useSubsectionAutosave(profile);
-  const [vatDraft, setVatDraft] = useState<string | null>(null);
-
-  function parseVat(value: string): number | null {
-    const trimmed = value.trim();
-    if (trimmed === '') return null;
-    const n = Number(trimmed);
-    if (!Number.isFinite(n) || n < 0 || n > 50) return null;
-    return Math.round(n);
-  }
-
-  const vatDisplay =
-    vatDraft ?? (profile.default_vat_pct == null ? '' : String(profile.default_vat_pct));
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <h4 className="font-display text-sm font-medium">{t('identity_section_business')}</h4>
-        <AutosaveBadge status={status} />
-      </div>
-      <p className="text-ink-3 text-[11px] leading-relaxed">{t('identity_business_hint')}</p>
-      <IdentityTextField
-        testId="identity-fiscal-id"
-        label={t('identity_fiscal_id')}
-        placeholder={t('identity_fiscal_id_placeholder')}
-        hint={t('identity_fiscal_id_hint')}
-        initial={profile.fiscal_id}
-        maxLength={60}
-        onCommit={(value) => setField('fiscal_id', value)}
-      />
-      <div className="space-y-1">
-        <label htmlFor="identity-default-vat" className="text-ink-2 block text-xs font-medium">
-          {t('invoicing_default_vat')}
-        </label>
-        <input
-          id="identity-default-vat"
-          data-testid="identity-default-vat"
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={50}
-          step={1}
-          value={vatDisplay}
-          placeholder="19"
-          onChange={(e) => setVatDraft(e.target.value)}
-          onBlur={(e) => {
-            setField('default_vat_pct', parseVat(e.target.value));
-            setVatDraft(null);
-          }}
-          className="border-hair focus-visible:ring-accent/40 w-32 rounded-xl border bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2"
-          dir="ltr"
-        />
-        <p className="text-ink-3 text-xs">{t('invoicing_default_vat_hint')}</p>
-      </div>
-    </div>
-  );
-}
+// v0.5.1: SW kill-switch. The most likely cause of "the app won't open
+// on my phone" reports is a stale precached service worker that's
+// serving a broken old shell — workbox's clientsClaim/skipWaiting take
+// effect on the next page load, but if that load itself crashes the
+// merchant has no way out. This section gives them one. We unregister
+// every SW + delete every Cache Storage bucket + reload. IndexedDB is
+// deliberately untouched: this is "drop the cache", not "reset the
+// app" (the destructive option already exists below).
+// v0.6.3 — "About" + manual update check. Placed above
+// MaintenanceSection so a merchant who hits the consent gate's
+// Skip/Snooze still has a way to re-trigger the update prompt
+// later. forcePrompt bypasses snooze/skip — the merchant's tap
 
 // v0.5.1: SW kill-switch. The most likely cause of "the app won't open
 // on my phone" reports is a stale precached service worker that's
@@ -1034,27 +1026,38 @@ function AboutSection({ sections }: { sections: SettingsSectionsApi }): JSX.Elem
         data-testid="about-check-updates"
         onClick={() => void handleCheck()}
         disabled={checking}
-        className="border-hair w-full rounded-xl border bg-white py-2.5 text-sm disabled:opacity-50"
+        aria-busy={checking}
+        className={`border-hair flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+          checking
+            ? 'bg-accent-soft text-accent opacity-100'
+            : 'bg-white text-ink active:scale-[0.99]'
+        } disabled:cursor-wait`}
       >
-        {checking ? t('checking_for_updates') : t('check_for_updates')}
+        {checking ? (
+          <span
+            aria-hidden="true"
+            className="border-accent/30 border-t-accent h-4 w-4 animate-spin rounded-full border-2"
+          />
+        ) : null}
+        <span>{checking ? t('checking_for_updates') : t('check_for_updates')}</span>
       </button>
       {toast === 'latest' ? (
-        <p
+        <div
           data-testid="about-toast-latest"
           role="status"
-          className="text-ok bg-ok-soft border-hair mt-3 rounded-xl border px-3 py-2 text-xs"
+          className="text-ok bg-ok-soft border-ok/30 mt-3 rounded-xl border px-3 py-3 text-sm font-medium"
         >
           {t('update_check_latest')}
-        </p>
+        </div>
       ) : null}
       {toast === 'offline' ? (
-        <p
+        <div
           data-testid="about-toast-offline"
           role="status"
-          className="text-bad bg-bad-soft border-hair mt-3 rounded-xl border px-3 py-2 text-xs"
+          className="text-bad bg-bad-soft border-bad/30 mt-3 rounded-xl border px-3 py-3 text-sm font-medium"
         >
           {t('update_check_offline')}
-        </p>
+        </div>
       ) : null}
     </SettingsSection>
   );
@@ -1520,13 +1523,13 @@ export function SettingsScreen(): JSX.Element {
               // white Settings card.
               transparent={!!profile?.logo_photo_id}
             />
-            <div className="flex w-full flex-1 flex-col gap-2">
+            <div className="flex flex-1 flex-col gap-2">
               <button
                 type="button"
                 data-testid="shop-logo-pick"
                 onClick={pickLogoFile}
                 disabled={logoBusy}
-                className="border-hair w-full rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
+                className="border-hair rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
               >
                 {profile?.logo_photo_id ? t('shop_logo_change') : t('shop_logo_add')}
               </button>
@@ -1536,7 +1539,7 @@ export function SettingsScreen(): JSX.Element {
                   data-testid="shop-logo-remove"
                   onClick={() => void removeLogo()}
                   disabled={logoBusy}
-                  className="text-bad border-bad/30 w-full rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
+                  className="text-bad border-bad/30 rounded-xl border bg-white py-2 text-sm disabled:opacity-50"
                 >
                   {t('shop_logo_remove')}
                 </button>
