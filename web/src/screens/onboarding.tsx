@@ -5,13 +5,16 @@ import {
   Boxes,
   CheckCircle2,
   ChevronRight,
+  Download,
   FileUp,
   Footprints,
+  Globe,
   QrCode,
   Shirt,
   ShoppingBag,
   ShoppingCart,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Upload,
   WifiOff,
@@ -46,6 +49,7 @@ import { importBackup, BackupIntegrityError, BackupParseError } from '../backup/
 import { listSupportedCurrencies } from '../i18n/currency';
 import { setLocale } from '../i18n/i18next';
 import { useLocale } from '../hooks/use-locale';
+import { type InstallState, useInstallPrompt } from '../hooks/use-install-prompt';
 import { ensurePersistence } from '../pwa/persistence';
 import {
   type CurrencyCode,
@@ -186,6 +190,7 @@ export function OnboardingScreen(): JSX.Element {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const currencies = listSupportedCurrencies();
+  const installState = useInstallPrompt();
 
   // Revoke any previous preview URL when the file changes / unmounts so we
   // don't leak object URLs on long onboarding sessions.
@@ -454,10 +459,13 @@ export function OnboardingScreen(): JSX.Element {
         {step === 'language' ? (
           <section data-testid="step-language" className="space-y-6">
             <div className="flex flex-col items-center text-center">
-              <div className="bg-accent-soft text-accent mb-4 flex h-16 w-16 items-center justify-center rounded-3xl shadow-[0_10px_28px_rgba(255,107,53,0.18)]">
+              <div className="relative mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-accent to-accent/80 text-white shadow-[0_14px_34px_rgba(255,107,53,0.24)]">
                 <Boxes aria-hidden className="h-8 w-8" strokeWidth={2} />
+                <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-2xl border-2 border-paper bg-white text-accent shadow-sm">
+                  <WifiOff aria-hidden className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </span>
               </div>
-              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight">
+              <h1 className="font-display text-ink text-3xl font-semibold tracking-tight sm:text-4xl">
                 {t('onboarding:welcome_title')}
               </h1>
               <p className="text-ink-2 mt-3 max-w-md text-[15px] leading-relaxed">
@@ -473,12 +481,15 @@ export function OnboardingScreen(): JSX.Element {
               <ValueBadge icon="qr" label={t('onboarding:value_qr')} />
             </div>
 
-            <p className="text-ink-3 text-center text-xs font-medium">
+            <p className="text-ink-3 rounded-2xl border border-ink-4/30 bg-white/65 px-3 py-2 text-center text-xs font-medium shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
               {t('onboarding:social_proof_safe')}
             </p>
 
+            <OnboardingInstallPrompt installState={installState} t={t} />
+
             <div className="space-y-3">
-              <p className="text-ink-3 text-center text-xs uppercase tracking-widest">
+              <p className="text-ink-3 flex items-center justify-center gap-2 text-center text-xs font-semibold uppercase tracking-widest">
+                <Globe aria-hidden className="h-4 w-4 text-accent" strokeWidth={2} />
                 {t('onboarding:language_hint')}
               </p>
               {LANGUAGE_OPTIONS.map(({ code, label, badge }, i) => (
@@ -1029,6 +1040,46 @@ function OnboardingProgress({ step, t }: OnboardingProgressProps): JSX.Element {
       </div>
     </div>
   );
+}
+
+function OnboardingInstallPrompt({
+  installState,
+  t,
+}: {
+  installState: InstallState;
+  t: (k: string, options?: Record<string, unknown>) => string;
+}): JSX.Element | null {
+  if (installState.kind === 'installable') {
+    return (
+      <button
+        type="button"
+        data-testid="onboarding-install-app"
+        onClick={() => void installState.install()}
+        className="border-accent/30 bg-accent-soft/50 text-accent-ink flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-[0_4px_14px_rgba(255,107,53,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-soft active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
+        <Download aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+        {t('onboarding:install_app')}
+      </button>
+    );
+  }
+
+  if (installState.kind === 'ios-instructions') {
+    return (
+      <div
+        data-testid="onboarding-ios-install-hint"
+        className="border-hair flex items-start gap-3 rounded-2xl bg-white/80 px-4 py-3 text-start text-xs text-ink-2 shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
+      >
+        <Smartphone
+          aria-hidden
+          className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent"
+          strokeWidth={2.25}
+        />
+        <span>{t('onboarding:ios_install_hint')}</span>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 interface ValueBadgeProps {

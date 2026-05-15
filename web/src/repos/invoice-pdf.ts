@@ -1,12 +1,4 @@
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-  type PDFImage,
-  type PDFPage,
-} from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
+import type { Color, PDFDocument, PDFFont, PDFImage, PDFPage } from 'pdf-lib';
 import * as ArabicReshaperLib from 'arabic-reshaper';
 import amiriUrl from '@fontsource/amiri/files/amiri-arabic-400-normal.woff2?url';
 import { type Invoice, type InvoiceLine, type Locale, type ShopProfile } from '../types';
@@ -263,6 +255,7 @@ interface DrawCtx {
   y: number;
   doc: PDFDocument;
   currency: string;
+  rgb: (red: number, green: number, blue: number) => Color;
 }
 
 interface DrawOpts {
@@ -320,7 +313,13 @@ function drawText(ctx: DrawCtx, text: string, opts: DrawOpts): void {
     const rendered = safeLatin(text);
     const width = helv.widthOfTextAtSize(rendered, size);
     const x = opts.centerAlign ? opts.x - width / 2 : opts.rightAlign ? opts.x - width : opts.x;
-    ctx.page.drawText(rendered, { x, y: ctx.y, size, font: helv, color: rgb(0.12, 0.12, 0.13) });
+    ctx.page.drawText(rendered, {
+      x,
+      y: ctx.y,
+      size,
+      font: helv,
+      color: ctx.rgb(0.12, 0.12, 0.13),
+    });
     return;
   }
 
@@ -358,7 +357,7 @@ function drawText(ctx: DrawCtx, text: string, opts: DrawOpts): void {
       y: ctx.y,
       size,
       font: p.font,
-      color: rgb(0.12, 0.12, 0.13),
+      color: ctx.rgb(0.12, 0.12, 0.13),
     });
     cursorX += p.width;
   }
@@ -377,7 +376,7 @@ function drawHRule(ctx: DrawCtx): void {
     start: { x: MARGIN, y: ctx.y },
     end: { x: PAGE_W - MARGIN, y: ctx.y },
     thickness: 0.5,
-    color: rgb(0.85, 0.85, 0.86),
+    color: ctx.rgb(0.85, 0.85, 0.86),
   });
 }
 
@@ -401,6 +400,8 @@ export async function renderInvoicePdf({
   locale = 'en',
   logo = null,
 }: RenderOptions): Promise<Uint8Array> {
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const { default: fontkit } = await import('@pdf-lib/fontkit');
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -465,6 +466,7 @@ export async function renderInvoicePdf({
     y: topCursorY,
     doc,
     currency: invoice.currency,
+    rgb,
   };
 
   // ─── Centered header: legal_name → address → phone → fiscal_id ────

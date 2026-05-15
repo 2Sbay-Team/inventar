@@ -100,6 +100,15 @@ describe('invoices repo (ADR-024)', () => {
       expect(totals.vat_minor).toBe(0);
       expect(totals.total_minor).toBe(0);
     });
+
+    it('returns zero VAT for an all-zero-rated cart (effectiveVatPct=0, vatEnabled=false)', () => {
+      const lines = [{ description: 'Book', reference: 'B1', qty: 1, unit_price_minor: 10_000 }];
+      expect(computeInvoiceTotals(lines, 0, false)).toEqual({
+        subtotal_minor: 10_000,
+        vat_minor: 0,
+        total_minor: 10_000,
+      });
+    });
   });
 
   describe('computeInvoicePayment', () => {

@@ -130,8 +130,6 @@ export function BrandColorPicker({
         compact
       />
 
-      <RadialColorPicker selectedHex={currentHex} onChange={onChange} />
-
       <BrandColorPreview hex={previewHex} textColor={previewTextColor} />
 
       {usesDarkTextForContrast ? (
@@ -147,41 +145,45 @@ export function BrandColorPicker({
         <summary className="text-ink-2 cursor-pointer select-none text-xs font-medium marker:text-ink-3">
           {t('brand_color_advanced')}
         </summary>
-        <div className="mt-3 space-y-1">
-          <label htmlFor="brand-color-custom" className="text-ink-2 block text-xs font-medium">
-            {t('brand_color_custom')}
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              id="brand-color-custom"
-              data-testid="brand-color-custom-input"
-              type="text"
-              value={customValue}
-              placeholder={t('brand_color_custom_placeholder')}
-              onChange={(e) => setCustomDraft(e.target.value)}
-              onBlur={applyCustom}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  applyCustom();
-                }
-              }}
-              className="border-hair text-ink placeholder:text-ink-3 focus-visible:ring-accent/40 min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2"
-            />
-            <button
-              type="button"
-              onClick={applyCustom}
-              disabled={customParsed === null}
-              className="bg-accent rounded-xl px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {t('brand_color_apply')}
-            </button>
+        <div className="mt-3 space-y-4">
+          <RadialColorPicker selectedHex={currentHex} onChange={onChange} />
+
+          <div className="space-y-1 border-t border-ink-4/20 pt-2">
+            <label htmlFor="brand-color-custom" className="text-ink-2 block text-xs font-medium">
+              {t('brand_color_custom')}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="brand-color-custom"
+                data-testid="brand-color-custom-input"
+                type="text"
+                value={customValue}
+                placeholder={t('brand_color_custom_placeholder')}
+                onChange={(e) => setCustomDraft(e.target.value)}
+                onBlur={applyCustom}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyCustom();
+                  }
+                }}
+                className="border-hair text-ink placeholder:text-ink-3 focus-visible:ring-accent/40 min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2"
+              />
+              <button
+                type="button"
+                onClick={applyCustom}
+                disabled={customParsed === null}
+                className="bg-accent rounded-xl px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t('brand_color_apply')}
+              </button>
+            </div>
+            {customInvalid ? (
+              <p data-testid="brand-color-custom-invalid" className="text-bad text-[11px]">
+                {t('brand_color_invalid_hex')}
+              </p>
+            ) : null}
           </div>
-          {customInvalid ? (
-            <p data-testid="brand-color-custom-invalid" className="text-bad text-[11px]">
-              {t('brand_color_invalid_hex')}
-            </p>
-          ) : null}
         </div>
       </details>
     </div>

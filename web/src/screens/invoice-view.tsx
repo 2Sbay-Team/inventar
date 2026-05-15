@@ -226,6 +226,14 @@ export function InvoiceViewScreen(): JSX.Element | null {
               </p>
             ) : null}
           </div>
+          {invoice.notes ? (
+            <div className="mt-3">
+              <h3 className="text-ink-3 mb-1 text-[10px] uppercase tracking-wide">
+                {t('notes_label')}
+              </h3>
+              <p className="text-ink-2 whitespace-pre-line text-sm">{invoice.notes}</p>
+            </div>
+          ) : null}
         </section>
 
         <section

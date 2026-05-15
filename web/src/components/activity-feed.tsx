@@ -67,12 +67,12 @@ export function ActivityFeed({
           <li
             key={m.id}
             data-testid="activity-row"
-            className="border-hair text-ink-2 flex items-baseline justify-between border-b pb-1.5 text-[11.5px] last:border-0 last:pb-0"
+            className="border-hair text-ink-2 flex items-center justify-between gap-2 border-b py-1.5 text-xs last:border-0"
           >
-            <span>
+            <span className="flex min-w-0 items-center gap-1.5">
               <span
                 data-sign={sign}
-                className={`font-mono font-semibold ${sign === 'minus' ? 'text-bad' : 'text-ok'} mr-1.5 tabular-nums`}
+                className={`font-mono font-semibold ${sign === 'minus' ? 'text-bad' : 'text-ok'} shrink-0 tabular-nums`}
                 dir="ltr"
               >
                 {deltaText}
@@ -87,9 +87,13 @@ export function ActivityFeed({
               ) : null}
               {t(`mtype_${m.type}`)}
             </span>
-            <span className="text-ink-4 font-mono text-[10px]" dir="ltr">
+            <time
+              className="text-ink-3 shrink-0 font-mono text-[10px]"
+              dateTime={m.created_at}
+              dir="ltr"
+            >
               {shortTime(m.created_at, locale)}
-            </span>
+            </time>
           </li>
         );
       })}

@@ -42,6 +42,7 @@ import {
   type Variant,
 } from '../types';
 import { classifyScan } from '../utils/scan-classify';
+import { getTaxRate } from '../utils/tax-rate';
 import { newUUID } from '../utils/uuid';
 
 // v0.9.x — Sale screen rewrite (replaces the v0.5 ADR-018 cart flow).
@@ -96,8 +97,13 @@ function defaultInvoiceDueDateISO(now: Date = new Date()): string {
   return due.toISOString();
 }
 
-function countCanCreateInvoice(count: number, partialPaymentInvalid: boolean): boolean {
-  return count > 0 && !partialPaymentInvalid;
+function countCanCreateInvoice(
+  count: number,
+  partialPaymentInvalid: boolean,
+  needsCustomer: boolean,
+  isWalkIn: boolean,
+): boolean {
+  return count > 0 && !partialPaymentInvalid && !(needsCustomer && isWalkIn);
 }
 
 function parseTab(value: string | null): SubTab {
@@ -289,6 +295,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   // transaction_id so reports can group them as one session row.
   const sessionIdRef = useRef<UUID>(newUUID());
   const [sessionSales, setSessionSales] = useState<SessionSale[]>([]);
+  const [invoicing, setInvoicing] = useState(false);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -468,49 +475,61 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
 
   async function createSessionInvoice(): Promise<void> {
     if (sessionSales.length === 0) return;
-    const paidMinor =
-      paymentMode === 'partial' ? parseCurrency(partialPaidText, locale, currency) : null;
-    if (
-      paymentMode === 'partial' &&
-      (paidMinor === null || paidMinor <= 0 || paidMinor >= sessionRevenue)
-    ) {
-      setToast(t('partial_paid_invalid'));
-      return;
+    if (invoicing) return;
+    setInvoicing(true);
+    try {
+      const paidMinor =
+        paymentMode === 'partial' ? parseCurrency(partialPaidText, locale, currency) : null;
+      if (
+        paymentMode === 'partial' &&
+        (paidMinor === null || paidMinor <= 0 || paidMinor >= sessionRevenue)
+      ) {
+        setToast(t('partial_paid_invalid'));
+        return;
+      }
+      const effectiveVatPct = sessionSales.reduce((max, sale) => {
+        const article = (articles ?? []).find((a) => a.id === sale.article_id);
+        if (!article) return max;
+        const rate = getTaxRate(article, profile ?? null) ?? 0;
+        return Math.max(max, rate);
+      }, 0);
+      const lines: InvoiceLine[] = sessionSales.map((sale) => ({
+        description: [sale.article_name, sale.color, sale.size]
+          .filter((part): part is string => typeof part === 'string' && part.length > 0)
+          .join(' · '),
+        reference: sale.internal_code,
+        qty: sale.qty,
+        unit_price_minor: Math.round(sale.total / Math.max(1, sale.qty)),
+        unit_of_measure: sale.unit_of_measure,
+      }));
+      const customerAddress = selectedCustomer
+        ? [selectedCustomer.address, selectedCustomer.city, selectedCustomer.country]
+            .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+            .join(', ') || null
+        : null;
+      const paymentNote = t(`payment_note_${paymentMode}`, {
+        total: formatCurrency(sessionRevenue, locale, currency),
+        customer: selectedCustomer?.name ?? t('customer_walk_in'),
+      });
+      const invoice = await createInvoice(db, {
+        transaction_id: sessionIdRef.current,
+        customer_id: selectedCustomer?.id ?? null,
+        customer_name: selectedCustomer?.name ?? null,
+        customer_address: customerAddress,
+        customer_fiscal_id: selectedCustomer?.fiscal_id ?? null,
+        lines,
+        currency,
+        vat_pct: effectiveVatPct,
+        vat_enabled: effectiveVatPct > 0,
+        payment_mode: paymentMode,
+        paid_minor: paymentMode === 'partial' ? (paidMinor ?? 0) : undefined,
+        due_at: paymentMode === 'paid' ? null : defaultInvoiceDueDateISO(),
+        notes: paymentNote,
+      });
+      navigate(`/invoice/${invoice.id}`);
+    } finally {
+      setInvoicing(false);
     }
-    const lines: InvoiceLine[] = sessionSales.map((sale) => ({
-      description: [sale.article_name, sale.color, sale.size]
-        .filter((part): part is string => typeof part === 'string' && part.length > 0)
-        .join(' · '),
-      reference: sale.internal_code,
-      qty: sale.qty,
-      unit_price_minor: Math.round(sale.total / Math.max(1, sale.qty)),
-      unit_of_measure: sale.unit_of_measure,
-    }));
-    const customerAddress = selectedCustomer
-      ? [selectedCustomer.address, selectedCustomer.city, selectedCustomer.country]
-          .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
-          .join(', ') || null
-      : null;
-    const paymentNote = t(`payment_note_${paymentMode}`, {
-      total: formatCurrency(sessionRevenue, locale, currency),
-      customer: selectedCustomer?.name ?? t('customer_walk_in'),
-    });
-    const invoice = await createInvoice(db, {
-      transaction_id: sessionIdRef.current,
-      customer_id: selectedCustomer?.id ?? null,
-      customer_name: selectedCustomer?.name ?? null,
-      customer_address: customerAddress,
-      customer_fiscal_id: selectedCustomer?.fiscal_id ?? null,
-      lines,
-      currency,
-      vat_pct: profile?.default_vat_pct ?? 0,
-      vat_enabled: (profile?.default_vat_pct ?? 0) > 0,
-      payment_mode: paymentMode,
-      paid_minor: paymentMode === 'partial' ? (paidMinor ?? 0) : undefined,
-      due_at: paymentMode === 'paid' ? null : defaultInvoiceDueDateISO(),
-      notes: paymentNote,
-    });
-    navigate(`/invoice/${invoice.id}`);
   }
 
   // ─── camera handler ────────────────────────────────────────────────
@@ -549,6 +568,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
 
   const sessionCount = sessionSales.length;
   const sessionRevenue = sessionSales.reduce((s, x) => s + x.total, 0);
+  const hasBillableTotal = sessionRevenue > 0;
   const partialPaidMinor =
     paymentMode === 'partial' ? parseCurrency(partialPaidText, locale, currency) : null;
   const partialPaymentInvalid =
@@ -556,6 +576,12 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     sessionRevenue > 0 &&
     (partialPaidMinor === null || partialPaidMinor <= 0 || partialPaidMinor >= sessionRevenue);
   const cameraFirst = profile?.store_type === 'shop';
+
+  useEffect(() => {
+    if (!hasBillableTotal && paymentMode !== 'paid') {
+      setPaymentMode('paid');
+    }
+  }, [hasBillableTotal, paymentMode]);
 
   // ─── render ────────────────────────────────────────────────────────
   return (
@@ -615,6 +641,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           partialPaidText={partialPaidText}
           onPartialPaidText={setPartialPaidText}
           partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
+          hasBillableTotal={hasBillableTotal}
           t={t}
         />
 
@@ -732,10 +759,21 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           onReports={() => navigate('/reports', { replace: true })}
           onResume={() => setSummaryOpen(false)}
           onCreateInvoice={() => void createSessionInvoice()}
-          canCreateInvoice={countCanCreateInvoice(sessionCount, partialPaymentInvalid)}
+          canCreateInvoice={countCanCreateInvoice(
+            sessionCount,
+            partialPaymentInvalid,
+            documentMode === 'invoice' || paymentMode !== 'paid',
+            selectedCustomerId === 'walk-in',
+          )}
+          invoiceInFlight={invoicing}
           paymentWarning={partialPaymentInvalid ? t('partial_paid_invalid') : null}
           documentMode={documentMode}
+          onDocumentMode={setDocumentMode}
           paymentMode={paymentMode}
+          onPaymentMode={setPaymentMode}
+          partialPaidText={partialPaidText}
+          onPartialPaidText={setPartialPaidText}
+          partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
           customer={selectedCustomer}
           t={t}
         />
@@ -755,6 +793,7 @@ function SaleCustomerPanel(props: {
   partialPaidText: string;
   onPartialPaidText: (value: string) => void;
   partialTotalLabel: string;
+  hasBillableTotal: boolean;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
   const {
@@ -768,6 +807,7 @@ function SaleCustomerPanel(props: {
     partialPaidText,
     onPartialPaidText,
     partialTotalLabel,
+    hasBillableTotal,
     t,
   } = props;
   const needsCustomer = documentMode === 'invoice' || paymentMode !== 'paid';
@@ -836,7 +876,8 @@ function SaleCustomerPanel(props: {
                 data-testid={`sale-payment-${mode}`}
                 onClick={() => onPaymentMode(mode)}
                 aria-pressed={paymentMode === mode}
-                className={`rounded-xl border px-2 py-2 text-[11px] font-semibold ${
+                disabled={mode !== 'paid' && !hasBillableTotal}
+                className={`rounded-xl border px-2 py-2 text-[11px] font-semibold disabled:opacity-40 ${
                   paymentMode === mode
                     ? 'border-accent bg-accent text-white'
                     : 'border-hair bg-white text-ink-2'
@@ -847,7 +888,7 @@ function SaleCustomerPanel(props: {
             ))}
           </div>
 
-          {paymentMode === 'partial' ? (
+          {paymentMode === 'partial' && hasBillableTotal ? (
             <div>
               <label className="text-ink-3 mb-1 block text-[11px] font-medium uppercase tracking-wide">
                 {t('partial_paid_label')}
@@ -867,7 +908,7 @@ function SaleCustomerPanel(props: {
             </div>
           ) : null}
 
-          {needsCustomer && selectedCustomerId === 'walk-in' ? (
+          {needsCustomer && selectedCustomerId === 'walk-in' && hasBillableTotal ? (
             <p className="rounded-xl border border-bad/20 bg-bad/10 px-3 py-2 text-xs text-bad">
               {t('customer_required_hint')}
             </p>
@@ -1369,9 +1410,15 @@ function SessionSummary(props: {
   onResume: () => void;
   onCreateInvoice: () => void;
   canCreateInvoice: boolean;
+  invoiceInFlight: boolean;
   paymentWarning: string | null;
   documentMode: SaleDocumentMode;
+  onDocumentMode: (mode: SaleDocumentMode) => void;
   paymentMode: SalePaymentMode;
+  onPaymentMode: (mode: SalePaymentMode) => void;
+  partialPaidText: string;
+  onPartialPaidText: (value: string) => void;
+  partialTotalLabel: string;
   customer: Customer | null;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
@@ -1386,9 +1433,15 @@ function SessionSummary(props: {
     onResume,
     onCreateInvoice,
     canCreateInvoice,
+    invoiceInFlight,
     paymentWarning,
     documentMode,
+    onDocumentMode,
     paymentMode,
+    onPaymentMode,
+    partialPaidText,
+    onPartialPaidText,
+    partialTotalLabel,
     customer,
     t,
   } = props;
@@ -1434,23 +1487,85 @@ function SessionSummary(props: {
             </div>
           </div>
 
-          <div className="border-hair mt-4 rounded-2xl border bg-white p-3">
-            <p className="text-ink-3 text-[11px] uppercase tracking-wide">
-              {t('summary_document_label')}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-ink">
-              {t(`document_${documentMode}`)} · {t(`payment_${paymentMode}`)}
-            </p>
-            <p className="text-ink-3 mt-1 text-xs">
-              {customer ? customer.name : t('customer_walk_in')}
-            </p>
+          <div className="border-hair mt-4 space-y-3 rounded-2xl border bg-white p-3">
+            <div>
+              <p className="text-ink-3 text-[11px] uppercase tracking-wide">
+                {t('summary_document_label')}
+              </p>
+              <p className="text-ink-3 mt-1 text-xs">
+                {customer ? customer.name : t('customer_walk_in')}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {(['receipt', 'invoice'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  data-testid={`sell-summary-document-${mode}`}
+                  onClick={() => onDocumentMode(mode)}
+                  aria-pressed={documentMode === mode}
+                  className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                    documentMode === mode
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-hair bg-white text-ink-2'
+                  }`}
+                >
+                  {t(`document_${mode}`)}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {(['paid', 'partial', 'unpaid'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  data-testid={`sell-summary-payment-${mode}`}
+                  onClick={() => onPaymentMode(mode)}
+                  aria-pressed={paymentMode === mode}
+                  disabled={mode !== 'paid' && total === 0}
+                  className={`rounded-xl border px-2 py-2 text-[11px] font-semibold disabled:opacity-40 ${
+                    paymentMode === mode
+                      ? 'border-accent bg-accent text-white'
+                      : 'border-hair bg-white text-ink-2'
+                  }`}
+                >
+                  {t(`payment_${mode}`)}
+                </button>
+              ))}
+            </div>
+
+            {paymentMode === 'partial' && total > 0 ? (
+              <div>
+                <label
+                  htmlFor="sell-summary-partial-paid"
+                  className="text-ink-3 mb-1 block text-[11px] font-medium uppercase tracking-wide"
+                >
+                  {t('partial_paid_label')}
+                </label>
+                <input
+                  id="sell-summary-partial-paid"
+                  data-testid="sell-summary-partial-paid"
+                  type="text"
+                  inputMode="decimal"
+                  value={partialPaidText}
+                  onChange={(event) => onPartialPaidText(event.target.value)}
+                  placeholder={t('partial_paid_placeholder')}
+                  className="border-hair text-ink w-full rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm"
+                />
+                <p className="text-ink-3 mt-1 text-xs">
+                  {t('partial_paid_hint', { total: partialTotalLabel })}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <button
             type="button"
             data-testid="sell-summary-create-invoice"
             onClick={onCreateInvoice}
-            disabled={!canCreateInvoice}
+            disabled={!canCreateInvoice || invoiceInFlight}
             className="bg-ink mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
           >
             <FileText aria-hidden className="h-4 w-4" strokeWidth={2.25} />
