@@ -43,12 +43,30 @@ export function ArticleDetailScreen(): JSX.Element {
   const currency = useCurrency();
   const profile = useProfile();
 
-  const fromQrScan = (location.state as { fromQrScan?: boolean } | null)?.fromQrScan === true;
+  const locationState = location.state as {
+    fromQrScan?: boolean;
+    highlightVariantId?: string;
+  } | null;
+  const fromQrScan = locationState?.fromQrScan === true;
+  const highlightVariantId = locationState?.highlightVariantId ?? null;
+
   useEffect(() => {
     if (profile?.scan_qr_opens_sell && fromQrScan && id) {
       navigate(`/sale?article=${id}&open_picker=1`, { replace: true });
     }
   }, [profile?.scan_qr_opens_sell, fromQrScan, id, navigate]);
+
+  const [highlightedCellKey, setHighlightedCellKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightVariantId || !detail?.sizes) return;
+    const match = detail.sizes.find((c) => c.variant_id === highlightVariantId);
+    if (!match) return;
+    if (match.color !== undefined) setSelectedColor(match.color ?? '');
+    setHighlightedCellKey(`${match.color ?? ''}::${match.size ?? ''}`);
+    const timer = setTimeout(() => setHighlightedCellKey(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightVariantId, detail?.sizes]);
   // v0.5.2.9 (Phase B): article-level trait overrides resolved via
   // helpers — fall back to the store_type default when the article's
   // override is null. needsSizes / showMinStockEditor land after the
@@ -538,6 +556,10 @@ export function ArticleDetailScreen(): JSX.Element {
             cells={detail.sizes}
             unitOfMeasure={article.unit_of_measure}
             onCellClick={(cell) => openAdjust(cell, cell.qty > 0 ? 'sale' : 'purchase')}
+            onCellContextMenu={(cell) =>
+              navigate(`/article/${article.id}/sheet?mode=all_variants&focus=${cell.variant_id}`)
+            }
+            highlightCellKey={highlightedCellKey}
           />
         </section>
       ) : null}

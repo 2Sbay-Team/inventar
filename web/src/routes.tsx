@@ -38,6 +38,12 @@ const ArticleLabelScreen = lazy(() =>
 const ArticleActivityScreen = lazy(() =>
   import('./screens/article-activity').then((m) => ({ default: m.ArticleActivityScreen })),
 );
+const VariantRedirectScreen = lazy(() =>
+  import('./screens/variant-redirect').then((m) => ({ default: m.VariantRedirectScreen })),
+);
+const LabelSheetScreen = lazy(() =>
+  import('./screens/label-sheet').then((m) => ({ default: m.LabelSheetScreen })),
+);
 const LabelPreviewScreen = lazy(() =>
   import('./screens/label-preview').then((m) => ({ default: m.LabelPreviewScreen })),
 );
@@ -166,11 +172,31 @@ export const routes: RouteObject[] = [
     element: <Navigate to="/products/new" replace />,
   },
   {
+    path: '/v/:variantId',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <VariantRedirectScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
     path: '/article/:id',
     element: (
       <Lazy>
         <OnboardingGate>
           <ArticleDetailScreen />
+        </OnboardingGate>
+      </Lazy>
+    ),
+  },
+  {
+    path: '/article/:id/sheet',
+    element: (
+      <Lazy>
+        <OnboardingGate>
+          <LabelSheetScreen />
         </OnboardingGate>
       </Lazy>
     ),

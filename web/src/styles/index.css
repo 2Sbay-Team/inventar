@@ -97,6 +97,21 @@
   [data-testid='report-row'] {
     page-break-inside: avoid;
   }
+  /* Label sheet: when printing from label-sheet.tsx, hide all chrome
+     and show only the printable grid. */
+  body:has([data-testid='label-sheet-print-area']) * {
+    visibility: hidden;
+  }
+  body:has([data-testid='label-sheet-print-area']) [data-testid='label-sheet-print-area'],
+  body:has([data-testid='label-sheet-print-area']) [data-testid='label-sheet-print-area'] * {
+    visibility: visible;
+  }
+  body:has([data-testid='label-sheet-print-area']) [data-testid='label-sheet-print-area'] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
   /* Margins land in the @page block, not on body, so multi-page prints
      get consistent gutters. */
   @page {

@@ -275,6 +275,10 @@ export interface ShopProfile {
   // Default null/false — customers scanning shelf QR codes expect
   // product info, not a sell screen.
   scan_qr_opens_sell?: boolean | null;
+  // v1.1 — Label printing preferences. Nullable; defaults to 'both' / 'sheet_3x4'
+  // when null. Persisted so the merchant's last choice becomes the new default.
+  label_mode?: 'both' | 'qr_only' | 'barcode_only' | null;
+  label_layout?: 'sheet_3x4' | 'sheet_2x5' | 'sheet_4x6' | null;
   created_at: ISODate;
   updated_at: ISODate;
   last_backup_at: ISODate | null;

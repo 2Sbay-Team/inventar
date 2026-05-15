@@ -108,6 +108,8 @@ export interface UpsertProfileInput {
   logo_dominant_color?: string | null;
   opening_hours?: OpeningHours | null;
   scan_qr_opens_sell?: boolean | null;
+  label_mode?: 'both' | 'qr_only' | 'barcode_only' | null;
+  label_layout?: 'sheet_3x4' | 'sheet_2x5' | 'sheet_4x6' | null;
 }
 
 // Creates the profile on first call (sets created_at = now), updates it on
@@ -204,6 +206,10 @@ export async function upsertProfile(
         input.scan_qr_opens_sell === undefined
           ? (existing?.scan_qr_opens_sell ?? null)
           : input.scan_qr_opens_sell,
+      label_mode:
+        input.label_mode === undefined ? (existing?.label_mode ?? null) : input.label_mode,
+      label_layout:
+        input.label_layout === undefined ? (existing?.label_layout ?? null) : input.label_layout,
       created_at: existing?.created_at ?? ts,
       updated_at: ts,
       last_backup_at: existing?.last_backup_at ?? null,

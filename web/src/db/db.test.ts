@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DB_NAME, InventarDB } from './db';
 import type { Variant } from '../types';
 
-describe('InventarDB schema (v20)', () => {
+describe('InventarDB schema (v21)', () => {
   let db: InventarDB;
 
   beforeEach(async () => {
@@ -15,8 +15,8 @@ describe('InventarDB schema (v20)', () => {
     await indexedDB.deleteDatabase(DB_NAME);
   });
 
-  it('opens at version 20', () => {
-    expect(db.verno).toBe(20);
+  it('opens at version 21', () => {
+    expect(db.verno).toBe(21);
   });
 
   it('has the ten tables from DATA_MODEL §3 (v1.1 adds customers)', () => {

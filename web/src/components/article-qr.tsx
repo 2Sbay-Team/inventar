@@ -25,6 +25,10 @@ interface ArticleQRProps {
   // When true, forces pure black (#000000) regardless of brandColor.
   // Used by the print flow so physical labels use black ink only.
   forceBlack?: boolean;
+  // Optional variant UUID. When provided, the QR encodes the variant-level
+  // URL (/v/:variantId) so scanning opens the correct size/colour directly.
+  // Omit (or null) for article-level QRs — existing labels keep working.
+  variantId?: string | null;
   // Optional tap feedback/action for future scanner-style cards. This is
   // implemented with CSS only; no motion dependency is required.
   onScan?: () => void;
@@ -42,6 +46,7 @@ export function ArticleQR({
   branding,
   brandColor,
   forceBlack = false,
+  variantId,
   onScan,
   interactive = false,
 }: ArticleQRProps): JSX.Element {
@@ -53,7 +58,9 @@ export function ArticleQR({
     // even when scanned offline by a phone whose camera doesn't know we
     // were on localhost during dev. If the QR is generated against
     // localhost, the scan opens an unreachable URL.
-    const url = `https://inventar.hoodhood.ai/article/${articleId}`;
+    const url = variantId
+      ? `https://inventar.hoodhood.ai/v/${variantId}`
+      : `https://inventar.hoodhood.ai/article/${articleId}`;
     void QRCode.toString(url, {
       type: 'svg',
       // Level H gives the strongest recovery budget for optional center
@@ -68,7 +75,7 @@ export function ArticleQR({
     return () => {
       cancelled = true;
     };
-  }, [articleId, brandColor, forceBlack]);
+  }, [articleId, brandColor, forceBlack, variantId]);
 
   // Apply branding on top of the raw QR SVG. Cheap (regex + string
   // concat) so re-running on every render is fine when the parent

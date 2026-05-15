@@ -770,6 +770,33 @@ export class InventarDB extends Dexie {
             if (!('scan_qr_opens_sell' in p)) p.scan_qr_opens_sell = null;
           });
       });
+
+    // v21 — Label printing preferences: label_mode + label_layout.
+    this.version(21)
+      .stores({
+        profile: 'id',
+        articles:
+          'id, internal_code, category, archived_at, deleted_at, updated_at, search_blob, barcode_ean',
+        customers: 'id, name, phone, updated_at, deleted_at, search_blob',
+        variants: 'id, article_id, [article_id+size], [article_id+color+size], deleted_at',
+        movements:
+          'id, variant_id, type, created_at, [variant_id+created_at], [variant_id+location+created_at], deleted_at, transaction_id, expires_at, refunds_movement_id',
+        expenses: 'id, category, at, deleted_at',
+        photos: 'id, deleted_at',
+        meta: 'key',
+        lots: 'id, variant_id, expires_at, [variant_id+expires_at], source_movement_id, deleted_at',
+        invoices:
+          'id, &number, issued_at, transaction_id, customer_id, payment_status, due_at, deleted_at',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('profile')
+          .toCollection()
+          .modify((p: { label_mode?: string | null; label_layout?: string | null }) => {
+            if (!('label_mode' in p)) p.label_mode = null;
+            if (!('label_layout' in p)) p.label_layout = null;
+          });
+      });
   }
 }
 

@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../db/db';
 import { archiveArticle, hardDeleteArticle } from '../repos/articles';
 import { type Article } from '../types';
@@ -22,6 +23,7 @@ export function MoreMenuSheet({
 }: MoreMenuSheetProps): JSX.Element {
   const { t } = useTranslation('article');
   const { t: tCommon } = useTranslation('common');
+  const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState('');
 
@@ -49,6 +51,19 @@ export function MoreMenuSheet({
           >
             <Dialog.Title className="sr-only">{tCommon('edit')}</Dialog.Title>
             <ul className="flex flex-col gap-2">
+              <li>
+                <button
+                  type="button"
+                  data-testid="menu-print-labels"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/article/${article.id}/sheet`);
+                  }}
+                  className="border-hair w-full rounded-xl border bg-white px-4 py-3 text-start text-sm"
+                >
+                  {t('menu_print_labels')}
+                </button>
+              </li>
               <li>
                 <button
                   type="button"
