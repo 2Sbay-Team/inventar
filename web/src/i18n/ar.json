@@ -147,7 +147,12 @@
     "summary": "{{pairs}} زوج · {{sizes}} مقاس",
     "summary_units": "{{n}} متوفّر",
     "empty_first": "أضف أول منتج لك",
+    "empty_first_named": "أهلاً، {{name}}",
+    "empty_first_hint": "أضف منتجاتك مرة واحدة — امسحها عند الكاسير، تتبّع المخزون، واطبع بطاقات الرفوف.",
     "empty_first_cta": "إضافة منتج",
+    "empty_first_scan": "مسح الباركود",
+    "empty_first_offline_hint": "جميع البيانات تبقى على جهازك",
+    "nothing_found_title": "لا نتائج",
     "nothing_found": "لا نتائج لـ «{{query}}». جرّب كلمات أقل أو مختلفة.",
     "add_as_new": "إضافة كمنتج جديد بهذا الاسم",
     "low_left": "منخفض ({{n}} متبقٍ)"

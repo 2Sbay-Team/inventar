@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
+import { Plus, ScanLine, Sparkles } from 'lucide-react';
 import { BackupBanner } from '../components/backup-banner';
 import { AlertsBanner } from '../components/alerts-banner';
 import { ExpiryBanner } from '../components/expiry-banner';
@@ -14,12 +14,14 @@ import { ResultCard } from '../components/result-card';
 import { db } from '../db/db';
 import { searchArticles, type SearchResult } from '../query/search';
 import { useLive } from '../hooks/use-live';
+import { useProfile } from '../hooks/use-profile';
 import { getRecentSearches, pushRecentSearch } from '../repos/recent-searches';
 
 // SPEC §2.2 — the daily home. Wires together SearchBar, recent chips,
 // ResultList, and the two empty states.
 export function SearchScreen(): JSX.Element {
   const { t } = useTranslation('search');
+  const profile = useProfile();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,8 +79,11 @@ export function SearchScreen(): JSX.Element {
       <BackupBanner />
 
       {recents.length > 0 ? (
-        <div data-testid="recent-row" className="mt-2 flex items-center gap-2 px-5">
-          <span className="text-ink-4 font-mono text-[9.5px] uppercase tracking-widest">
+        <div
+          data-testid="recent-row"
+          className="mt-2 flex items-center gap-2 overflow-x-auto px-5 pb-0.5 scrollbar-none"
+        >
+          <span className="text-ink-3 shrink-0 text-[11px] font-medium uppercase tracking-wider">
             {t('recent')}
           </span>
           {recents.map((r) => (
@@ -87,7 +92,7 @@ export function SearchScreen(): JSX.Element {
               type="button"
               data-testid="recent-chip"
               onClick={() => setQuery(r)}
-              className="bg-paper-deep text-ink-2 font-mono rounded-full px-2.5 py-1 text-[11px]"
+              className="border-hair bg-white text-ink-2 shrink-0 rounded-full border px-3 py-1.5 text-[12px] transition-colors active:bg-paper-deep"
             >
               {r}
             </button>
@@ -100,7 +105,7 @@ export function SearchScreen(): JSX.Element {
         className="flex flex-1 flex-col gap-2 px-4 pb-3 pt-1.5 overflow-y-auto"
       >
         {showEmptyZero ? (
-          <EmptyZero />
+          <EmptyZero shopName={profile?.name ?? ''} />
         ) : showEmptyMatch ? (
           <EmptyMatch query={trimmed} />
         ) : (
@@ -113,36 +118,70 @@ export function SearchScreen(): JSX.Element {
   );
 }
 
-function EmptyZero(): JSX.Element {
+function EmptyZero({ shopName }: { shopName: string }): JSX.Element {
   const { t } = useTranslation('search');
   return (
     <section
       data-testid="empty-zero"
-      className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
+      className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-12 text-center"
     >
-      <svg
-        aria-hidden="true"
-        width="80"
-        height="80"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-ink-4"
-      >
-        <path d="M3 7l9-4 9 4M3 7l9 4 9-4M3 7v10l9 4 9-4V7M12 11v10" />
-      </svg>
-      <p className="font-display text-ink-2 text-xl">{t('empty_first')}</p>
-      <Link
-        to="/add"
-        data-testid="empty-zero-cta"
-        className="bg-accent inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
-      >
-        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
-        {t('empty_first_cta')}
-      </Link>
+      {/* Illustration */}
+      <div className="relative flex items-center justify-center">
+        <div className="bg-accent/8 h-28 w-28 rounded-full" />
+        <div className="bg-accent/12 absolute h-20 w-20 rounded-full" />
+        <svg
+          aria-hidden="true"
+          width="52"
+          height="52"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-accent absolute"
+        >
+          <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+          <path d="M3 6h18" />
+          <path d="M16 10a4 4 0 0 1-8 0" />
+        </svg>
+      </div>
+
+      {/* Text hierarchy */}
+      <div className="space-y-2">
+        <h2 className="font-display text-ink text-xl font-semibold">
+          {shopName ? t('empty_first_named', { name: shopName }) : t('empty_first')}
+        </h2>
+        <p className="text-ink-3 mx-auto max-w-xs text-sm leading-relaxed">
+          {t('empty_first_hint')}
+        </p>
+      </div>
+
+      {/* CTAs */}
+      <div className="flex w-full max-w-xs flex-col gap-2.5">
+        <Link
+          to="/add"
+          data-testid="empty-zero-cta"
+          className="bg-accent inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold text-white shadow-sm shadow-accent/20 active:opacity-90"
+        >
+          <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
+          {t('empty_first_cta')}
+        </Link>
+        <Link
+          to="/products/new?scan=1"
+          data-testid="empty-zero-scan"
+          className="border-hair inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border bg-white px-5 text-sm font-medium text-ink-2 active:bg-paper-deep"
+        >
+          <ScanLine aria-hidden className="h-4 w-4" strokeWidth={2} />
+          {t('empty_first_scan')}
+        </Link>
+      </div>
+
+      {/* Trust signal */}
+      <p className="text-ink-4 flex items-center gap-1.5 text-[11px]">
+        <Sparkles aria-hidden className="h-3 w-3" />
+        {t('empty_first_offline_hint')}
+      </p>
     </section>
   );
 }
@@ -152,15 +191,35 @@ function EmptyMatch({ query }: { query: string }): JSX.Element {
   return (
     <section
       data-testid="empty-match"
-      className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center"
+      className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-12 text-center"
     >
-      <p className="text-ink-2 text-sm leading-relaxed">{t('nothing_found', { query })}</p>
+      <div className="bg-paper-deep flex h-14 w-14 items-center justify-center rounded-2xl">
+        <svg
+          aria-hidden="true"
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-ink-3"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
+        </svg>
+      </div>
+      <div className="space-y-1.5">
+        <p className="font-display text-ink text-base font-medium">{t('nothing_found_title')}</p>
+        <p className="text-ink-3 text-sm leading-relaxed">{t('nothing_found', { query })}</p>
+      </div>
       <Link
         to="/add"
         data-testid="empty-match-cta"
-        className="border-hair text-ink-2 inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2.5 text-sm"
+        className="bg-accent inline-flex min-h-[44px] items-center gap-2 rounded-2xl px-5 text-sm font-semibold text-white active:opacity-90"
       >
-        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+        <Plus aria-hidden className="h-4 w-4" strokeWidth={2.5} />
         {t('add_as_new')}
       </Link>
     </section>

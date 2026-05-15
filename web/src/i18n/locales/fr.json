@@ -147,7 +147,12 @@
     "summary": "{{pairs}} paires · {{sizes}} tailles",
     "summary_units": "{{n}} en stock",
     "empty_first": "Ajoutez votre premier article",
+    "empty_first_named": "Bienvenue, {{name}}",
+    "empty_first_hint": "Ajoutez vos produits une fois — scannez-les à la caisse, suivez le stock et imprimez des étiquettes.",
     "empty_first_cta": "Ajouter un article",
+    "empty_first_scan": "Scanner un code-barres",
+    "empty_first_offline_hint": "Toutes les données restent sur votre appareil",
+    "nothing_found_title": "Aucun résultat",
     "nothing_found": "Aucun résultat pour « {{query}} ». Essayez moins de mots ou des mots différents.",
     "add_as_new": "Ajouter comme nouvel article",
     "low_left": "Bas ({{n}} restants)"
