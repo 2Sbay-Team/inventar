@@ -12,6 +12,7 @@ import {
   Plus,
   Search as SearchIcon,
   ShoppingCart,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
@@ -33,7 +34,7 @@ import { findArticleByEAN, findArticleByInternalCode } from '../repos/articles';
 import { listCustomers } from '../repos/customers';
 import { createInvoice, listInvoices } from '../repos/invoices';
 import { pickFifoLot } from '../repos/lots';
-import { recordMovement } from '../repos/movements';
+import { recordMovement, revertMovement } from '../repos/movements';
 import { quantityFor, sizeGridFor, type SizeGridCell } from '../repos/quantity';
 import {
   type Article,
@@ -491,6 +492,49 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     }
   }
 
+  async function removeSaleFromCart(movementId: UUID): Promise<void> {
+    try {
+      await revertMovement(db, movementId);
+      setSessionSales((s) => s.filter((sale) => sale.movement_id !== movementId));
+      setToast(t('toast_removed'));
+    } catch (err) {
+      console.error('removeSaleFromCart failed', err);
+      setToast(t('cart_remove_failed'));
+    }
+  }
+
+  async function updateCartQuantity(sale: SessionSale, newQty: number): Promise<void> {
+    if (newQty <= 0) {
+      await removeSaleFromCart(sale.movement_id);
+      return;
+    }
+    try {
+      await revertMovement(db, sale.movement_id);
+      const unitPrice = sale.total / sale.qty;
+      const lot = await pickFifoLot(db, sale.variant_id);
+      const mv = await recordMovement(db, {
+        variant_id: sale.variant_id,
+        delta: -newQty,
+        type: 'sale',
+        location: 'floor',
+        transaction_id: sessionIdRef.current,
+        lot_id: lot?.id ?? null,
+        unit_price_tnd: unitPrice,
+      });
+      const updated: SessionSale = {
+        ...sale,
+        movement_id: mv.id,
+        qty: newQty,
+        total: unitPrice * newQty,
+      };
+      setSessionSales((s) => s.map((x) => (x.movement_id === sale.movement_id ? updated : x)));
+      setToast(t('toast_qty_updated'));
+    } catch (err) {
+      console.error('updateCartQuantity failed', err);
+      setToast(t('cart_qty_failed'));
+    }
+  }
+
   async function createSessionInvoice(): Promise<void> {
     if (sessionSales.length === 0) return;
     if (invoicing) return;
@@ -822,6 +866,9 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           partialTotalLabel={formatCurrency(sessionRevenue, locale, currency)}
           customer={selectedCustomer}
           sessionSales={sessionSales}
+          sales={sessionSales}
+          onRemoveSale={(id) => void removeSaleFromCart(id)}
+          onUpdateQty={(sale, qty) => void updateCartQuantity(sale, qty)}
           profile={profile}
           partialPaidMinor={partialPaidMinor}
           onNavigateSettings={() => {
@@ -1488,6 +1535,9 @@ function SessionSummary(props: {
     qty: number;
     total: number;
   }[];
+  sales: readonly SessionSale[];
+  onRemoveSale: (movementId: UUID) => void;
+  onUpdateQty: (sale: SessionSale, newQty: number) => void;
   profile: ShopProfile | null | undefined;
   partialPaidMinor: number | null;
   onNavigateSettings: () => void;
@@ -1515,6 +1565,9 @@ function SessionSummary(props: {
     partialTotalLabel,
     customer,
     sessionSales,
+    sales,
+    onRemoveSale,
+    onUpdateQty,
     profile,
     partialPaidMinor,
     onNavigateSettings,
@@ -1561,6 +1614,73 @@ function SessionSummary(props: {
                 {formatCurrency(total, locale, currency)}
               </p>
             </div>
+          </div>
+
+          {/* Editable cart rows */}
+          <div
+            data-testid="cart-items"
+            className="border-hair mt-4 max-h-[35vh] overflow-y-auto rounded-2xl border bg-white"
+          >
+            {sales.length === 0 ? (
+              <p className="text-ink-3 px-4 py-3 text-center text-sm">{t('cart_empty')}</p>
+            ) : (
+              <ul className="divide-hair divide-y px-1">
+                {sales.map((sale) => {
+                  const label = [sale.color, sale.size]
+                    .filter((p): p is string => typeof p === 'string' && p.length > 0)
+                    .join(' · ');
+                  return (
+                    <li
+                      key={sale.movement_id}
+                      data-testid={`cart-row-${sale.movement_id}`}
+                      className="flex items-center gap-2 px-3 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-ink truncate text-sm font-medium">{sale.article_name}</p>
+                        {label ? (
+                          <p className="text-ink-3 text-xs">{label}</p>
+                        ) : (
+                          <p className="text-ink-3 font-mono text-xs">{sale.internal_code}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          data-testid={`cart-qty-minus-${sale.movement_id}`}
+                          onClick={() => onUpdateQty(sale, sale.qty - 1)}
+                          aria-label={t('decrease_qty')}
+                          className="border-hair h-7 w-7 rounded-md border text-sm leading-none"
+                        >
+                          −
+                        </button>
+                        <span className="w-6 text-center text-sm tabular-nums">{sale.qty}</span>
+                        <button
+                          type="button"
+                          data-testid={`cart-qty-plus-${sale.movement_id}`}
+                          onClick={() => onUpdateQty(sale, sale.qty + 1)}
+                          aria-label={t('increase_qty')}
+                          className="border-hair h-7 w-7 rounded-md border text-sm leading-none"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="text-ink-2 w-20 text-end text-sm tabular-nums" dir="ltr">
+                        {formatCurrency(sale.total, locale, currency)}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid={`cart-remove-${sale.movement_id}`}
+                        onClick={() => onRemoveSale(sale.movement_id)}
+                        aria-label={t('remove_item')}
+                        className="text-ink-3 hover:text-bad ms-1 p-1"
+                      >
+                        <Trash2 aria-hidden className="h-4 w-4" strokeWidth={2} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
 
           <div className="border-hair mt-4 space-y-3 rounded-2xl border bg-white p-3">
