@@ -123,7 +123,7 @@ export function SellScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideNav hideFooter wide>
+    <ScreenLayout hideFooter wide>
       {tab === 'documents' ? (
         <DocumentsTab onSwitch={selectTab} active={tab} />
       ) : (
@@ -573,6 +573,15 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     setPickerArticleId(article.id);
     setScanError(null);
   }
+
+  // TODO(router-upgrade): useBlocker for bottom-nav cart protection.
+  // useBlocker()/usePrompt() require the data router (createBrowserRouter /
+  // RouterProvider). This app uses BrowserRouter, so the hook throws at
+  // runtime. Until the router is migrated, bottom-nav taps with a non-empty
+  // cart navigate away without confirmation. The X-button and "End →" chip
+  // already trigger EndSessionDialog, so only the nav-bar path is unguarded.
+  // Migration path: replace <BrowserRouter> in app.tsx with createBrowserRouter,
+  // then add useBlocker here matching the shouldBlock logic above.
 
   // ─── X / End session ───────────────────────────────────────────────
   function handleClose(): void {
