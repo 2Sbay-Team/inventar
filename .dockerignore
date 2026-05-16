@@ -1,0 +1,34 @@
+# Never send node_modules or build output into the Docker build context.
+# Without this, Docker copies the entire 361 MB node_modules folder before
+# the first RUN step — massively inflating build time and layer size.
+web/node_modules
+web/dist
+web/.vite
+web/coverage
+
+# Git metadata and dev tools
+.git
+.github
+web/.husky
+web/e2e
+
+# Docs and design assets
+docs
+DATA_MODEL.md
+DECISIONS.md
+DEPLOY.md
+NON_GOALS.md
+PROJECT.md
+REQUIREMENTS.md
+SPEC.md
+TESTING.md
+RUNBOOK.md
+*.md
+*.png
+*.jpg
+ui_mockups
+
+# OS / editor artefacts
+.DS_Store
+**/.DS_Store
+**/*.log

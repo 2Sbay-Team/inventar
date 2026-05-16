@@ -87,6 +87,14 @@ export default defineConfig({
     port: 4173,
     strictPort: true,
   },
+  // Prevent Vite from pre-bundling or analyzing @huggingface/transformers.
+  // The library bundles large WASM files; letting Vite process them causes
+  // the build to hang with no output. The lib is loaded lazily at runtime
+  // via dynamic import() inside ai-vision.ts.
+  optimizeDeps: {
+    exclude: ['@huggingface/transformers'],
+  },
+
   build: {
     target: 'es2022',
     // v0.5.2.1: production builds NEVER ship source maps. Without
