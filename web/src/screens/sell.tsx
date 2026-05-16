@@ -123,7 +123,7 @@ export function SellScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideFooter wide>
+    <ScreenLayout hideNav hideFooter wide>
       {tab === 'documents' ? (
         <DocumentsTab onSwitch={selectTab} active={tab} />
       ) : (
