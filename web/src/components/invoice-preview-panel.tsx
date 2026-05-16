@@ -6,6 +6,8 @@ interface PreviewSale {
   color: string | null;
   size: string | null;
   qty: number;
+  unit_price_tnd?: number;
+  discount_pct?: number | null;
   total: number;
 }
 
@@ -114,12 +116,23 @@ export function InvoicePreviewPanel({
               const label = [sale.article_name, sale.color, sale.size]
                 .filter((p): p is string => typeof p === 'string' && p.length > 0)
                 .join(' · ');
-              const unitPrice = Math.round(sale.total / Math.max(1, sale.qty));
+              const unitPrice =
+                sale.unit_price_tnd ?? Math.round(sale.total / Math.max(1, sale.qty));
+              const hasDiscount = sale.discount_pct != null && sale.discount_pct > 0;
               return (
                 <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-x-3 py-1.5 leading-snug">
                   <div>
                     <p className="text-ink font-medium">{label}</p>
-                    <p className="text-ink-3 font-mono text-[10px]">{fmt(unitPrice)} each</p>
+                    <p className="text-ink-3 font-mono text-[10px]">
+                      {hasDiscount ? (
+                        <>
+                          <span className="line-through opacity-60">{fmt(unitPrice)}</span>{' '}
+                          <span className="text-emerald-700">-{sale.discount_pct}%</span>
+                        </>
+                      ) : (
+                        `${fmt(unitPrice)} each`
+                      )}
+                    </p>
                   </div>
                   <span className="text-ink-2 self-start text-right tabular-nums">×{sale.qty}</span>
                   <span className="text-ink self-start text-right font-mono tabular-nums">

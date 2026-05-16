@@ -3,10 +3,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
+  AlertTriangle,
   ArrowRight,
   ArrowLeft,
   Camera,
   CheckCircle2,
+  Edit3,
   FileText,
   Minus,
   Plus,
@@ -87,7 +89,9 @@ interface SessionSale {
   size: string | null;
   unit_of_measure: Article['unit_of_measure'];
   qty: number;
-  // qty × unit_price_tnd at sale time, in minor units (millimes).
+  unit_price_tnd: number; // unit price at confirmation time (may be overridden)
+  discount_pct: number | null; // 0-100; null = no discount
+  // qty × unit_price_tnd × (1 - discount_pct/100), in minor units
   total: number;
 }
 
@@ -309,6 +313,10 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [pickerArticleId, setPickerArticleId] = useState<UUID | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [cartHintShown, setCartHintShown] = useState(
+    typeof window !== 'undefined' &&
+      window.localStorage.getItem('inventar:hint_cart_edit_seen') !== 'true',
+  );
 
   // Open picker immediately when navigated here from a QR scan redirect.
   useEffect(() => {
@@ -328,6 +336,17 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     const handle = window.setTimeout(() => setToast(null), 2000);
     return () => window.clearTimeout(handle);
   }, [toast]);
+
+  useEffect(() => {
+    if (sessionSales.length > 0 && cartHintShown) {
+      const timer = window.setTimeout(() => {
+        setCartHintShown(false);
+        window.localStorage.setItem('inventar:hint_cart_edit_seen', 'true');
+      }, 8000);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [sessionSales.length, cartHintShown]);
 
   // Live data — list of alive, non-archived articles + their variants.
   const articles = useLive<Article[]>(
@@ -454,9 +473,11 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     article: Article;
     variant: Variant;
     qty: number;
+    unitPriceOverride: number | null;
   }): Promise<void> {
-    const { article, variant, qty } = input;
+    const { article, variant, qty, unitPriceOverride } = input;
     if (qty <= 0) return;
+    const effectivePrice = unitPriceOverride ?? article.sale_price_tnd;
     try {
       const lot = await pickFifoLot(db, variant.id);
       const mv = await recordMovement(db, {
@@ -466,7 +487,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         location: 'floor',
         transaction_id: sessionIdRef.current,
         lot_id: lot?.id ?? null,
-        unit_price_tnd: article.sale_price_tnd,
+        unit_price_tnd: effectivePrice,
       });
       const sale: SessionSale = {
         movement_id: mv.id,
@@ -478,7 +499,9 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         size: variant.size,
         unit_of_measure: article.unit_of_measure,
         qty,
-        total: qty * article.sale_price_tnd,
+        unit_price_tnd: effectivePrice,
+        discount_pct: null,
+        total: qty * effectivePrice,
       };
       setSessionSales((s) => [...s, sale]);
       setPickerArticleId(null);
@@ -510,7 +533,8 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     }
     try {
       await revertMovement(db, sale.movement_id);
-      const unitPrice = sale.total / sale.qty;
+      const unitPrice = sale.unit_price_tnd;
+      const discountedPrice = unitPrice * (1 - (sale.discount_pct ?? 0) / 100);
       const lot = await pickFifoLot(db, sale.variant_id);
       const mv = await recordMovement(db, {
         variant_id: sale.variant_id,
@@ -519,19 +543,54 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         location: 'floor',
         transaction_id: sessionIdRef.current,
         lot_id: lot?.id ?? null,
-        unit_price_tnd: unitPrice,
+        unit_price_tnd: discountedPrice,
       });
       const updated: SessionSale = {
         ...sale,
         movement_id: mv.id,
         qty: newQty,
-        total: unitPrice * newQty,
+        total: discountedPrice * newQty,
       };
       setSessionSales((s) => s.map((x) => (x.movement_id === sale.movement_id ? updated : x)));
       setToast(t('toast_qty_updated'));
     } catch (err) {
       console.error('updateCartQuantity failed', err);
       setToast(t('cart_qty_failed'));
+    }
+  }
+
+  async function updateCartDiscount(
+    sale: SessionSale,
+    newDiscountPct: number | null,
+  ): Promise<void> {
+    if (newDiscountPct !== null && (newDiscountPct < 0 || newDiscountPct > 100)) {
+      setToast(t('discount_invalid'));
+      return;
+    }
+    const discountedUnitPrice = sale.unit_price_tnd * (1 - (newDiscountPct ?? 0) / 100);
+    const newTotal = sale.qty * discountedUnitPrice;
+    try {
+      await revertMovement(db, sale.movement_id);
+      const lot = await pickFifoLot(db, sale.variant_id);
+      const mv = await recordMovement(db, {
+        variant_id: sale.variant_id,
+        delta: -sale.qty,
+        type: 'sale',
+        location: 'floor',
+        transaction_id: sessionIdRef.current,
+        lot_id: lot?.id ?? null,
+        unit_price_tnd: discountedUnitPrice,
+      });
+      const updated: SessionSale = {
+        ...sale,
+        movement_id: mv.id,
+        discount_pct: newDiscountPct,
+        total: newTotal,
+      };
+      setSessionSales((s) => s.map((x) => (x.movement_id === sale.movement_id ? updated : x)));
+    } catch (err) {
+      console.error('updateCartDiscount failed', err);
+      setToast(t('discount_update_failed'));
     }
   }
 
@@ -646,6 +705,8 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     sessionRevenue > 0 &&
     (partialPaidMinor === null || partialPaidMinor <= 0 || partialPaidMinor >= sessionRevenue);
   const cameraFirst = profile?.store_type === 'shop';
+  const vatNotConfigured =
+    profile !== undefined && profile?.default_vat_pct == null && sessionSales.length > 0;
 
   useEffect(() => {
     if (!hasBillableTotal && paymentMode !== 'paid') {
@@ -671,19 +732,43 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           {t('title')}
         </h3>
         {sessionCount > 0 ? (
-          <button
-            type="button"
-            data-testid="sell-end-session"
-            onClick={() => setSummaryOpen(true)}
-            className="bg-accent inline-flex items-center justify-self-end gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-white"
-            dir="ltr"
-          >
-            {t('end_session_chip', {
-              n: sessionCount,
-              total: formatCurrency(sessionRevenue, locale, currency),
-            })}
-            <ArrowRight aria-hidden className="h-3 w-3" strokeWidth={2.5} />
-          </button>
+          <div className="relative justify-self-end">
+            <button
+              type="button"
+              data-testid="sell-end-session"
+              onClick={() => setSummaryOpen(true)}
+              aria-label={t('open_cart_aria')}
+              className="bg-accent inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-white"
+              dir="ltr"
+            >
+              <Edit3 aria-hidden className="h-3 w-3 opacity-80" strokeWidth={2} />
+              {t('end_session_chip', {
+                n: sessionCount,
+                total: formatCurrency(sessionRevenue, locale, currency),
+              })}
+              <ArrowRight aria-hidden className="h-3 w-3" strokeWidth={2.5} />
+            </button>
+            {cartHintShown && sessionSales.length > 0 ? (
+              <div
+                data-testid="cart-edit-hint"
+                className="bg-ink absolute right-0 top-8 z-30 w-56 rounded-lg p-3 text-xs text-white shadow-lg"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCartHintShown(false);
+                    window.localStorage.setItem('inventar:hint_cart_edit_seen', 'true');
+                  }}
+                  className="float-end -me-1 -mt-1 text-white/80 hover:text-white"
+                  aria-label={tCommon('close')}
+                >
+                  ×
+                </button>
+                <p className="pe-4">{t('hint_cart_edit')}</p>
+                <div className="bg-ink absolute -top-1 right-4 h-2 w-2 rotate-45" />
+              </div>
+            ) : null}
+          </div>
         ) : (
           <span
             data-testid="sell-empty-counter"
@@ -715,6 +800,35 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
             hasBillableTotal={hasBillableTotal}
             t={t}
           />
+
+          {documentMode === 'invoice' && vatNotConfigured ? (
+            <div
+              data-testid="vat-setup-banner"
+              className="mx-4 my-2 rounded-lg border border-amber-200 bg-amber-50 p-3"
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle
+                  aria-hidden
+                  className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600"
+                  strokeWidth={2}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-amber-900">
+                    {t('vat_not_configured_title')}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">{t('vat_not_configured_body')}</p>
+                  <button
+                    type="button"
+                    data-testid="vat-setup-cta"
+                    onClick={() => navigate('/settings')}
+                    className="mt-2 inline-flex rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+                  >
+                    {t('vat_not_configured_cta')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <SearchScanBar
             value={search}
@@ -869,6 +983,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
           sales={sessionSales}
           onRemoveSale={(id) => void removeSaleFromCart(id)}
           onUpdateQty={(sale, qty) => void updateCartQuantity(sale, qty)}
+          onUpdateDiscount={(sale, pct) => void updateCartDiscount(sale, pct)}
           profile={profile}
           partialPaidMinor={partialPaidMinor}
           onNavigateSettings={() => {
@@ -1221,7 +1336,12 @@ function VariantPicker(props: {
   locale: Locale;
   currency: string;
   onClose: () => void;
-  onConfirm: (input: { article: Article; variant: Variant; qty: number }) => void;
+  onConfirm: (input: {
+    article: Article;
+    variant: Variant;
+    qty: number;
+    unitPriceOverride: number | null;
+  }) => void;
   t: (k: string, opts?: Record<string, unknown>) => string;
   tCommon: (k: string) => string;
 }): JSX.Element {
@@ -1232,6 +1352,7 @@ function VariantPicker(props: {
   const [color, setColor] = useState<string | null>(null);
   const [size, setSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
+  const [unitPriceText, setUnitPriceText] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -1258,6 +1379,14 @@ function VariantPicker(props: {
       cancelled = true;
     };
   }, [articleId]);
+
+  useEffect(() => {
+    if (article && unitPriceText === '') {
+      setUnitPriceText(
+        article.sale_price_tnd > 0 ? formatCurrency(article.sale_price_tnd, locale, currency) : '',
+      );
+    }
+  }, [article, locale, currency, unitPriceText]);
 
   const colors = useMemo<Array<string | null>>(() => {
     const seen = new Set<string>();
@@ -1303,7 +1432,10 @@ function VariantPicker(props: {
   }
 
   const available = activeCell?.qty ?? 0;
-  const total = qty * article.sale_price_tnd;
+  const overridePrice = parseCurrency(unitPriceText, locale, currency);
+  const effectiveUnitPrice =
+    overridePrice !== null && overridePrice >= 0 ? overridePrice : article.sale_price_tnd;
+  const total = qty * effectiveUnitPrice;
   const canConfirm = qty > 0 && qty <= available && activeVariant !== null;
 
   return (
@@ -1426,6 +1558,30 @@ function VariantPicker(props: {
             </button>
           </div>
 
+          <div className="mt-4">
+            <label className="text-ink-3 mb-1 block text-xs font-medium">
+              {t('unit_price_label')}
+            </label>
+            <input
+              data-testid="picker-unit-price"
+              type="text"
+              inputMode="decimal"
+              value={unitPriceText}
+              onChange={(e) => setUnitPriceText(e.target.value)}
+              placeholder={t('unit_price_placeholder')}
+              className="border-hair w-full rounded-lg border bg-white px-3 py-2 text-sm tabular-nums"
+            />
+            {article.sale_price_tnd > 0 &&
+            overridePrice !== null &&
+            overridePrice !== article.sale_price_tnd ? (
+              <p className="mt-1 text-xs text-amber-700">
+                {t('price_overridden_hint', {
+                  original: formatCurrency(article.sale_price_tnd, locale, currency),
+                })}
+              </p>
+            ) : null}
+          </div>
+
           <div className="border-hair text-ink mt-4 flex items-center justify-between border-t pt-3 text-sm font-semibold">
             <span>{t('variant_total_label')}</span>
             <span data-testid="sell-variant-total" className="font-mono tabular-nums" dir="ltr">
@@ -1439,7 +1595,15 @@ function VariantPicker(props: {
             disabled={!canConfirm}
             onClick={() => {
               if (!activeVariant) return;
-              onConfirm({ article, variant: activeVariant, qty });
+              onConfirm({
+                article,
+                variant: activeVariant,
+                qty,
+                unitPriceOverride:
+                  overridePrice !== null && overridePrice !== article.sale_price_tnd
+                    ? overridePrice
+                    : null,
+              });
             }}
             className="bg-accent mt-4 w-full rounded-xl py-3 text-sm font-medium text-white disabled:opacity-50"
           >
@@ -1538,6 +1702,7 @@ function SessionSummary(props: {
   sales: readonly SessionSale[];
   onRemoveSale: (movementId: UUID) => void;
   onUpdateQty: (sale: SessionSale, newQty: number) => void;
+  onUpdateDiscount: (sale: SessionSale, pct: number | null) => void;
   profile: ShopProfile | null | undefined;
   partialPaidMinor: number | null;
   onNavigateSettings: () => void;
@@ -1568,6 +1733,7 @@ function SessionSummary(props: {
     sales,
     onRemoveSale,
     onUpdateQty,
+    onUpdateDiscount,
     profile,
     partialPaidMinor,
     onNavigateSettings,
@@ -1664,9 +1830,26 @@ function SessionSummary(props: {
                           +
                         </button>
                       </div>
-                      <span className="text-ink-2 w-20 text-end text-sm tabular-nums" dir="ltr">
-                        {formatCurrency(sale.total, locale, currency)}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          data-testid={`cart-discount-${sale.movement_id}`}
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={sale.discount_pct ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value === '' ? null : Number(e.target.value);
+                            onUpdateDiscount(sale, v);
+                          }}
+                          placeholder="0%"
+                          className="border-hair w-12 rounded-md border bg-white px-1.5 py-1 text-end text-xs tabular-nums"
+                          aria-label={t('discount_aria')}
+                        />
+                        <span className="text-ink-2 w-20 text-end text-sm tabular-nums" dir="ltr">
+                          {formatCurrency(sale.total, locale, currency)}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         data-testid={`cart-remove-${sale.movement_id}`}

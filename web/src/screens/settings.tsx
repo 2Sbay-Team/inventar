@@ -723,6 +723,11 @@ function IdentitySubsection({ profile }: { profile: ShopProfile }): JSX.Element 
         <label htmlFor="identity-default-vat" className="text-ink-2 block text-xs font-medium">
           {t('identity_default_vat')}
         </label>
+        {profile.default_vat_pct == null ? (
+          <p data-testid="vat-setup-tip" className="text-ink-3 text-xs leading-relaxed">
+            💡 {t('vat_setup_tip')}
+          </p>
+        ) : null}
         <input
           id="identity-default-vat"
           data-testid="identity-default-vat"
