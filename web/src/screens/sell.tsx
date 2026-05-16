@@ -440,7 +440,7 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         if (!aid) continue;
         tally.set(aid, (tally.get(aid) ?? 0) - s.delta);
       }
-      const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
       const out: Article[] = [];
       for (const [aid] of ranked) {
         const a = await db.articles.get(aid);
@@ -857,6 +857,8 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
               articles={topSold}
               stock={articleStock}
               onPick={(a) => setPickerArticleId(a.id)}
+              currency={currency}
+              locale={locale}
               t={t}
             />
           ) : null}
@@ -1252,32 +1254,60 @@ function QuickSellStrip(props: {
   articles: readonly Article[];
   stock: Record<string, number>;
   onPick: (a: Article) => void;
+  currency: string;
+  locale: Locale;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }): JSX.Element {
-  const { articles, stock, onPick, t } = props;
+  const { articles, stock, onPick, currency, locale, t } = props;
   return (
-    <section className="mt-4 px-4">
+    <section className="mt-3 px-4">
       <p className="text-ink-3 mb-2 text-[11px] font-medium uppercase tracking-wide">
         {t('quick_sell_heading')}
       </p>
-      <div data-testid="sell-quick-strip" className="-mx-1 flex gap-2 overflow-x-auto pb-1">
-        {articles.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            data-testid={`sell-quick-${a.internal_code}`}
-            onClick={() => onPick(a)}
-            className="border-hair flex w-[120px] flex-shrink-0 flex-col items-center gap-1 rounded-2xl border bg-white p-2"
-          >
-            <PhotoThumb photoId={a.photo_id} size={88} />
-            <span className="text-ink line-clamp-1 w-full text-center text-xs font-medium">
-              {a.name}
-            </span>
-            <span className="text-ink-3 font-mono text-[10px]" dir="ltr">
-              {stock[a.id] ?? 0}
-            </span>
-          </button>
-        ))}
+      <div data-testid="sell-quick-strip" className="flex gap-2 overflow-x-auto pb-1">
+        {articles.map((a) => {
+          const qty = stock[a.id] ?? 0;
+          const outOfStock = qty <= 0;
+          const lowStock = qty > 0 && qty <= 3;
+          return (
+            <button
+              key={a.id}
+              type="button"
+              data-testid={`sell-quick-${a.internal_code}`}
+              onClick={() => !outOfStock && onPick(a)}
+              disabled={outOfStock}
+              className={`border-hair flex w-[108px] flex-shrink-0 flex-col items-center gap-1.5 rounded-2xl border bg-white p-2.5 text-start transition-opacity active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${
+                outOfStock ? '' : 'hover:border-accent/30'
+              }`}
+            >
+              <div className="relative w-full">
+                <PhotoThumb photoId={a.photo_id} size={80} className="!w-full !rounded-xl" />
+                {outOfStock ? (
+                  <span className="bg-bad/90 absolute inset-0 flex items-center justify-center rounded-xl text-[9px] font-semibold text-white">
+                    {t('out_of_stock')}
+                  </span>
+                ) : lowStock ? (
+                  <span className="bg-amber-500 absolute bottom-1 end-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    {qty}
+                  </span>
+                ) : (
+                  <span className="bg-ok absolute bottom-1 end-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    {qty}
+                  </span>
+                )}
+              </div>
+              <span className="text-ink line-clamp-2 w-full text-center text-[11px] font-medium leading-tight">
+                {a.name}
+              </span>
+              <span
+                className="text-accent w-full text-center font-mono text-[11px] font-semibold tabular-nums"
+                dir="ltr"
+              >
+                {formatCurrency(a.sale_price_tnd, locale, currency)}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </section>
   );
