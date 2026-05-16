@@ -1,15 +1,13 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, ScanLine, Trash2 } from 'lucide-react';
-import { useSafeBack } from '../hooks/use-safe-back';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, ScanLine, Sparkles, Trash2 } from 'lucide-react';
 import { BarcodeScanner } from '../components/barcode-scanner';
 import { PhotoPicker } from '../components/photo-picker';
 import { ScreenLayout } from '../components/screen-layout';
 import { useLocationLabels } from '../hooks/use-location-labels';
 import { STORE_TYPES } from '../config/store-types';
 import { categoriesForSubtypes } from '../config/shop-subtypes';
-import { categoriesForFashionSubtypes } from '../config/fashion-subtypes';
 import { getSizeSuggestionsCapped } from '../config/size-suggestions';
 import {
   defaultUomForProfile,
@@ -23,6 +21,7 @@ import { db } from '../db/db';
 import { createArticle } from '../repos/articles';
 import { storePhoto } from '../repos/photos';
 import { compressPhoto, PhotoTooLargeError } from '../utils/compress-photo';
+import { analyzeArticlePhoto, type PhotoAssistantSuggestion } from '../utils/photo-assistant';
 import { useCurrency } from '../hooks/use-currency';
 import { useLocale } from '../hooks/use-locale';
 import { useLive } from '../hooks/use-live';
@@ -107,6 +106,14 @@ interface SizeRow {
   back: number;
 }
 
+type PhotoAssistantMode = 'local' | 'hf';
+
+interface PhotoAssistantState {
+  loading: boolean;
+  suggestion: PhotoAssistantSuggestion | null;
+  error: string | null;
+}
+
 interface ColorBlock {
   // Colour the user picked from the chip palette. For sizeless verticals
   // (kiosk / grocery) this stays empty and is stored as null on the
@@ -167,9 +174,6 @@ export function AddArticleScreen(): JSX.Element {
   const { t: tColor } = useTranslation('color');
   const { t: tCategory } = useTranslation('category');
   const navigate = useNavigate();
-  const goBack = useSafeBack('/products');
-  const [searchParams, setSearchParams] = useSearchParams();
-  const shouldAutoScan = searchParams.get('scan') === '1';
   const { locale } = useLocale();
   const currency = useCurrency();
   const profile = useProfile();
@@ -183,17 +187,8 @@ export function AddArticleScreen(): JSX.Element {
     if (storeType === 'shop' && profile?.shop_subtypes && profile.shop_subtypes.length > 0) {
       return categoriesForSubtypes(profile.shop_subtypes);
     }
-    if (
-      storeType === 'fashion' &&
-      profile?.fashion_subtypes &&
-      profile.fashion_subtypes.length > 0
-    ) {
-      const filtered = categoriesForFashionSubtypes(profile.fashion_subtypes);
-      // Safety net: fall back to full union if filter produces nothing.
-      return filtered.length > 0 ? filtered : storeCfg.categories;
-    }
     return storeCfg.categories;
-  }, [storeCfg, storeType, profile?.shop_subtypes, profile?.fashion_subtypes]);
+  }, [storeCfg, storeType, profile?.shop_subtypes]);
   // v0.5.1: per-article opt-in for shop. The shop vertical defaults
   // to sizeless + colourless (the right call for groceries / kiosk
   // stock), but real shops also sell items like towels, notebooks or
@@ -210,7 +205,7 @@ export function AddArticleScreen(): JSX.Element {
   const [basics, setBasics] = useState<Basics>(() => ({
     brand: '',
     name: '',
-    category: '',
+    category: storeCfg.categories[0] ?? '',
     costInput: '',
     saleInput: '',
     notes: '',
@@ -240,22 +235,6 @@ export function AddArticleScreen(): JSX.Element {
       b.unitOfMeasure === 'piece' && next !== 'piece' ? { ...b, unitOfMeasure: next } : b,
     );
   }, [profile]);
-
-  useEffect(() => {
-    if (!basics.category && categories.length > 0) {
-      setBasics((b) => ({ ...b, category: categories[0] }));
-    }
-  }, [categories, basics.category]);
-
-  useEffect(() => {
-    if (shouldAutoScan) {
-      // Remove ?scan=1 so back-navigation + forward doesn't reopen the scanner.
-      const next = new URLSearchParams(searchParams);
-      next.delete('scan');
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   // v0.5.6 — colour matrix is suppressed for any measured UoM (weight,
   // volume, length): a roll of fabric has no "blue vs red" axis worth
   // tracking per metre. Size is more nuanced — a weight/volume UoM
@@ -312,7 +291,13 @@ export function AddArticleScreen(): JSX.Element {
   // sat below the fold of a long form. See the saveError banner near
   // the top of Step 2 and the scrollToFirstError() call below.
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(shouldAutoScan);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [photoAssistant, setPhotoAssistant] = useState<PhotoAssistantState>({
+    loading: false,
+    suggestion: null,
+    error: null,
+  });
+  const [photoAssistantMode, setPhotoAssistantMode] = useState<PhotoAssistantMode>('local');
 
   const skuPrefix = storeCfg.sku_prefix;
   const previewedCode = useLive<string>(
@@ -397,6 +382,84 @@ export function AddArticleScreen(): JSX.Element {
       if (target?.photoPreviewUrl) URL.revokeObjectURL(target.photoPreviewUrl);
       return arr.filter((_, idx) => idx !== i);
     });
+  }
+
+  async function handleAssistantPhoto(file: File): Promise<void> {
+    setPhotoAssistant({ loading: true, suggestion: null, error: null });
+    try {
+      let compressed;
+      try {
+        compressed = await compressPhoto(file);
+      } catch (err) {
+        setPhotoAssistant({
+          loading: false,
+          suggestion: null,
+          error: err instanceof PhotoTooLargeError ? t('photo_too_large') : t('photo_failed'),
+        });
+        return;
+      }
+
+      const stored = await storePhoto(db, {
+        blob: compressed.blob,
+        width: compressed.width,
+        height: compressed.height,
+        mime: compressed.mime,
+      });
+      const suggestion =
+        photoAssistantMode === 'hf'
+          ? await import('../utils/photo-assistant-ai').then((module) =>
+              module.analyzeArticlePhotoWithVision(compressed.blob, categories),
+            )
+          : await analyzeArticlePhoto(compressed.blob, categories);
+      const url = URL.createObjectURL(compressed.blob);
+
+      setBlocks((arr) => {
+        const next = arr.length > 0 ? [...arr] : [emptyBlock()];
+        const first = next[0] ?? emptyBlock();
+        if (first.photoPreviewUrl) URL.revokeObjectURL(first.photoPreviewUrl);
+        next[0] = {
+          ...first,
+          photoId: stored.id,
+          photoPreviewUrl: url,
+          photoError: null,
+          color: hasColors && suggestion.color ? suggestion.color : first.color,
+          customColor: hasColors && suggestion.color ? '' : first.customColor,
+          sizes:
+            hasSizes && suggestion.size
+              ? first.sizes.map((row, idx) =>
+                  idx === 0 ? { ...row, size: suggestion.size ?? row.size } : row,
+                )
+              : first.sizes,
+        };
+        return next;
+      });
+
+      setBasics((b) => {
+        const notes: string[] = [];
+        if (b.notes.trim()) notes.push(b.notes.trim());
+        if (suggestion.material && !b.notes.toLowerCase().includes('material')) {
+          notes.push(`Material: ${suggestion.material}`);
+        }
+        if (suggestion.rawText && !b.notes.toLowerCase().includes('label')) {
+          notes.push(`Label: ${suggestion.rawText.slice(0, 120)}`);
+        }
+        return {
+          ...b,
+          brand: b.brand.trim() === '' && suggestion.brand ? suggestion.brand : b.brand,
+          name: b.name.trim().length < 2 && suggestion.name ? suggestion.name : b.name,
+          category:
+            suggestion.category && categories.includes(suggestion.category)
+              ? suggestion.category
+              : b.category,
+          notes: notes.join(' · '),
+        };
+      });
+
+      setPhotoAssistant({ loading: false, suggestion, error: null });
+    } catch (err) {
+      console.error('Photo assistant failed', err);
+      setPhotoAssistant({ loading: false, suggestion: null, error: t('photo_assistant_error') });
+    }
   }
 
   async function handleBlockPhoto(i: number, file: File): Promise<void> {
@@ -610,12 +673,12 @@ export function AddArticleScreen(): JSX.Element {
   }
 
   return (
-    <ScreenLayout hideNav hideFooter>
+    <ScreenLayout hideNav>
       <header className="border-hair grid grid-cols-3 items-center border-b px-4 py-3">
         <button
           type="button"
           data-testid={step === 1 ? 'add-cancel' : 'add-back'}
-          onClick={() => (step === 1 ? goBack() : setStep(1))}
+          onClick={() => (step === 1 ? navigate(-1) : setStep(1))}
           className="text-ink-3 justify-self-start text-xs"
         >
           {step === 1 ? tCommon('cancel') : tCommon('back')}
@@ -652,6 +715,10 @@ export function AddArticleScreen(): JSX.Element {
           locale={locale}
           currency={currency}
           onScan={() => setScannerOpen(true)}
+          onAssistantPhoto={(file) => void handleAssistantPhoto(file)}
+          assistantState={photoAssistant}
+          assistantMode={photoAssistantMode}
+          onAssistantModeChange={setPhotoAssistantMode}
           showMinStock={storeCfg.has_expiry}
           // v0.9 ADR-041 — gate the tax-rate radio on the shop having
           // a default VAT configured. When the merchant hasn't set
@@ -730,6 +797,10 @@ interface Step1Props {
   locale: string;
   currency: string;
   onScan: () => void;
+  onAssistantPhoto: (file: File) => void;
+  assistantState: PhotoAssistantState;
+  assistantMode: PhotoAssistantMode;
+  onAssistantModeChange: (mode: PhotoAssistantMode) => void;
   // v0.5 ADR-017: surface the min_stock_threshold input only for the
   // shop vertical (drives the "Low (N left)" badge in Search/List).
   showMinStock: boolean;
@@ -750,6 +821,10 @@ function Step1({
   locale: _locale,
   currency,
   onScan,
+  onAssistantPhoto,
+  assistantState,
+  assistantMode,
+  onAssistantModeChange,
   showMinStock,
   shopDefaultVatPct,
 }: Step1Props): JSX.Element {
@@ -771,6 +846,13 @@ function Step1({
         <ScanLine aria-hidden className="h-4 w-4" strokeWidth={2.25} />
         {t('scan_button')}
       </button>
+
+      <PhotoAssistantPanel
+        state={assistantState}
+        mode={assistantMode}
+        onModeChange={onAssistantModeChange}
+        onPhoto={onAssistantPhoto}
+      />
 
       <section
         data-testid="add-section-identity"
@@ -939,6 +1021,156 @@ function Step1({
         ) : null}
       </section>
     </div>
+  );
+}
+
+interface PhotoAssistantPanelProps {
+  state: PhotoAssistantState;
+  mode: PhotoAssistantMode;
+  onModeChange: (mode: PhotoAssistantMode) => void;
+  onPhoto: (file: File) => void;
+}
+
+function PhotoAssistantPanel({
+  state,
+  mode,
+  onModeChange,
+  onPhoto,
+}: PhotoAssistantPanelProps): JSX.Element {
+  const { t } = useTranslation('add');
+  const suggestion = state.suggestion;
+  const chips: Array<{ key: string; label: string }> = [];
+  if (suggestion?.name)
+    chips.push({
+      key: 'name',
+      label: `${t('photo_assistant_suggested_name')}: ${suggestion.name}`,
+    });
+  if (suggestion?.brand)
+    chips.push({
+      key: 'brand',
+      label: `${t('photo_assistant_suggested_brand')}: ${suggestion.brand}`,
+    });
+  if (suggestion?.category)
+    chips.push({
+      key: 'category',
+      label: `${t('photo_assistant_suggested_category')}: ${suggestion.category}`,
+    });
+  if (suggestion?.color)
+    chips.push({
+      key: 'color',
+      label: `${t('photo_assistant_detected_color')}: ${suggestion.color}`,
+    });
+  if (suggestion?.size)
+    chips.push({
+      key: 'size',
+      label: `${t('photo_assistant_suggested_size')}: ${suggestion.size}`,
+    });
+  if (suggestion?.material)
+    chips.push({
+      key: 'material',
+      label: `${t('photo_assistant_suggested_material')}: ${suggestion.material}`,
+    });
+  if (suggestion?.vision?.enabled && suggestion.vision.label)
+    chips.push({
+      key: 'vision',
+      label: `${t('photo_assistant_ai_label')}: ${suggestion.vision.label} (${Math.round(
+        suggestion.vision.confidence * 100,
+      )}%)`,
+    });
+
+  return (
+    <section
+      data-testid="photo-assistant"
+      className="border-accent/20 bg-accent-soft/30 space-y-3 rounded-2xl border p-4"
+    >
+      <div className="flex items-start gap-3">
+        <span className="bg-accent text-accent-ink mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl">
+          <Sparkles aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h4 className="font-display text-sm font-semibold text-ink">
+            {t('photo_assistant_title')}
+          </h4>
+          <p className="text-ink-3 mt-1 text-[11px] leading-relaxed">{t('photo_assistant_hint')}</p>
+        </div>
+      </div>
+
+      <div
+        className="border-hair grid grid-cols-2 gap-1 rounded-2xl border bg-white/70 p-1"
+        role="group"
+        aria-label={t('photo_assistant_mode')}
+      >
+        {(['local', 'hf'] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            data-testid={`photo-assistant-mode-${item}`}
+            onClick={() => onModeChange(item)}
+            disabled={state.loading}
+            aria-pressed={mode === item}
+            className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+              mode === item ? 'bg-accent text-accent-ink shadow-sm' : 'text-ink-2 hover:bg-white'
+            }`}
+          >
+            {item === 'hf' ? t('photo_assistant_mode_ai') : t('photo_assistant_mode_local')}
+          </button>
+        ))}
+      </div>
+      {mode === 'hf' ? (
+        <p className="text-ink-3 text-[11px] leading-relaxed">
+          {t('photo_assistant_ai_beta_hint')}
+        </p>
+      ) : null}
+
+      <PhotoPicker
+        testIdBase="photo-assistant"
+        onFile={onPhoto}
+        disabled={state.loading}
+        layout="stacked"
+      />
+
+      {state.loading ? (
+        <p data-testid="photo-assistant-loading" className="text-ink-2 text-xs">
+          {mode === 'hf' ? t('photo_assistant_ai_loading') : t('photo_assistant_scanning')}
+        </p>
+      ) : null}
+      {state.error ? (
+        <p data-testid="photo-assistant-error" role="alert" className="text-bad text-xs">
+          {state.error}
+        </p>
+      ) : null}
+      {suggestion ? (
+        <div data-testid="photo-assistant-result" className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {chips.length > 0 ? (
+              chips.map((chip) => (
+                <span
+                  key={chip.key}
+                  className="border-hair bg-white text-ink-2 rounded-full border px-2.5 py-1 text-[11px]"
+                >
+                  {chip.label}
+                </span>
+              ))
+            ) : (
+              <span className="text-ink-3 text-xs">{t('photo_assistant_empty')}</span>
+            )}
+          </div>
+          {suggestion.vision ? (
+            <p className="text-ink-3 text-[11px] leading-relaxed">
+              {suggestion.vision.enabled
+                ? t('photo_assistant_ai_ready', { backend: suggestion.vision.backend })
+                : t('photo_assistant_ai_fallback')}
+            </p>
+          ) : null}
+          <p className="text-ink-3 text-[11px] leading-relaxed">
+            {suggestion.textSupported
+              ? t('photo_assistant_applied')
+              : t('photo_assistant_text_unavailable')}
+          </p>
+          <p className="text-ink-3 text-[11px] leading-relaxed">{t('photo_assistant_vat_note')}</p>
+        </div>
+      ) : null}
+    </section>
   );
 }
 

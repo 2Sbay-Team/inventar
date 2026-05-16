@@ -35,6 +35,38 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/health$/, /^\/robots\.txt$/],
         cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^\/assets\/ort-wasm-.*\.wasm$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ai-runtime-wasm',
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/huggingface\.co\/.*\/resolve\/.*\.(onnx|bin|json|txt)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ai-vision-models',
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/(cdn-lfs\.huggingface\.co|cas-bridge\.xethub\.hf\.co)\//i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ai-vision-model-blobs',
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+        ],
         clientsClaim: true,
         skipWaiting: false,
       },
