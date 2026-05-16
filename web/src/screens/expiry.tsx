@@ -451,7 +451,7 @@ function DiscountSheet(props: {
             autoFocus
             value={draftInput}
             onChange={(e) => setDraftInput(e.target.value)}
-            placeholder={formatCurrency(Math.floor(currentSale * 0.7), locale, currency)}
+            placeholder={formatCurrency(Math.round(currentSale * 0.7), locale, currency)}
             className="border-hair mt-1 w-full rounded-xl border bg-white px-3 py-2.5 text-end font-mono text-sm font-semibold"
           />
 

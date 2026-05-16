@@ -306,6 +306,24 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
   const [sessionSales, setSessionSales] = useState<SessionSale[]>([]);
   const [invoicing, setInvoicing] = useState(false);
 
+  // Money-safe discount math (ADR-005 compliant).
+  // unit_price_tnd is the ORIGINAL price — never the already-discounted value.
+  function discountedUnit(unitPriceMinor: number, discountPct: number | null): number {
+    if (discountPct === null || discountPct === 0) return unitPriceMinor;
+    return Math.round(unitPriceMinor * (1 - discountPct / 100));
+  }
+
+  // Returns live available stock for a variant, filtering out deleted movements.
+  // Called AFTER revertMovement so the check reflects restored stock.
+  async function availableStock(variantId: UUID): Promise<number> {
+    const movements = await db.movements
+      .where('variant_id')
+      .equals(variantId)
+      .filter((m) => m.deleted_at === null)
+      .toArray();
+    return movements.reduce((sum, m) => sum + m.delta, 0);
+  }
+
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [endConfirm, setEndConfirm] = useState(false);
@@ -532,9 +550,31 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
       return;
     }
     try {
+      // Revert first so the stock check sees the full available headroom.
       await revertMovement(db, sale.movement_id);
-      const unitPrice = sale.unit_price_tnd;
-      const discountedPrice = unitPrice * (1 - (sale.discount_pct ?? 0) / 100);
+      const available = await availableStock(sale.variant_id);
+      if (newQty > available) {
+        // Re-record the original qty to leave the cart consistent.
+        const lotRollback = await pickFifoLot(db, sale.variant_id);
+        const mvRollback = await recordMovement(db, {
+          variant_id: sale.variant_id,
+          delta: -sale.qty,
+          type: 'sale',
+          location: 'floor',
+          transaction_id: sessionIdRef.current,
+          lot_id: lotRollback?.id ?? null,
+          unit_price_tnd: discountedUnit(sale.unit_price_tnd, sale.discount_pct),
+        });
+        setSessionSales((s) =>
+          s.map((x) =>
+            x.movement_id === sale.movement_id ? { ...x, movement_id: mvRollback.id } : x,
+          ),
+        );
+        setToast(t('cart_qty_exceeds_stock', { available }));
+        return;
+      }
+      // unit_price_tnd is the ORIGINAL price — discount applied by discountedUnit().
+      const movementUnitPrice = discountedUnit(sale.unit_price_tnd, sale.discount_pct);
       const lot = await pickFifoLot(db, sale.variant_id);
       const mv = await recordMovement(db, {
         variant_id: sale.variant_id,
@@ -543,13 +583,14 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         location: 'floor',
         transaction_id: sessionIdRef.current,
         lot_id: lot?.id ?? null,
-        unit_price_tnd: discountedPrice,
+        unit_price_tnd: movementUnitPrice,
       });
       const updated: SessionSale = {
         ...sale,
         movement_id: mv.id,
         qty: newQty,
-        total: discountedPrice * newQty,
+        // unit_price_tnd intentionally unchanged — invariant
+        total: movementUnitPrice * newQty,
       };
       setSessionSales((s) => s.map((x) => (x.movement_id === sale.movement_id ? updated : x)));
       setToast(t('toast_qty_updated'));
@@ -563,12 +604,16 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
     sale: SessionSale,
     newDiscountPct: number | null,
   ): Promise<void> {
-    if (newDiscountPct !== null && (newDiscountPct < 0 || newDiscountPct > 100)) {
-      setToast(t('discount_invalid'));
-      return;
+    // Reject NaN, Infinity, and out-of-range values.
+    if (newDiscountPct !== null) {
+      if (!Number.isFinite(newDiscountPct) || newDiscountPct < 0 || newDiscountPct > 100) {
+        setToast(t('discount_invalid'));
+        return;
+      }
     }
-    const discountedUnitPrice = sale.unit_price_tnd * (1 - (newDiscountPct ?? 0) / 100);
-    const newTotal = sale.qty * discountedUnitPrice;
+    // unit_price_tnd is the ORIGINAL price — discount applied from scratch each time.
+    const movementUnitPrice = discountedUnit(sale.unit_price_tnd, newDiscountPct);
+    const newTotal = movementUnitPrice * sale.qty;
     try {
       await revertMovement(db, sale.movement_id);
       const lot = await pickFifoLot(db, sale.variant_id);
@@ -579,11 +624,12 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         location: 'floor',
         transaction_id: sessionIdRef.current,
         lot_id: lot?.id ?? null,
-        unit_price_tnd: discountedUnitPrice,
+        unit_price_tnd: movementUnitPrice,
       });
       const updated: SessionSale = {
         ...sale,
         movement_id: mv.id,
+        // unit_price_tnd intentionally unchanged — invariant
         discount_pct: newDiscountPct,
         total: newTotal,
       };
@@ -614,15 +660,20 @@ function SellTab({ active, onSwitch }: SellTabProps): JSX.Element {
         const rate = getTaxRate(article, profile ?? null) ?? 0;
         return Math.max(max, rate);
       }, 0);
-      const lines: InvoiceLine[] = sessionSales.map((sale) => ({
-        description: [sale.article_name, sale.color, sale.size]
-          .filter((part): part is string => typeof part === 'string' && part.length > 0)
-          .join(' · '),
-        reference: sale.internal_code,
-        qty: sale.qty,
-        unit_price_minor: Math.round(sale.total / Math.max(1, sale.qty)),
-        unit_of_measure: sale.unit_of_measure,
-      }));
+      const lines: InvoiceLine[] = sessionSales.map((sale) => {
+        const hasDiscount = sale.discount_pct != null && sale.discount_pct > 0;
+        return {
+          description: [sale.article_name, sale.color, sale.size]
+            .filter((part): part is string => typeof part === 'string' && part.length > 0)
+            .join(' · '),
+          reference: sale.internal_code,
+          qty: sale.qty,
+          unit_price_minor: discountedUnit(sale.unit_price_tnd, sale.discount_pct),
+          unit_of_measure: sale.unit_of_measure,
+          original_unit_price_minor: hasDiscount ? sale.unit_price_tnd : null,
+          discount_pct: hasDiscount ? sale.discount_pct : null,
+        };
+      });
       const customerAddress = selectedCustomer
         ? [selectedCustomer.address, selectedCustomer.city, selectedCustomer.country]
             .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
@@ -1464,7 +1515,7 @@ function VariantPicker(props: {
   const available = activeCell?.qty ?? 0;
   const overridePrice = parseCurrency(unitPriceText, locale, currency);
   const effectiveUnitPrice =
-    overridePrice !== null && overridePrice >= 0 ? overridePrice : article.sale_price_tnd;
+    overridePrice !== null && overridePrice > 0 ? overridePrice : article.sale_price_tnd;
   const total = qty * effectiveUnitPrice;
   const canConfirm = qty > 0 && qty <= available && activeVariant !== null;
 
@@ -1601,9 +1652,12 @@ function VariantPicker(props: {
               placeholder={t('unit_price_placeholder')}
               className="border-hair w-full rounded-lg border bg-white px-3 py-2 text-sm tabular-nums"
             />
-            {article.sale_price_tnd > 0 &&
-            overridePrice !== null &&
-            overridePrice !== article.sale_price_tnd ? (
+            {overridePrice === 0 && unitPriceText !== '' ? (
+              <p className="text-bad mt-1 text-xs">⚠ {t('price_zero_warning')}</p>
+            ) : article.sale_price_tnd > 0 &&
+              overridePrice !== null &&
+              overridePrice > 0 &&
+              overridePrice !== article.sale_price_tnd ? (
               <p className="mt-1 text-xs text-amber-700">
                 {t('price_overridden_hint', {
                   original: formatCurrency(article.sale_price_tnd, locale, currency),
@@ -1869,8 +1923,14 @@ function SessionSummary(props: {
                           step={1}
                           value={sale.discount_pct ?? ''}
                           onChange={(e) => {
-                            const v = e.target.value === '' ? null : Number(e.target.value);
-                            onUpdateDiscount(sale, v);
+                            const raw = e.target.value;
+                            if (raw === '') {
+                              onUpdateDiscount(sale, null);
+                              return;
+                            }
+                            const parsed = Number(raw);
+                            if (!Number.isFinite(parsed)) return;
+                            onUpdateDiscount(sale, Math.min(100, Math.max(0, parsed)));
                           }}
                           placeholder="0%"
                           className="border-hair w-12 rounded-md border bg-white px-1.5 py-1 text-end text-xs tabular-nums"

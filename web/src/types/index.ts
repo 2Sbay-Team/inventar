@@ -604,6 +604,9 @@ export interface InvoiceLine {
   // for back-compat with invoices issued before this field landed;
   // missing/null reads as 'piece' (the historical default).
   unit_of_measure?: Uom;
+  // Optional discount fields — null/undefined = no discount (back-compat).
+  original_unit_price_minor?: number | null;
+  discount_pct?: number | null;
 }
 
 export interface Invoice {

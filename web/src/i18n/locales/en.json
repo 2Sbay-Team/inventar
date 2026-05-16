@@ -770,6 +770,8 @@
     "price_overridden_hint": "Catalog price: {{original}}. Editing for this sale only.",
     "discount_aria": "Discount percent",
     "discount_invalid": "Discount must be between 0 and 100",
+    "cart_qty_exceeds_stock": "Only {{available}} available in stock",
+    "price_zero_warning": "Sale price is zero — this is a free sale.",
     "discount_update_failed": "Couldn't update discount. Please try again.",
     "discount_label": "Discount",
     "total_discount": "Total discount",

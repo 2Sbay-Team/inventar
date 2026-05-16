@@ -769,6 +769,8 @@
     "price_overridden_hint": "Prix catalogue : {{original}}. Modification pour cette vente uniquement.",
     "discount_aria": "Pourcentage de remise",
     "discount_invalid": "La remise doit être entre 0 et 100",
+    "cart_qty_exceeds_stock": "Seulement {{available}} disponibles en stock",
+    "price_zero_warning": "Le prix de vente est zéro — vente gratuite.",
     "discount_update_failed": "Impossible de mettre à jour la remise.",
     "discount_label": "Remise",
     "total_discount": "Remise totale",

@@ -770,6 +770,8 @@
     "price_overridden_hint": "سعر الكاتالوج: {{original}}. تعديل لهذا البيع فقط.",
     "discount_aria": "نسبة الخصم",
     "discount_invalid": "يجب أن يكون الخصم بين 0 و 100",
+    "cart_qty_exceeds_stock": "متوفِّر فقط {{available}} في المخزون",
+    "price_zero_warning": "سعر البيع صفر — هذا بيع مجاني.",
     "discount_update_failed": "تعذَّر تحديث الخصم.",
     "discount_label": "الخصم",
     "total_discount": "إجمالي الخصم",
